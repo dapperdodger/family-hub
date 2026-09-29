@@ -150,9 +150,19 @@ Handler, live branch:
    background thread already makes every 300s, so no new sync machinery.
 
 No new integration-registry descriptor: `google_calendar`'s existing one
-(`any(kind=="google")`) already gates this. The `+` button and picker hide
-under the existing `body.integ-off-google_calendar` CSS rule — CLAUDE.md
-is explicit that a feature must not build a second toggle mechanism.
+(`any(kind=="google")`) already gates this. Correction after reading
+`integrations.py` closely: `google_calendar` is `group="integration"`, not
+one of the `group="feature"` core surfaces (chores/todos) that get a
+dedicated `body.integ-off-<id>` CSS hide rule — no such rule exists for
+calendar, because the Calendar overlay is always present and the source
+toggles already gate by filtering which events populate it
+(`_calendar_block`'s `cal_google_on`/`cal_ics_on`/`cal_caldav_on`), not by
+hiding a DOM slot. The `+` button and picker follow that same pattern: the
+picker is populated from a writable-calendars list that already returns
+empty when `google_calendar` is off, and the form renders "no calendar
+configured" instead of a picker when that list is empty. No CSS hook, no
+second toggle mechanism, no new registry descriptor — CLAUDE.md is
+explicit that a feature must not build a second toggle mechanism.
 
 No new secret/env var (reuses `TOKEN_PATH`), so no docker-compose /
 `.env.example` change.
@@ -202,9 +212,10 @@ JS (fake-DOM):
 - `escapeHtml` on every user-entered string (title/location/description)
   rendered back into the DOM.
 
-Static guards (`test_static.py`): confirm the `+` button/modal are wired
-under the same `integ-off-google_calendar` hook as the rest of the
-calendar surface — no second toggle mechanism.
+Static guards (`test_static.py`): confirm the add-event modal is wired
+into the same shared modal machinery (`MODAL_CLOSERS`, the Escape-key
+handler) every other modal uses, and that no parallel toggle mechanism was
+built for its visibility.
 
 ## Docs & release
 
