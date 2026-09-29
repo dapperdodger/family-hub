@@ -1181,6 +1181,7 @@ def test_each_reset_path_clears_the_refusal_count(cdb, reset):
     assert fdb.get_cal_object(cdb, oid)["sync_refusals"] == 0
     assert fdb.record_cal_object_error(cdb, oid, "no", "t3",
                                        permanent=True) is False
+    assert fdb.caldav_parked(cdb) == []
 
 
 def test_add_event_row_inserts_and_is_readable(conn):
