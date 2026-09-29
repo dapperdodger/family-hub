@@ -1901,6 +1901,36 @@ body.overlay-open { overflow: hidden; }
 }
 .chore-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* ============ add-event modal (calendar overlay's "+" button) ============ */
+/* Same layering/sizing as .chore-modal/.chore-card (a reusable form host),
+   under its own class names — sharing .chore-modal's classes would make the
+   delegated click handler's backdrop-tap check for .chore-modal ALSO catch
+   this modal and call the wrong close function. */
+.add-event-modal {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 24px; overflow-y: auto;
+}
+.add-event-card {
+  position: relative;
+  width: 100%; max-width: 560px; margin: auto;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  padding: 52px 26px 26px 26px;
+}
+#add-event-form { display: flex; flex-direction: column; gap: 18px; }
+.add-event-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 40px; height: 40px;
+  font-size: 16px; color: var(--dim);
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  border-radius: 50%; cursor: pointer;
+}
+.add-event-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ============ delete confirm (custom; above the chores overlay) ============ */
 /* NOT window.confirm (blocked/ugly on kiosks). Layers above the editor too
    (z-index 95 > the editor's 90 > the overlay's 50); the failure toast (100)

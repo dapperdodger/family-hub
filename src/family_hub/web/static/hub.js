@@ -343,6 +343,7 @@ function calNavHtml(title) {
     + `<span class="cal-nav-title">${escapeHtml(title)}</span>`
     + `<span class="spacer"></span>`
     + `<div class="segmented">${seg('month', 'Month')}${seg('agenda', 'Week')}</div>`
+    + `<button class="cal-nav-btn cal-nav-add" type="button" data-caladd="1" aria-label="Add event">+</button>`
     + `</div>`;
 }
 

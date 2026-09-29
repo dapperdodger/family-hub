@@ -191,6 +191,18 @@
     </div>
   </div>
 
+  <!-- Add-event modal: opened by the "+" button in the calendar overlay's
+       nav row (calNavHtml). Structurally identical to chore-modal (a
+       reusable form host + close button), its own class names so the
+       delegated click handler's .chore-close backdrop check can't also
+       catch taps meant for this modal. -->
+  <div class="add-event-modal hidden" id="add-event-modal" role="dialog" aria-modal="true" aria-label="Add event" tabindex="-1">
+    <div class="add-event-card" id="add-event-card">
+      <button class="add-event-close" type="button" aria-label="Close">✕</button>
+      <div id="add-event-form"></div>
+    </div>
+  </div>
+
   <!-- Delete confirm: a CUSTOM confirm (window.confirm is blocked on kiosks and
        against policy). Layered above the overlay like the editor; it names the
        chore. Cancel dismisses with no write; Delete fires DELETE /api/admin/

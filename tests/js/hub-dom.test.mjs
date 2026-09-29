@@ -38,6 +38,7 @@ const SEEDED_IDS = [
   'panels', 'tabbar', 'overlay', 'overlay-home', 'overlay-content', 'ev-modal',
   'ev-card',
   'chore-modal', 'chore-card', 'chore-editor',
+  'add-event-modal', 'add-event-card', 'add-event-form',
   'confirm-modal', 'confirm-card', 'confirm-msg', 'confirm-sub',
   'settings-version',
 ];
@@ -1226,6 +1227,12 @@ test('renderCalFull passes calWin.window through to the month grid', () => {
 
   const html = document.getElementById('cal-full').innerHTML;
   assert.match(html, /mg-unsynced/, 'a day beyond the fixture window is marked, via the real render path');
+});
+
+test('calNavHtml includes an add-event button', () => {
+  const { sandbox } = newHub();
+  const html = sandbox.calNavHtml('October 2026');
+  assert.match(html, /data-caladd="1"/);
 });
 
 // calDefaultMode picks the opening view: the wall gets the month grid, a phone
