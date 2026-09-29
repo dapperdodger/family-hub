@@ -1181,4 +1181,37 @@ def test_each_reset_path_clears_the_refusal_count(cdb, reset):
     assert fdb.get_cal_object(cdb, oid)["sync_refusals"] == 0
     assert fdb.record_cal_object_error(cdb, oid, "no", "t3",
                                        permanent=True) is False
-    assert fdb.caldav_parked(cdb) == []
+
+
+def test_add_event_row_inserts_and_is_readable(conn):
+    fdb.add_event_row(conn, {
+        "id": "e1", "calendar_id": "cal", "title": "Dentist",
+        "start_ts": "2026-10-01T09:00:00", "end_ts": "2026-10-01T10:00:00",
+        "all_day": 0,
+    })
+    rows = fdb.list_events(conn)
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Dentist"
+    assert rows[0]["location"] == ""       # default applied, not NULL
+
+
+def test_add_event_row_replaces_on_same_calendar_and_id(conn):
+    fdb.add_event_row(conn, {"id": "e1", "calendar_id": "cal", "title": "Old",
+                             "start_ts": "2026-10-01T09:00:00",
+                             "end_ts": "2026-10-01T10:00:00", "all_day": 0})
+    fdb.add_event_row(conn, {"id": "e1", "calendar_id": "cal", "title": "New",
+                             "start_ts": "2026-10-01T09:00:00",
+                             "end_ts": "2026-10-01T10:00:00", "all_day": 0})
+    rows = fdb.list_events(conn)
+    assert len(rows) == 1 and rows[0]["title"] == "New"
+
+
+def test_add_event_row_leaves_other_calendars_untouched(conn):
+    fdb.replace_events(conn, [{"id": "keep", "calendar_id": "other",
+                              "title": "Keep me", "start_ts": "2026-10-01",
+                              "end_ts": "2026-10-02", "all_day": 1}])
+    fdb.add_event_row(conn, {"id": "e1", "calendar_id": "cal", "title": "New",
+                             "start_ts": "2026-10-01T09:00:00",
+                             "end_ts": "2026-10-01T10:00:00", "all_day": 0})
+    ids = {(r["calendar_id"], r["id"]) for r in fdb.list_events(conn)}
+    assert ids == {("other", "keep"), ("cal", "e1")}

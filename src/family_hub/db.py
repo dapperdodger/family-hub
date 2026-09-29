@@ -910,6 +910,22 @@ def replace_events_caldav(conn, events: list[dict], keep_ids: tuple = ()) -> Non
     _replace_events(conn, events, "calendar_id LIKE 'caldav:%'", keep_ids)
 
 
+def add_event_row(conn, event: dict) -> None:
+    """Insert or replace ONE cached event row (PK: calendar_id, id) — the
+    single-row counterpart to replace_events's wholesale window swap. Used
+    by the add-event endpoint for both DEMO's local-only write and the live
+    path's immediate-visibility insert (ahead of the full resync)."""
+    with conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO events(id, calendar_id, title, start_ts, "
+            "end_ts, all_day, updated, location, description, color_id) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (event["id"], event["calendar_id"], event["title"],
+             event["start_ts"], event["end_ts"], event["all_day"],
+             event.get("updated"), event.get("location", ""),
+             event.get("description", ""), event.get("color_id")))
+
+
 def list_events(conn) -> list[dict]:
     rows = conn.execute("SELECT * FROM events ORDER BY start_ts")
     return [dict(r) for r in rows]
