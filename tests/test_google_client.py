@@ -200,3 +200,19 @@ def test_google_auth_script_writes_token_owner_only(tmp_path, monkeypatch):
     mod.main()
     assert tok.read_text() == '{"token": "t"}'
     assert stat.S_IMODE(os.stat(tok).st_mode) == 0o600
+
+
+def test_create_event_inserts_and_returns_the_created_item():
+    svc = _fake_service()
+    created = {"id": "new1", "summary": "Dentist",
+               "start": {"dateTime": "2026-10-01T09:00:00-07:00"},
+               "end": {"dateTime": "2026-10-01T10:00:00-07:00"}}
+    svc.events.return_value.insert.return_value.execute.return_value = created
+    with mock.patch("googleapiclient.discovery.build", return_value=svc), \
+         mock.patch.object(GoogleCalendarClient, "_creds", return_value="creds"):
+        body = {"summary": "Dentist",
+                "start": {"dateTime": "2026-10-01T09:00:00-07:00", "timeZone": "America/Los_Angeles"},
+                "end": {"dateTime": "2026-10-01T10:00:00-07:00", "timeZone": "America/Los_Angeles"}}
+        result = GoogleCalendarClient("/tmp/tok.json").create_event("cal1", body)
+    assert result == created
+    svc.events.return_value.insert.assert_called_once_with(calendarId="cal1", body=body)

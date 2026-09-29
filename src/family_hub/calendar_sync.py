@@ -356,6 +356,15 @@ class GoogleCalendarClient:
                 break
         return items
 
+    def create_event(self, calendar_id: str, body: dict) -> dict:
+        """Insert one event via events().insert. No pagination (a single
+        insert), unlike fetch_events/fetch_calendar_colors above."""
+        from googleapiclient.discovery import build
+        service = build("calendar", "v3", credentials=self._creds(),
+                        cache_discovery=False)
+        return service.events().insert(
+            calendarId=calendar_id, body=body).execute()
+
 
 def sync_once(client, conn, cfg, now: dt.datetime, ics_fetch=None) -> dict:
     """Fetch every configured calendar source (Google and/or ICS) into the
