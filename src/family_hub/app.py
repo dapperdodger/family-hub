@@ -470,6 +470,21 @@ def _calendar_status_agg(c) -> dict:
     return {"ok": False, "error": "; ".join(errs) if errs else "not configured"}
 
 
+def _writable_calendars(cal_google_on: bool, google_colors: dict) -> list[dict]:
+    """Google-kind calendars this hub can write to (Task 4): every
+    configured kind=='google' entry, hidden entirely when the integration
+    toggle is off (same gating _calendar_block already applies to its
+    events). Color prefers the user's synced Google color over the config
+    fallback, matching every event row's own color resolution above."""
+    if not cal_google_on:
+        return []
+    return [
+        {"id": cal["id"], "label": cal.get("label", cal["id"]),
+         "color": google_colors.get(cal["id"]) or cal.get("color", "")}
+        for cal in cfg.calendars if cal.get("kind", "google") == "google"
+    ]
+
+
 def _calendar_block(c, today: dt.date, days: int, past_days: int = 0) -> dict:
     status = _calendar_status_agg(c)
     cal_map = {cal["id"]: cal for cal in cfg.calendars}
@@ -618,6 +633,7 @@ def _calendar_block(c, today: dt.date, days: int, past_days: int = 0) -> dict:
     return {
         "status": status,
         "events": events,
+        "calendars": _writable_calendars(cal_google_on, google_colors),
         "window": {
             "from": (today - dt.timedelta(days=synced_back)).isoformat(),
             "to": (today + dt.timedelta(days=synced_fwd)).isoformat(),

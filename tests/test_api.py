@@ -1120,6 +1120,25 @@ def test_google_calendar_color_beats_config(client, app_mod):
     assert ev["color"] == "#9FE1E7"                    # the user's Google color
 
 
+def test_calendar_endpoint_lists_writable_google_calendars(client, app_mod):
+    out = client.get("/api/calendar").json()
+    assert out["calendars"] == [{"id": "cal", "label": "Fam", "color": "#5BC9F0"}]
+
+
+def test_calendar_endpoint_calendars_list_prefers_synced_color(client, app_mod):
+    c = app_mod._db()
+    fdb.kv_set(c, "calendar_colors", {"cal": "#9FE1E7"})
+    out = client.get("/api/calendar").json()
+    assert out["calendars"][0]["color"] == "#9FE1E7"
+
+
+def test_calendar_endpoint_calendars_list_hides_when_google_off(client, app_mod):
+    c = app_mod._db()
+    fdb.set_integration_enabled(c, "google_calendar", False)
+    out = client.get("/api/calendar").json()
+    assert out["calendars"] == []
+
+
 def test_calendar_past_window(client, app_mod):
     c = app_mod._db()
     today = app_mod._today()
