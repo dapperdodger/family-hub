@@ -1305,6 +1305,61 @@ def test_add_event_demo_mode_writes_locally_with_no_client(client_demo, app_mod_
     assert any(e["title"] == "Birthday" for e in ev)
 
 
+def test_add_event_demo_mode_timed_event_strips_offset_to_house_local(client_demo, app_mod_demo):
+    # DEMO events never round-trip through Google/normalize_event, so they
+    # don't get that path's offset->house-tz conversion for free. To match
+    # demo.py's own seeded events (always naive house-local strings — see
+    # demo.py's calendar seed) rather than storing a raw offset the wall's
+    # other, non-Google-synced demo data never carries, an offset-aware
+    # input is converted to house time and stored WITHOUT an offset suffix.
+    today = app_mod_demo._today().isoformat()
+    r = client_demo.post("/api/events", json={
+        "calendar_id": "cal", "title": "Flight", "all_day": False,
+        "start": f"{today}T09:00:00+00:00", "end": f"{today}T10:00:00+00:00"})
+    assert r.status_code == 200
+    body = r.json()
+    assert dt.datetime.fromisoformat(body["start_ts"]).tzinfo is None
+    assert dt.datetime.fromisoformat(body["end_ts"]).tzinfo is None
+
+
+def test_add_event_rejects_mismatched_utc_offsets_even_when_raw_strings_sort_fine(client, app_mod):
+    # A raw-string comparison of "...T09:00:00+00:00" vs "...T08:00:00-07:00"
+    # reads the end as lexically GREATER than the start (the digit right
+    # after the shared prefix is '9' > '8'), so the old `end < body.start`
+    # string check let this request sail through validation even though
+    # 08:00-07:00 = 15:00 UTC is actually LATER than 09:00+00:00 = 09:00 UTC
+    # — i.e. this is a genuinely backwards (end-before-start) event that the
+    # buggy string check would have accepted (it would have gone on to a 409
+    # not-connected here, proving validation passed). Real datetime handling
+    # must not let a mismatched-offset pair slip through as if it compared
+    # correctly; this app's stricter "don't silently mix offsets" rule
+    # catches it up front.
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "X", "all_day": False,
+        "start": f"{today}T08:00:00-07:00", "end": f"{today}T09:00:00+00:00"})
+    assert r.status_code == 422
+
+
+def test_add_event_live_path_background_resync_failure_still_returns_200(client, app_mod, monkeypatch):
+    # sync_once runs as a BackgroundTask after the Google write already
+    # succeeded — its failure must never surface as a 500 to the caller
+    # (who would then plausibly retry and create a DUPLICATE event on their
+    # real calendar). TestClient runs scheduled background tasks before the
+    # call returns, so this failure is exercised synchronously here.
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+
+    def boom(*a, **k):
+        raise RuntimeError("resync exploded")
+    monkeypatch.setattr(app_mod, "sync_once", boom)
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "Dentist", "all_day": False,
+        "start": f"{today}T09:00:00", "end": f"{today}T10:00:00"})
+    assert r.status_code == 200
+    assert r.json()["id"] == "g-new1"
+
+
 def test_tiles_routes_monkeypatched(client, monkeypatch):
     async def fake_climate(hclient, cfg):
         return {"available": True,

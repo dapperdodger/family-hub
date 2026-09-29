@@ -30,7 +30,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, WebSocket
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -2518,24 +2518,70 @@ def _validate_event_calendar(calendar_id: str) -> None:
 
 
 def _event_start_end(body: EventIn) -> tuple[str, str]:
-    """Parse/validate start (and default/validate end). All-day end
-    defaults to the next day (Google's end is EXCLUSIVE); a timed event
-    defaults to a 1-hour span. Raises 422 on anything unparsable or an end
-    before start."""
+    """Parse/validate start (and default/validate end) as real date/datetime
+    objects, not raw strings — comparing two ISO timestamps as strings gives
+    the wrong chronological verdict once they carry different UTC offsets
+    (e.g. "09:00:00+00:00" reads as lexically LESS than "08:00:00-07:00",
+    even though 08:00-07:00 = 15:00 UTC is actually the later time; a
+    same-offset pair happens to compare correctly as strings, which is why
+    the bug hid in the original version). All-day end defaults to the next
+    day (Google's end is EXCLUSIVE, so end == start is a zero-length event
+    Google would reject too, hence the strict '>' below); a timed event
+    defaults to a 1-hour span and allows end == start (a legitimate
+    zero-duration marker).
+
+    A naive/aware mismatch, or two aware values with different fixed UTC
+    offsets, is rejected as 422 rather than resolved: this app's convention
+    (see calendar_sync._local_iso) is that a naive datetime means
+    house-local wall-clock, and it never silently guesses which zone an
+    offset-free value belongs to or reconciles two different offsets on its
+    own. Returns each value's canonical isoformat() (not the client's raw
+    string) so what gets stored/sent to Google is always the normalized
+    form, regardless of separator/precision/offset spelling on the way in.
+    """
     try:
         if body.all_day:
             start_d = dt.date.fromisoformat(body.start)
-            end = body.end or (start_d + dt.timedelta(days=1)).isoformat()
-            dt.date.fromisoformat(end)
+            end_d = (dt.date.fromisoformat(body.end) if body.end
+                      else start_d + dt.timedelta(days=1))
         else:
-            start_t = dt.datetime.fromisoformat(body.start)
-            end = body.end or (start_t + dt.timedelta(hours=1)).isoformat()
-            dt.datetime.fromisoformat(end)
+            start_dt = dt.datetime.fromisoformat(body.start)
+            end_dt = (dt.datetime.fromisoformat(body.end) if body.end
+                       else start_dt + dt.timedelta(hours=1))
     except ValueError:
         raise HTTPException(422, "start/end must be valid dates/datetimes")
-    if end < body.start:
+
+    if body.all_day:
+        if end_d <= start_d:
+            raise HTTPException(422, "end must be after start")
+        return start_d.isoformat(), end_d.isoformat()
+
+    if (start_dt.tzinfo is None) != (end_dt.tzinfo is None):
+        raise HTTPException(
+            422, "start and end must both be naive (house-local) or both "
+            "carry a UTC offset")
+    if (start_dt.tzinfo is not None and end_dt.tzinfo is not None
+            and start_dt.utcoffset() != end_dt.utcoffset()):
+        raise HTTPException(422, "start and end must use the same UTC offset")
+    if end_dt < start_dt:
         raise HTTPException(422, "end must not be before start")
-    return body.start, end
+    return start_dt.isoformat(), end_dt.isoformat()
+
+
+def _house_local_naive(ts: str) -> str:
+    """Convert an ISO datetime string to a naive house-local wall-clock
+    string, matching demo.py's own seeded events (which are always naive —
+    see demo.py's calendar seed) and this app's general convention that a
+    naive timestamp means house-local. Used only by the DEMO write path,
+    which never round-trips through Google/normalize_event to get that
+    normalization for free. A value that's already naive is assumed to
+    already be house-local and is returned as given; an offset-aware value
+    is converted to TZ first so the wall-clock digits are the ones a house
+    clock would actually show."""
+    t = dt.datetime.fromisoformat(ts)
+    if t.tzinfo is not None:
+        t = t.astimezone(TZ).replace(tzinfo=None)
+    return t.isoformat()
 
 
 def _event_google_body(title: str, location: str, description: str,
@@ -2554,8 +2600,35 @@ def _event_google_body(title: str, location: str, description: str,
     return body
 
 
+def _background_resync(client, now: dt.datetime) -> None:
+    """Runs AFTER the response for a live add-event POST has already been
+    sent (scheduled via FastAPI's BackgroundTasks). Opens its own DB
+    connection rather than reusing the request's thread-local one (_db()'s
+    _tls.conn): BackgroundTasks may execute on a different worker thread
+    than the one that handled the request, and even if it lands back on the
+    same thread, that thread may already have picked up a new request and
+    be using _tls.conn by the time this runs. Same reasoning as sync_loop's
+    own dedicated connection (see _open_sync_conn) — every independent
+    sync pass gets its own handle. Best-effort only: the Google write
+    already succeeded and the caller already has its row, so a failure here
+    is logged, not raised; the next scheduled tick (or the next add-event
+    call) will reconcile whatever this pass missed."""
+    conn = None
+    try:
+        conn = fdb.connect(DB_PATH)
+        sync_once(client, conn, cfg, now)
+    except Exception:
+        log.exception("post-add-event background resync failed")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 @app.post("/api/events")
-def events_add(body: EventIn):
+def events_add(body: EventIn, background: BackgroundTasks):
     title = body.title.strip()
     if not (1 <= len(title) <= 200):
         raise HTTPException(422, "title must be 1-200 characters")
@@ -2565,15 +2638,25 @@ def events_add(body: EventIn):
 
     if DEMO:
         # No real Google account in DEMO — write straight into the local
-        # cache the wall already reads, same shape as a synced row.
+        # cache the wall already reads, same shape as a synced row. Nothing
+        # else was written anywhere (there's no real calendar in DEMO), so
+        # unlike the live path below, a failure here has no fallback and
+        # legitimately becomes a clean 500 — the caller needs to know it
+        # did not save.
         row = {
             "id": f"local-{uuid.uuid4().hex[:12]}", "calendar_id": body.calendar_id,
-            "title": title, "start_ts": start, "end_ts": end,
+            "title": title,
+            "start_ts": start if body.all_day else _house_local_naive(start),
+            "end_ts": end if body.all_day else _house_local_naive(end),
             "all_day": 1 if body.all_day else 0,
             "updated": None, "location": body.location,
             "description": body.description, "color_id": None,
         }
-        fdb.add_event_row(c, row)
+        try:
+            fdb.add_event_row(c, row)
+        except Exception:
+            log.exception("DEMO add-event local write failed")
+            raise HTTPException(500, "could not save the event")
         return row
 
     client = GoogleCalendarClient(TOKEN_PATH)
@@ -2595,11 +2678,25 @@ def events_add(body: EventIn):
         raise HTTPException(
             502, f"event created ({item.get('id')}) but its response "
             "could not be read; it will appear once the next sync runs")
-    fdb.add_event_row(c, row)
+    # The Google write already succeeded at this point — a failure caching
+    # it locally must never turn into an error response (the caller would
+    # retry and create a DUPLICATE event on their real calendar). Log and
+    # keep going; the background resync below (or the next one) will still
+    # pick the row up from Google's own listing even if this insert failed.
+    try:
+        fdb.add_event_row(c, row)
+    except Exception:
+        log.exception("post-create local cache insert failed (Google event "
+                       "%s was still created)", row.get("id"))
     # Doc-mandated "insert, then trigger a re-sync": reconciles colors and
     # any other drift with the same call the background thread already
-    # makes every 300s.
-    sync_once(client, c, cfg, _now_local())
+    # makes every 300s. Backgrounded (not awaited) so a full multi-calendar
+    # resync (each source has its own ~20s fetch timeout) never blocks this
+    # response — the local insert above already gives the caller immediate
+    # visibility. `now` is captured here, not inside the task, so the
+    # resync uses "now" at insert time rather than whenever it happens to
+    # actually run.
+    background.add_task(_background_resync, client, _now_local())
     return row
 
 
