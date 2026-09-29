@@ -10,6 +10,11 @@ rolls that section to a dated version via `python scripts/release.py`.
 
 ## [Unreleased]
 
+### Added
+- The calendar overlay has a "+" button to add an event directly to any
+  configured Google calendar, with immediate visibility and no wait for
+  the next background sync.
+
 ### Fixed
 - The Wyze bridge's health check now also probes the bridge's own internal
   go2rtc. That relay can exit alone right after the container starts, and

@@ -1159,6 +1159,20 @@ def test_off_features_hide_their_wall_surface():
                      CSS), "todos-off must hide the to-do slot on the wall"
 
 
+def test_add_event_modal_is_wired_through_the_shared_modal_machinery():
+    """The add-event modal must participate in the same close/idle/wallBusy
+    machinery every other modal does (CLAUDE.md: 'a new modal or popover
+    goes in the set surfaceOpen() and wallBusy() read, closes on idle and
+    on Escape') — not a bespoke, easy-to-forget parallel path."""
+    hub = (STATIC / "hub.js").read_text()
+    assert re.search(r"'add-event-modal':\s*\(\)\s*=>\s*closeAddEventModal\(\)", hub), \
+        "add-event-modal must be registered in MODAL_CLOSERS"
+    assert re.search(r"modalShown\('add-event-modal'\)", hub), \
+        "add-event-modal must be checked in the Escape-key handler"
+    index = (STATIC / "index.html").read_text()
+    assert 'id="add-event-modal"' in index and 'id="add-event-card"' in index
+
+
 def test_all_off_empty_state_present_and_wired():
     index = (STATIC / "index.html").read_text()
     assert 'id="hub-empty-msg"' in index, "missing all-off empty-state element"
