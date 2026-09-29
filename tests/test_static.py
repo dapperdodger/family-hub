@@ -42,7 +42,12 @@ UNSTYLED_OK = {"f-title", "f-icon", "f-repeat", "f-days", "f-assign",
                # routine-type + reminder-times hooks (styling rides sibling
                # classes: .segmented / .interval-row / .txt-input / .time-list)
                "f-weekfreq", "f-interval", "f-intervaldays", "f-timeinput",
-               "f-timeadd", "f-times"}
+               "f-timeadd", "f-times",
+               # add-event form hooks (buildAddEventForm in common.js);
+               # styling rides sibling classes: .field / .txt-input /
+               # .form-error, same pattern as the routine-type hooks above.
+               "f-allday", "f-calendar", "f-description", "f-endtime",
+               "f-evdate", "f-location", "f-starttime", "f-timerow"}
 
 
 def _css_rule(selector):
