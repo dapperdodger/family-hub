@@ -150,6 +150,14 @@ def test_creds_does_not_rewrite_when_still_valid(tmp_path):
     assert token.read_text() == original   # file untouched when the token is still good
 
 
+def test_scopes_include_both_readonly_and_events():
+    """calendar.events alone would break fetch_calendar_colors, which needs
+    calendarList.list (calendar.readonly). Both scopes must be requested."""
+    from family_hub.calendar_sync import SCOPES
+    assert "https://www.googleapis.com/auth/calendar.readonly" in SCOPES
+    assert "https://www.googleapis.com/auth/calendar.events" in SCOPES
+
+
 def _load_google_auth_script(monkeypatch, token_json):
     """scripts/google-auth.py with the OAuth flow stubbed (no browser, no
     network): the stub hands back credentials whose to_json() is `token_json`."""

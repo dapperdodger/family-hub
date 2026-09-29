@@ -21,7 +21,14 @@ from . import db as fdb
 
 log = logging.getLogger("family_hub.calendar")
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+# Both scopes are needed: calendar.readonly covers calendarList.list (the
+# user's own calendar colors, fetch_calendar_colors below); calendar.events
+# covers events().insert (create_event) but NOT calendarList — scoping down
+# to calendar.events alone would silently break the colors fetch.
+SCOPES = [
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+]
 
 def _mark_error_since(status: dict, prior: dict, now: dt.datetime) -> None:
     """Carry the start of a run of NON-auth errors across ticks, so the wall can

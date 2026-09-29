@@ -11,8 +11,9 @@ Then:
   cd scripts
   python3 google-auth.py
 
-A browser opens; approve read-only Calendar access. This writes `token.json`
-here and prints the scp command to copy it onto the box's data dir.
+A browser opens; approve Calendar access (read your calendars and create
+events on them). This writes `token.json` here and prints the scp command
+to copy it onto the box's data dir.
 
 BOTH `client_secret.json` AND `token.json` are secrets — never commit either.
 They are git-ignored; keep them out of the repo. The box only needs token.json.
@@ -22,7 +23,10 @@ import sys
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+]
 HERE = os.path.dirname(os.path.abspath(__file__))
 # The app's own secret writer (owner-only 0600, temp file + rename), so the
 # token is never briefly world-readable or left half-written.
