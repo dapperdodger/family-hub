@@ -52,6 +52,23 @@ def client(app_mod):
         yield c
 
 
+@pytest.fixture
+def app_mod_demo(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "hub.db"))
+    monkeypatch.setenv("DISABLE_SYNC", "1")
+    monkeypatch.setenv("DEMO", "1")
+    monkeypatch.setenv("CONFIG_PATH", _write_cfg(tmp_path))
+    import family_hub.app as appmod
+    importlib.reload(appmod)
+    return appmod
+
+
+@pytest.fixture
+def client_demo(app_mod_demo):
+    with TestClient(app_mod_demo.app) as c:
+        yield c
+
+
 def _today():
     import family_hub.app as appmod
     return appmod._today()
@@ -1153,6 +1170,139 @@ def test_calendar_past_window(client, app_mod):
     # the hub's home feed never includes the past
     hub_evs = client.get("/api/hub").json()["calendar"]["events"]
     assert not any(e["id"] == "p1" for e in hub_evs)
+
+
+def test_add_event_rejects_unknown_calendar(client, app_mod):
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    r = client.post("/api/events", json={
+        "calendar_id": "nope", "title": "X",
+        "start": start, "all_day": False})
+    assert r.status_code == 422
+
+
+def test_add_event_rejects_non_google_calendar(client, app_mod):
+    # An ICS-kind calendar is a read-only external feed from this app's
+    # perspective, even though its id is known and well-formed. Appended
+    # directly to the loaded module's cfg (the object _validate_event_calendar
+    # reads) rather than round-tripping through a second config file.
+    app_mod.cfg.calendars.append(
+        {"id": "school", "label": "School", "kind": "ics",
+         "url": "https://example.com/school.ics"})
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    r = client.post("/api/events", json={
+        "calendar_id": "school", "title": "X",
+        "start": start, "all_day": False})
+    assert r.status_code == 422
+
+
+def test_add_event_rejects_blank_title(client, app_mod):
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "   ",
+        "start": start, "all_day": False})
+    assert r.status_code == 422
+
+
+def test_add_event_rejects_end_before_start(client, app_mod):
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "X", "all_day": False,
+        "start": f"{today}T09:00:00", "end": f"{today}T08:00:00"})
+    assert r.status_code == 422
+
+
+def test_add_event_defaults_all_day_end_to_the_next_day(client, app_mod):
+    # DEMO-independent: app_mod's default config.json has no token.json, so
+    # this exercises the not-connected path's validation ordering (422
+    # happens before the 409 not-connected check).
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "Trip", "all_day": True,
+        "start": today})
+    # validation passes (the end default is computed); it then hits the
+    # not-connected 409, proving the default was computed, not rejected.
+    assert r.status_code == 409
+
+
+def test_add_event_not_connected_returns_409(client, app_mod):
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "Dentist", "all_day": False,
+        "start": start})
+    assert r.status_code == 409
+    assert "not connected" in r.json()["detail"]
+
+
+class _FakeWriteClient:
+    """A GoogleCalendarClient stand-in used only by app.py's endpoint —
+    configured() true, create_event() returns a canned item, and the
+    fetch_* methods sync_once needs (called right after) return empty/ok
+    so the post-write resync doesn't error."""
+    created_body = None
+    raise_on_create = None
+
+    def __init__(self, token_path):
+        pass
+
+    def configured(self):
+        return True
+
+    def create_event(self, calendar_id, body):
+        _FakeWriteClient.created_body = (calendar_id, body)
+        if _FakeWriteClient.raise_on_create:
+            raise _FakeWriteClient.raise_on_create
+        return {"id": "g-new1", "summary": body["summary"],
+                "start": body["start"], "end": body["end"]}
+
+    def fetch_events(self, cal_id, lo, hi):
+        return []
+
+    def fetch_calendar_colors(self):
+        return {}
+
+
+def test_add_event_live_path_creates_inserts_locally_and_resyncs(client, app_mod, monkeypatch):
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "Dentist", "all_day": False,
+        "start": f"{today}T09:00:00", "end": f"{today}T10:00:00",
+        "location": "Clinic", "description": "bring insurance card"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["title"] == "Dentist" and body["id"] == "g-new1"
+    # visible immediately, before any background sync tick
+    ev = client.get("/api/calendar").json()["events"]
+    assert any(e["id"] == "g-new1" for e in ev)
+    # the Google body carried the house time zone
+    cal_id, gbody = _FakeWriteClient.created_body
+    assert cal_id == "cal"
+    assert gbody["start"]["timeZone"] and gbody["end"]["timeZone"]
+
+
+def test_add_event_live_path_google_failure_is_502_not_500(client, app_mod, monkeypatch):
+    _FakeWriteClient.raise_on_create = RuntimeError("quota exceeded")
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    try:
+        r = client.post("/api/events", json={
+            "calendar_id": "cal", "title": "X", "all_day": False,
+            "start": start})
+    finally:
+        _FakeWriteClient.raise_on_create = None
+    assert r.status_code == 502
+
+
+def test_add_event_demo_mode_writes_locally_with_no_client(client_demo, app_mod_demo):
+    today = app_mod_demo._today().isoformat()
+    tomorrow = (app_mod_demo._today() + dt.timedelta(days=1)).isoformat()
+    r = client_demo.post("/api/events", json={
+        "calendar_id": "cal", "title": "Birthday", "all_day": True,
+        "start": today})
+    assert r.status_code == 200
+    assert r.json()["end_ts"] == tomorrow     # exclusive-end default
+    ev = client_demo.get("/api/calendar").json()["events"]
+    assert any(e["title"] == "Birthday" for e in ev)
 
 
 def test_tiles_routes_monkeypatched(client, monkeypatch):

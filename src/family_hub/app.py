@@ -49,7 +49,7 @@ from . import caldav_service
 from . import caldav_sync
 from . import chore_mirror
 from . import deep_health
-from .calendar_sync import GoogleCalendarClient, sync_once
+from .calendar_sync import GoogleCalendarClient, normalize_event, sync_once
 from .config import load_config
 
 logging.basicConfig(
@@ -2493,6 +2493,114 @@ def calendar(days: int = CAL_FETCH_DAYS, past: int = CAL_FETCH_PAST):
     c = _db()
     with _available_once():
         return _calendar_block(c, _today(), days, past_days=past)
+
+
+class EventIn(BaseModel):
+    calendar_id: str
+    title: str
+    start: str
+    end: str | None = None
+    all_day: bool = False
+    location: str = ""
+    description: str = ""
+
+
+def _validate_event_calendar(calendar_id: str) -> None:
+    """Only a configured kind=='google' calendar can be written to — an
+    unknown id OR a known-but-ICS one (a read-only external feed) both
+    fail the same way. Defense in depth: the frontend picker already
+    filters to google calendars, but a stale/tampered request must not
+    reach Google with someone else's or an unwritable calendar id."""
+    ok = any(c["id"] == calendar_id and c.get("kind", "google") == "google"
+              for c in cfg.calendars)
+    if not ok:
+        raise HTTPException(422, "unknown or non-Google calendar")
+
+
+def _event_start_end(body: EventIn) -> tuple[str, str]:
+    """Parse/validate start (and default/validate end). All-day end
+    defaults to the next day (Google's end is EXCLUSIVE); a timed event
+    defaults to a 1-hour span. Raises 422 on anything unparsable or an end
+    before start."""
+    try:
+        if body.all_day:
+            start_d = dt.date.fromisoformat(body.start)
+            end = body.end or (start_d + dt.timedelta(days=1)).isoformat()
+            dt.date.fromisoformat(end)
+        else:
+            start_t = dt.datetime.fromisoformat(body.start)
+            end = body.end or (start_t + dt.timedelta(hours=1)).isoformat()
+            dt.datetime.fromisoformat(end)
+    except ValueError:
+        raise HTTPException(422, "start/end must be valid dates/datetimes")
+    if end < body.start:
+        raise HTTPException(422, "end must not be before start")
+    return body.start, end
+
+
+def _event_google_body(title: str, location: str, description: str,
+                       start: str, end: str, all_day: bool) -> dict:
+    body: dict = {"summary": title}
+    if location:
+        body["location"] = location
+    if description:
+        body["description"] = description
+    if all_day:
+        body["start"] = {"date": start}
+        body["end"] = {"date": end}
+    else:
+        body["start"] = {"dateTime": start, "timeZone": TZ.key}
+        body["end"] = {"dateTime": end, "timeZone": TZ.key}
+    return body
+
+
+@app.post("/api/events")
+def events_add(body: EventIn):
+    title = body.title.strip()
+    if not (1 <= len(title) <= 200):
+        raise HTTPException(422, "title must be 1-200 characters")
+    _validate_event_calendar(body.calendar_id)
+    start, end = _event_start_end(body)
+    c = _db()
+
+    if DEMO:
+        # No real Google account in DEMO — write straight into the local
+        # cache the wall already reads, same shape as a synced row.
+        row = {
+            "id": f"local-{uuid.uuid4().hex[:12]}", "calendar_id": body.calendar_id,
+            "title": title, "start_ts": start, "end_ts": end,
+            "all_day": 1 if body.all_day else 0,
+            "updated": None, "location": body.location,
+            "description": body.description, "color_id": None,
+        }
+        fdb.add_event_row(c, row)
+        return row
+
+    client = GoogleCalendarClient(TOKEN_PATH)
+    if not client.configured():
+        raise HTTPException(409, "calendar not connected")
+    gbody = _event_google_body(title, body.location, body.description,
+                               start, end, body.all_day)
+    try:
+        item = client.create_event(body.calendar_id, gbody)
+    except Exception as e:
+        raise HTTPException(502, f"could not create the event: {e}")
+    row = normalize_event(item, body.calendar_id, TZ)
+    if row is None:
+        # Google accepted the insert but returned a shape normalize_event
+        # can't read (e.g. no start echoed back) — say so rather than
+        # leaving the caller silently guessing whether it saved. It DID
+        # save; the next background sync (or this one below) will still
+        # pick it up from Google's own listing.
+        raise HTTPException(
+            502, f"event created ({item.get('id')}) but its response "
+            "could not be read; it will appear once the next sync runs")
+    fdb.add_event_row(c, row)
+    # Doc-mandated "insert, then trigger a re-sync": reconciles colors and
+    # any other drift with the same call the background thread already
+    # makes every 300s.
+    sync_once(client, c, cfg, _now_local())
+    return row
 
 
 @app.get("/api/tiles/climate")
