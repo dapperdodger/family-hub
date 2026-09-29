@@ -1020,6 +1020,100 @@ function freshPersonModel() {
   return { name: '', color: SWATCHES[0] };
 }
 
+function freshEventModel() {
+  return { title: '', calendarId: '', date: todayISO(), allDay: false,
+           startTime: '09:00', endTime: '10:00', location: '', description: '' };
+}
+
+/* The POST /api/events body. All-day end is the day AFTER the picked date
+   (Google's exclusive-end convention — _event_start_end on the server
+   applies the same default when `end` is omitted, but the client always
+   sends it explicitly so the picker's summary and the saved event agree). */
+function buildEventPayload(f) {
+  const date = f.date || todayISO();
+  const allDay = !!f.allDay;
+  return {
+    calendar_id: f.calendarId,
+    title: (f.title || '').trim(),
+    start: allDay ? date : `${date}T${f.startTime || '09:00'}:00`,
+    end: allDay ? addDays(date, 1) : `${date}T${f.endTime || f.startTime || '10:00'}:00`,
+    all_day: allDay,
+    location: (f.location || '').trim(),
+    description: (f.description || '').trim(),
+  };
+}
+
+/* The add-event form (mirrors buildChoreForm's shape: innerHTML the whole
+   thing, then wire handlers via querySelector). `calendars` is the
+   [{id,label,color}] list from /api/calendar (Task 4) — empty means no
+   writable calendar is configured, and the form says so instead of
+   showing a picker with nothing in it. */
+function buildAddEventForm(host, calendars, submitLabel, onsubmit) {
+  const model = freshEventModel();
+  if (calendars.length) model.calendarId = calendars[0].id;
+  if (!calendars.length) {
+    host.innerHTML = `<div class="hint">No calendar is set up to add events to yet.</div>`;
+    return;
+  }
+  host.innerHTML = `
+    <div class="field"><label>Title</label>
+      <input class="txt-input f-title" maxlength="200" autocomplete="off"></div>
+    <div class="field"><label>Calendar</label>
+      <select class="txt-input f-calendar">${calendars.map((cal) =>
+        `<option value="${escapeHtml(cal.id)}">${escapeHtml(cal.label)}</option>`).join('')}</select></div>
+    <div class="field"><label>Date</label>
+      <input class="txt-input f-evdate" type="date"></div>
+    <div class="field">
+      <label><input class="f-allday" type="checkbox"> All day</label></div>
+    <div class="field f-timerow"><label>Time</label>
+      <div class="interval-row">
+        <input class="txt-input f-starttime" type="time">
+        <span class="interval-word">to</span>
+        <input class="txt-input f-endtime" type="time">
+      </div></div>
+    <div class="field"><label>Location (optional)</label>
+      <input class="txt-input f-location" maxlength="200" autocomplete="off"></div>
+    <div class="field"><label>Description (optional)</label>
+      <input class="txt-input f-description" maxlength="2000" autocomplete="off"></div>
+    <div class="form-error hidden f-error"></div>
+    <button class="btn-primary" type="button" data-submit>${escapeHtml(submitLabel)}</button>`;
+
+  const $ = (sel) => host.querySelector(sel);
+  $('.f-evdate').value = model.date;
+  $('.f-starttime').value = model.startTime;
+  $('.f-endtime').value = model.endTime;
+
+  const paintAllDay = () => {
+    $('.f-timerow').classList.toggle('hidden', model.allDay);
+  };
+  paintAllDay();
+  $('.f-allday').onchange = (e) => { model.allDay = e.target.checked; paintAllDay(); };
+
+  $('[data-submit]').onclick = oneSaveAtATime($('[data-submit]'), () => {
+    const err = $('.f-error');
+    err.classList.add('hidden');
+    const title = $('.f-title').value.trim();
+    if (!title) {
+      err.textContent = 'Enter a title.';
+      err.classList.remove('hidden');
+      return undefined;
+    }
+    model.title = title;
+    model.calendarId = $('.f-calendar').value;
+    model.date = $('.f-evdate').value || todayISO();
+    model.location = $('.f-location').value;
+    model.description = $('.f-description').value;
+    model.startTime = $('.f-starttime').value || model.startTime;
+    model.endTime = $('.f-endtime').value || model.endTime;
+    if (!model.allDay && model.endTime < model.startTime) {
+      err.textContent = 'End time must not be before start time.';
+      err.classList.remove('hidden');
+      return undefined;
+    }
+    return onsubmit(buildEventPayload(model), err);
+  });
+}
+
 /* The PATCH body that maps a person to an iCloud chore list. The picker's
    "— none —" option is value '', which clears the mapping to null; any real
    list id maps straight through. Pure so the null-clear is unit-testable

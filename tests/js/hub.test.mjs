@@ -1272,3 +1272,39 @@ test('choreToggleMessage: a locked chore says it stays done, never "tap again"',
   assert.equal(sandbox.choreToggleMessage('', true), 'That day has ended, so it can’t be changed now.');
   assert.match(sandbox.choreToggleMessage('boom', false), /tap again/);
 });
+
+// --- add-event form payload shaping (Task 7): freshEventModel seeds a new
+// form, buildEventPayload turns the model into the POST /api/events body.
+
+test('freshEventModel defaults to today, timed, 09:00-10:00, no calendar chosen', () => {
+  const m = sandbox.freshEventModel();
+  assert.equal(m.allDay, false);
+  assert.equal(m.calendarId, '');
+  assert.equal(m.startTime, '09:00');
+  assert.equal(m.endTime, '10:00');
+});
+
+test('buildEventPayload: a timed event combines date+time into start/end', () => {
+  // JSON-normalize: the sandbox returns a cross-realm object (same pattern
+  // the buildChorePayload tests above use for deepEqual).
+  const body = JSON.parse(JSON.stringify(sandbox.buildEventPayload({
+    title: '  Dentist  ', calendarId: 'cal', date: '2026-10-01',
+    allDay: false, startTime: '09:00', endTime: '10:00',
+    location: '  Clinic  ', description: '',
+  })));
+  assert.deepEqual(body, {
+    calendar_id: 'cal', title: 'Dentist', start: '2026-10-01T09:00:00',
+    end: '2026-10-01T10:00:00', all_day: false, location: 'Clinic',
+    description: '',
+  });
+});
+
+test('buildEventPayload: an all-day event sends the NEXT day as the exclusive end', () => {
+  const body = sandbox.buildEventPayload({
+    title: 'Trip', calendarId: 'cal', date: '2026-10-01', allDay: true,
+    startTime: '09:00', endTime: '10:00', location: '', description: '',
+  });
+  assert.equal(body.start, '2026-10-01');
+  assert.equal(body.end, '2026-10-02');
+  assert.equal(body.all_day, true);
+});
