@@ -4946,7 +4946,7 @@ test('the backup\'s card tags a covering chore with "covering for <name>", resol
 test('the wall auto-reloads on a build-token change, but not mid-interaction, and never loops', async () => {
   const { document, sandbox } = newHub();
   // seeded modals -> hidden (production initial state) so the wall reads idle
-  ['ev-modal', 'chore-modal', 'confirm-modal'].forEach((id) => {
+  ['ev-modal', 'chore-modal', 'confirm-modal', 'add-event-modal'].forEach((id) => {
     const el = document.getElementById(id); if (el) el.classList.add('hidden');
   });
   let reloads = 0;
@@ -4988,7 +4988,7 @@ test('auto-reload defers for EVERY wallBusy condition (each modal + theme-pop), 
   for (const { name, setup } of conditions) {
     const { document, sandbox } = newHub();
     // idle baseline: hide the three seeded modals and clear any recent interaction
-    ['ev-modal', 'chore-modal', 'confirm-modal'].forEach((id) => document.getElementById(id).classList.add('hidden'));
+    ['ev-modal', 'chore-modal', 'confirm-modal', 'add-event-modal'].forEach((id) => document.getElementById(id).classList.add('hidden'));
     sandbox.noteInteraction(0);
     let reloads = 0;
     sandbox.location = { reload: () => { reloads++; }, host: 'hub.example:8138', protocol: 'http:' };
@@ -5005,7 +5005,7 @@ test('auto-reload defers for EVERY wallBusy condition (each modal + theme-pop), 
 
 test('auto-reload defers briefly after a direct tap (bare-wall chore taps open no overlay), then fires once idle', async () => {
   const { document, sandbox } = newHub();
-  ['ev-modal', 'chore-modal', 'confirm-modal'].forEach((id) => document.getElementById(id).classList.add('hidden'));
+  ['ev-modal', 'chore-modal', 'confirm-modal', 'add-event-modal'].forEach((id) => document.getElementById(id).classList.add('hidden'));
   let reloads = 0;
   sandbox.location = { reload: () => { reloads++; }, host: 'hub.example:8138', protocol: 'http:' };
   let payload = { date: '2026-08-15', people: [], todos: {},
@@ -5023,7 +5023,7 @@ test('auto-reload defers briefly after a direct tap (bare-wall chore taps open n
 
 test('auto-reload stays dormant when the payload carries no build token (no reload, no throw)', async () => {
   const { document, sandbox } = newHub();
-  ['ev-modal', 'chore-modal', 'confirm-modal'].forEach((id) => document.getElementById(id).classList.add('hidden'));
+  ['ev-modal', 'chore-modal', 'confirm-modal', 'add-event-modal'].forEach((id) => document.getElementById(id).classList.add('hidden'));
   sandbox.noteInteraction(0);
   let reloads = 0;
   sandbox.location = { reload: () => { reloads++; }, host: 'hub.example:8138', protocol: 'http:' };
@@ -8313,7 +8313,7 @@ test('addReminder: a second Done while the add is in flight adds nothing', async
 
 function idleWall() {
   const h = newHub();
-  ['ev-modal', 'chore-modal', 'confirm-modal'].forEach((id) =>
+  ['ev-modal', 'chore-modal', 'confirm-modal', 'add-event-modal'].forEach((id) =>
     h.document.getElementById(id).classList.add('hidden'));
   h.sandbox.noteInteraction(0);
   h.timers = captureTimers(h.sandbox);
@@ -8516,6 +8516,123 @@ test('closing a dialog never re-focuses a text field (no keyboard pops up after 
   sandbox.openEventDetail('e1');
   sandbox.closeEventDetail();
   assert.notEqual(document.activeElement, field);
+});
+
+// ---- add-event modal wiring (Task 8) ----
+
+test('openAddEventModal populates the calendar picker from calWin.calendars', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext(
+    "calWin = { calendars: [{id: 'cal', label: 'Fam', color: '#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };",
+    sandbox);
+
+  sandbox.openAddEventModal();
+
+  const modal = document.getElementById('add-event-modal');
+  assert.equal(modal.classList.contains('hidden'), false);
+  const formHtml = document.getElementById('add-event-form').innerHTML;
+  assert.match(formHtml, /value="cal"/);
+  assert.match(formHtml, />Fam</);
+});
+
+test('openAddEventModal shows a message instead of a picker when no calendar is configured', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+
+  sandbox.openAddEventModal();
+
+  const form = document.getElementById('add-event-form');
+  assert.match(form.innerHTML, /No calendar is set up/);
+});
+
+test('closeAddEventModal hides the modal and clears the form host', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+  sandbox.openAddEventModal();
+
+  sandbox.closeAddEventModal();
+
+  assert.equal(document.getElementById('add-event-modal').classList.contains('hidden'), true);
+  assert.equal(document.getElementById('add-event-form').innerHTML, '');
+});
+
+test('MODAL_CLOSERS closes the add-event modal too (surfaceOpen/wallBusy/idle-return coverage)', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+  sandbox.openAddEventModal();
+
+  assert.equal(sandbox.surfaceOpen(), true, 'an open add-event modal counts as a busy surface');
+  // MODAL_CLOSERS is a top-level `const` — not proxied onto the sandbox
+  // object, so it's invoked by running an expression IN the context.
+  vm.runInContext("MODAL_CLOSERS['add-event-modal']()", sandbox);
+  assert.equal(document.getElementById('add-event-modal').classList.contains('hidden'), true);
+});
+
+test('buildAddEventForm: a fast double-tap on submit only calls onsubmit once (oneSaveAtATime wiring)', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+  let calls = 0;
+  // A never-resolving promise: the button stays disabled the whole test,
+  // proving the SECOND click is a no-op rather than a second submit.
+  sandbox.openAddEventModal();
+  const host = document.getElementById('add-event-form');
+  sandbox.buildAddEventForm(host, [{ id: 'cal', label: 'Fam', color: '#5BC9F0' }],
+    'Add event', () => { calls += 1; return new Promise(() => {}); });
+  host.querySelector('.f-title').value = 'Dentist';
+  const btn = host.querySelector('[data-submit]');
+  btn.onclick();
+  btn.onclick();
+  assert.equal(calls, 1, 'the second tap while the first save is in flight must be a no-op');
+});
+
+test('submitAddEvent success closes the modal, shows the new event, and escapes a hostile title', async () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+  const created = { id: 'g1', calendar_id: 'cal', title: '<img src=x onerror=alert(1)>',
+    start_ts: '2026-10-01T09:00:00', end_ts: '2026-10-01T10:00:00', all_day: 0,
+    location: '', description: '' };
+  sandbox.j = async () => created;
+  sandbox.poll = async () => {};   // avoid a real /api/hub round trip in this test
+  sandbox.openAddEventModal();
+
+  const err = document.createElement('div');
+  await sandbox.submitAddEvent(
+    { calendar_id: 'cal', title: created.title, start: created.start_ts,
+      end: created.end_ts, all_day: false, location: '', description: '' },
+    err);
+
+  assert.equal(document.getElementById('add-event-modal').classList.contains('hidden'), true);
+  // evIndex is a top-level `const` in hub.js — not proxied onto the sandbox
+  // object, so it's read back by running an expression IN the context
+  // (same pattern as the existing pruneEvIndex test), not sandbox.evIndex.
+  assert.ok(vm.runInContext("!!evIndex['g1']", sandbox),
+    'the new event is indexed for the calendar render');
+  // the render path (monthWeekHtml/agendaHtml) escapes on output already —
+  // this pins that the RAW title (unescaped) is what's stored, so a render
+  // bug that stopped escaping would be caught by the existing XSS test
+  // (hub-dom.test.mjs: "safeColor is applied at the color sinks..."), while
+  // this test pins that submitAddEvent doesn't pre-escape (which would
+  // double-escape on render).
+  assert.equal(vm.runInContext("evIndex['g1'].title", sandbox), created.title);
+});
+
+test('submitAddEvent keeps the modal open and shows an inline error on failure', async () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+  sandbox.j = async () => { throw new Error('calendar not connected'); };
+  sandbox.openAddEventModal();   // builds the real form, including its .f-error node
+
+  // The exact date is irrelevant here (submitAddEvent doesn't validate it —
+  // that's the server's job, already covered in Task 5); j() is mocked to
+  // reject regardless of payload, so any well-formed string will do.
+  const errEl = document.getElementById('add-event-form').querySelector('.f-error');
+  await sandbox.submitAddEvent(
+    { calendar_id: 'cal', title: 'X', start: '2026-10-01T09:00:00', all_day: false },
+    errEl);
+
+  assert.equal(document.getElementById('add-event-modal').classList.contains('hidden'), false,
+    'a failed write must not close the modal — the typed data stays');
+  assert.match(errEl.textContent, /connected/);
 });
 
 // ---- iCloud connect form keeps the typed Apple ID (frontend audit) ----

@@ -453,6 +453,52 @@ function closeEventDetail() {
   dialogClosed('ev-modal');
 }
 
+/* --------------------------------------------------------- add event */
+
+function openAddEventModal() {
+  const calendars = (calWin && calWin.calendars) || [];
+  const host = document.getElementById('add-event-form');
+  buildAddEventForm(host, calendars, 'Add event', submitAddEvent);
+  document.getElementById('add-event-modal').classList.remove('hidden');
+  dialogOpened('add-event-modal',
+    document.getElementById('add-event-card').querySelector('.add-event-close'));
+  armIdle();
+}
+
+function closeAddEventModal() {
+  document.getElementById('add-event-modal').classList.add('hidden');
+  dialogClosed('add-event-modal');
+  document.getElementById('add-event-form').innerHTML = '';
+}
+
+/* buildAddEventForm's submit handler: POST, then on success close + repaint
+   the calendar from the response (no need to wait for the next poll); on
+   failure leave the modal open (the typed data is still in the form) and
+   show the message inline, mirroring the doc's "never lose what they
+   typed" requirement. `errEl` is the form's own .f-error node. */
+async function submitAddEvent(body, errEl) {
+  let created;
+  try {
+    created = await j('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    const msg = (e.message || '').includes('not connected')
+      ? "Calendar isn't connected — check Settings."
+      : (e.message || "Couldn't save — check the hub and try again.");
+    errEl.textContent = msg;
+    errEl.classList.remove('hidden');
+    return;
+  }
+  closeAddEventModal();
+  indexEvents([...(calWin && calWin.events || []), created]);
+  if (calWin) calWin.events = [...(calWin.events || []), created];
+  if (openView === 'calendar') renderCalFull();
+  await poll();   // refresh the home-card agenda too
+}
+
 /* --------------------------------------------------------------- people */
 
 function weekStripHtml(week) {
@@ -1852,6 +1898,7 @@ const MODAL_CLOSERS = {
   'ev-modal': () => closeEventDetail(),
   'chore-modal': () => closeChoreEditor(),
   'confirm-modal': () => closeDeleteConfirm(),
+  'add-event-modal': () => closeAddEventModal(),
 };
 
 /* Close EVERY full-screen surface in one call: the MODAL_CLOSERS modals are
@@ -4043,6 +4090,11 @@ document.addEventListener('click', (e) => {
       || (e.target.closest('.chore-modal') && !e.target.closest('.chore-card'))) {
     closeChoreEditor(); return;
   }
+  // add-event modal: ✕ or a backdrop tap dismisses it
+  if (e.target.closest('.add-event-close')
+      || (e.target.closest('.add-event-modal') && !e.target.closest('.add-event-card'))) {
+    closeAddEventModal(); return;
+  }
   // event detail card first: close controls, then any tapped event row/chip
   if (e.target.closest('.ev-close')
       || (e.target.closest('.ev-modal') && !e.target.closest('.ev-card'))) {
@@ -4056,6 +4108,7 @@ document.addEventListener('click', (e) => {
   const viewBtn = e.target.closest('[data-calview]');
   if (viewBtn) { calState.mode = viewBtn.dataset.calview; renderCalFull(); return; }
   if (e.target.closest('[data-calback]')) { calState.mode = 'month'; renderCalFull(); return; }
+  if (e.target.closest('[data-caladd]')) { openAddEventModal(); return; }
   const mgDay = e.target.closest('.mg-day') || e.target.closest('.mg-more');   // the "+N more" chip opens its day too
   if (mgDay) {
     calState.mode = 'day'; calState.day = mgDay.dataset.date;
@@ -5111,6 +5164,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (modalShown('confirm-modal')) { closeDeleteConfirm(); return; }
   if (modalShown('chore-modal')) { closeChoreEditor(); return; }
+  if (modalShown('add-event-modal')) { closeAddEventModal(); return; }
   if (modalShown('ev-modal')) { closeEventDetail(); return; }
   if (openView) closeAllOverlays();
 });
