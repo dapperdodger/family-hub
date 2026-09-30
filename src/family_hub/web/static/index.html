@@ -132,14 +132,25 @@
     </header>
 
     <div class="hub-grid">
-      <section class="cal" id="cal" aria-label="Calendar"></section>
-      <section class="todo-slot" id="todo-slot" aria-label="To-dos"></section>
-      <section class="people-col" aria-label="Chores">
-        <!-- The Chores header + "⛶ All chores" expand button are injected by
-             hub.js renderPeople (a .shead section header, the one system every
-             section uses), so chores reads as an expandable section. -->
-        <div id="people" class="people-list"></div>
-      </section>
+      <!-- Two stacked columns. On the wall, .col-left is Chores over To-Do and
+           .col-mid is the agenda over the always-on month grid; on the phone
+           both wrappers are display:contents, so every child stays a direct
+           flex child of .hub-grid and the tab rules are untouched. -->
+      <div class="col-left">
+        <section class="people-col" aria-label="Chores">
+          <!-- The Chores header + "⛶ All chores" expand button are injected by
+               hub.js renderPeople (a .shead section header, the one system every
+               section uses), so chores reads as an expandable section. -->
+          <div id="people" class="people-list"></div>
+        </section>
+        <section class="todo-slot" id="todo-slot" aria-label="To-dos"></section>
+      </div>
+      <div class="col-mid">
+        <section class="cal" id="cal" aria-label="Calendar"></section>
+        <!-- Wall only: the current month, always showing (hidden on the phone,
+             which has the Calendar tab). Painted by hub.js renderMonthCard. -->
+        <section class="month-slot" id="month-slot" aria-label="Month"></section>
+      </div>
       <div class="tiles" id="tiles"></div>
       <!-- Cameras-tab 2x2 live grid (phones/tablets). Hidden on the wall by CSS;
            the wall uses the .tiles column above. Built by hub.js from the

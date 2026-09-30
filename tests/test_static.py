@@ -865,6 +865,78 @@ def test_each_tab_hides_every_other_surface():
         "cams tab must stack cameras in a single column on the phone"
 
 
+def test_wall_columns_and_month_card_wiring():
+    """The wall is four columns in ONE grid row: chores+to-dos | agenda+month |
+    cameras | dashboards (operator, 2026-09-30). Each of .col-left/.col-mid is
+    its own flex column so a tall chore list can't open a hole above the month
+    grid the way a shared second grid row did. On the phone both wrappers are
+    display:contents (the tab rules target the sections directly) and the
+    always-on month card is hidden: the Calendar tab covers it."""
+    index = (STATIC / "index.html").read_text()
+    hub = (STATIC / "hub.js").read_text()
+    # markup: to-dos sit with chores, the month card with the agenda
+    left = re.search(r'<div class="col-left">(.*?)</div>\s*<div class="col-mid">', index, re.S)
+    mid = re.search(r'<div class="col-mid">(.*?)<div class="tiles"', index, re.S)
+    assert left and mid, "index.html must wrap the wall's two stacked columns"
+    assert 'class="people-col"' in left.group(1) and 'id="todo-slot"' in left.group(1)
+    assert 'id="cal"' in mid.group(1) and 'id="month-slot"' in mid.group(1)
+    # the point of the layout: chores OVER to-dos, agenda OVER the month grid,
+    # and each in its own column (not both in one)
+    assert left.group(1).index('class="people-col"') < left.group(1).index('id="todo-slot"')
+    assert mid.group(1).index('id="cal"') < mid.group(1).index('id="month-slot"')
+    assert 'id="todo-slot"' not in mid.group(1) and 'class="people-col"' not in mid.group(1)
+    # CSS: one row of four named areas; both wrappers are flex columns
+    grid = re.search(r"\.hub-grid\s*\{[^}]*\}", CSS, re.S).group(0)
+    assert '"left mid tiles panels"' in grid, "the wall grid must be one row of four areas"
+    assert "grid-template-rows: auto;" in grid, "a shared 1fr second row reintroduces the hole"
+    assert re.search(r"\.col-left,\s*\.col-mid\s*\{[^}]*flex-direction:\s*column", CSS)
+    # phone shell: wrappers dissolve, month card hidden
+    mobile = _phone_shell_css()
+    assert re.search(r'\.col-left,\s*:root:not\(\[data-layout="desktop"\]\) \.col-mid\s*\{\s*display:\s*contents',
+                     mobile), "phone shell must make .col-left/.col-mid display:contents"
+    assert re.search(r'\.month-slot\s*\{\s*display:\s*none', mobile), \
+        "the always-on month card has no phone home and must be hidden there"
+    # JS: the reflow names the wrappers, and the month card hides with the calendar
+    assert "setDisp('.col-left', chores || todos)" in hub
+    assert "setDisp('.col-mid', calAny)" in hub
+    assert "setDisp('.month-slot', calAny)" in hub
+    # a hidden card must not cost a request, and it shares the server-named
+    # calendar window (test_calendar_window_chain_stays_consistent)
+    assert "monthCardVisible()" in hub and "await fetchCalWindow()" in hub
+
+
+def test_month_card_is_never_hidden_while_empty():
+    """The month card is empty until its first fetch, and monthCardVisible()
+    only fetches while the card's own computed display is not 'none'. A
+    `.month-slot:empty { display: none }` (tried to avoid an empty tinted box
+    in "wells" mode) made the card permanently invisible and empty: it never
+    fetched, so it never filled. Caught on the wall's screenshot, not by a test."""
+    assert not re.search(r"\.month-slot:empty\s*\{[^}]*display:\s*none", CSS), \
+        "hiding an empty .month-slot means it can never fill"
+    hub = (STATIC / "hub.js").read_text()
+    assert "getComputedStyle(el).display !== 'none'" in hub
+
+
+def test_columns_control_styles_the_new_wrappers():
+    """The Columns control ("wells" / "lines") styles the wall's column stacks.
+    With chores+to-dos and agenda+month now in wrapper columns, "wells" must
+    still tint every card stack (including the month card) and tighten the
+    wrappers' gap, and "lines" must hang its rule off .col-left (which spans
+    the row), not .people-col (which no longer does). Each was silently
+    unguarded: a rename back would have passed every other test."""
+    wells = CSS[CSS.index(':root[data-cols="wells"] .people-col,'):]
+    wells = wells[:wells.index("{")]
+    for sel in (".people-col", ".cal", ".todo-slot", ".month-slot", ".tiles", ".panels"):
+        assert f'.{sel.lstrip(".")}' in wells, f"wells must tint {sel}"
+    gap = re.search(r':root\[data-cols="wells"\] \.hub-grid,[^{]*\{[^}]*gap:\s*16px', CSS)
+    assert gap and ".col-left" in gap.group(0) and ".col-mid" in gap.group(0), \
+        "wells tightens the gap between the stacked cards too"
+    assert ':root[data-cols="lines"] .col-left::after { right: -12px; }' in CSS
+    assert ".people-col::after" not in CSS, "the lines rule belongs on .col-left now"
+    assert '[data-cols="lines"] .col-left::after' in _phone_shell_css(), \
+        "the phone shell must neutralize the lines rule on .col-left"
+
+
 def test_layout_mode_control_present_and_wired():
     """The Auto/Desktop layout control lives in the display popover, is wired to
     setLayout in hub.js, and setLayout/stampLayout + the data-layout stamp exist
@@ -1575,9 +1647,24 @@ def test_month_lane_count_matches_css_row_template():
     m = re.search(r"const MONTH_MAX_LANES = (\d+)", js)
     assert m, "MONTH_MAX_LANES missing from hub.js"
     lanes = int(m.group(1))
-    rows = re.findall(r"grid-template-rows:\s*\d+px repeat\((\d+), var\(--mg-lane\)\)", css)
-    assert rows, ".mg-week row template missing"
-    assert all(int(r) == lanes for r in rows), f"CSS lane rows {rows} != MONTH_MAX_LANES {lanes}"
+    # The wall's month card draws fewer lanes (MONTH_CARD_LANES) so a 5-6 week
+    # month fits under the agenda; its CSS template is the .month-slot one.
+    card = re.search(r"const MONTH_CARD_LANES = (\d+)", js)
+    assert card, "MONTH_CARD_LANES missing from hub.js"
+    card_lanes = int(card.group(1))
+    card_rows = re.findall(
+        r"\.month-slot \.mg-week\s*\{[^}]*grid-template-rows:\s*\d+px repeat\((\d+), var\(--mg-lane\)\)", css)
+    assert card_rows, ".month-slot .mg-week row template missing"
+    assert all(int(r) == card_lanes for r in card_rows), \
+        f"card CSS lane rows {card_rows} != MONTH_CARD_LANES {card_lanes}"
+    # every OTHER .mg-week template (full calendar, phone override) is MONTH_MAX_LANES
+    all_rows = re.findall(r"grid-template-rows:\s*\d+px repeat\((\d+), var\(--mg-lane\)\)", css)
+    others = list(all_rows)
+    for r in card_rows:
+        others.remove(r)
+    assert others, ".mg-week row template missing"
+    assert all(int(r) == lanes for r in others), \
+        f"a non-card .mg-week template {others} != MONTH_MAX_LANES {lanes}"
 
 
 # ------------------------------------------------------------ seasonal looks

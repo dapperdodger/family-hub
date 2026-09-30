@@ -15,7 +15,7 @@ light or dark theme with an accent color you pick.
 
 ![family-hub](docs/hub.png)
 
-*The kitchen wall: one card system across chores, the shared calendar with to-dos, cameras, at-a-glance weather + per-room climate, the laundry portholes, and the Fleet Console status card. Shown in the default grey theme with a green accent and sample data.*
+*The kitchen wall: one card system across chores with to-dos, the shared calendar over a month grid, cameras, at-a-glance weather + per-room climate, the laundry portholes, and the Fleet Console status card. Shown in the default grey theme with a green accent and sample data.*
 
 ![family-hub on a phone](docs/phone.png)
 
@@ -28,8 +28,8 @@ at one URL.
 
 ## What it looks like
 
-- **Wall (1920×1080):** chores | calendar + to-dos | cameras | weather +
-  climate + laundry + fleet, all in one card system. **Five display modes** (light, soft, blue,
+- **Wall (1920×1080):** chores + to-dos | calendar agenda + month grid | cameras |
+  weather + climate + laundry + fleet, all in one card system. **Five display modes** (light, soft, blue,
   grey, black) **with a pick-your-accent color** (cyan, violet, amber, or green)
   and an optional subtle column
   separation, set from the wall itself or any phone and remembered per device.
@@ -56,7 +56,9 @@ at one URL.
   hub in **Safari** and use Share → **Add to Home Screen** for a full-screen
   app with no browser toolbar (and no browser quirks); a normal browser tab
   also self-heals the occasional stuck-height reload on its own.
-- **Calendar:** next-5-days home feed, full-screen month grid + week agenda +
+- **Calendar:** on the wall, a 3-day agenda with the current month's grid
+  always showing under it (tap a day to open it in the full calendar); on the
+  phone, the next-5-days home feed. Full-screen month grid + week agenda +
   day drill-in, tap-any-event detail cards, your own Google sidebar colors,
   multi-day events drawn as one bar across their span (Google-style), ended
   events struck through. A **+** button adds an event to any configured

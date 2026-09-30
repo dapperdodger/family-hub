@@ -264,25 +264,31 @@ body {
 .hub-grid {
   display: grid;
   /* chores lead the wall (operator, 2026-08-12); to-dos moved under the
-     calendar and cameras got their own column (operator, 2026-08-14):
-     people | calendar+to-dos | cameras | dashboards */
+     calendar and cameras got their own column (operator, 2026-08-14); to-dos
+     then moved under chores and the month grid under the agenda (operator,
+     2026-09-30). Two stacked columns, each its own flex column (.col-left,
+     .col-mid), so a long chore list never pushes the month grid down:
+     chores+to-dos | agenda+month | cameras | dashboards */
   grid-template-columns: 360px minmax(0, 1fr) 540px 340px;
-  /* The 1fr second row only works because .hub-grid's own height stays
-     indefinite (the page grows/scrolls to fit it). If an ancestor ever pins
-     a definite height or overflow:hidden for a no-scroll kiosk mode, 1fr
-     starts dividing real, finite space and can crush the to-do row (below
-     the calendar in row 2) to zero. Re-check that change against this row
-     definition before shipping it. */
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "people cal tiles panels"
-    "people todo tiles panels";
+  /* ONE row: each column stacks its own cards. Do not go back to a shared
+     two-row template — row 1 would take the taller of (chores, agenda) and
+     leave a hole above whichever card sits in row 2. Keep .hub-grid's own
+     height indefinite (the page grows/scrolls to fit) so no column is ever
+     squeezed into finite space. */
+  grid-template-rows: auto;
+  grid-template-areas: "left mid tiles panels";
   gap: 24px;
   align-items: start;
 }
-.people-col { grid-area: people; display: flex; flex-direction: column; gap: 12px; }
+/* The wall's two stacked columns. On the phone both are display:contents (see
+   the phone shell), so their children are direct flex children of .hub-grid
+   again and every tab rule keeps working unchanged. */
+.col-left { grid-area: left; }
+.col-mid { grid-area: mid; }
+.col-left, .col-mid { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.people-col { display: flex; flex-direction: column; gap: 12px; }
 .people-list { display: flex; flex-direction: column; gap: 10px; }
-.todo-slot { grid-area: todo; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.todo-slot { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .tiles { grid-area: tiles; }
 
 /* ------- always-on dashboard panels (weather almanac + house climate) ------ */
@@ -1014,7 +1020,7 @@ body {
 
 
 /* ========================== calendar ========================= */
-.cal { grid-area: cal; display: flex; flex-direction: column; gap: 12px; }
+.cal { display: flex; flex-direction: column; gap: 12px; }
 .cal-note {
   background: var(--surface);
   border: 1px solid var(--edge);
@@ -1267,8 +1273,8 @@ body {
 }
 
 /* --------------------------- to-dos -------------------------- */
-/* The shared household list. The card lives in its own #todo-slot column
-   under the calendar (no longer a DOM sibling of .person-card), but keeps
+/* The shared household list. The card lives in its own #todo-slot under the
+   chores in the left column (no longer a DOM sibling of .person-card), but keeps
    the same surface treatment; rows echo .chore-row but complete in the
    neutral --accent, since nobody owns a shared item. */
 /* Task 3: re-boxed like everything else — sectionHead sits OUTSIDE the box,
@@ -1831,6 +1837,22 @@ body.overlay-open { overflow: hidden; }
   font-family: var(--mono); font-size: 10.5px; line-height: 18px; color: var(--dim);
 }
 .mg-bar:focus-visible, .mg-ev:focus-visible, .mg-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Wall month card: the current month, always visible under the agenda
+   (operator, 2026-09-30). Reuses the full calendar's .mgrid markup but at a
+   compact size so a 6-week month fits under the capped agenda on a 1080p
+   wall: 2 event lanes per week (MONTH_CARD_LANES in hub.js) and no fixed
+   132px day floor. Hidden on the phone, which has the Calendar tab. */
+.month-slot { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+/* NEVER hide an empty .month-slot (:empty { display: none }): monthCardVisible() in
+   hub.js reads this element's computed display to decide whether to fetch, and the
+   card is empty until its first fetch, so hiding it would mean it never fills. */
+.month-slot .mgrid { --mg-lane: 16px; }
+.month-slot .mg-head { padding: 6px 0 4px; }
+.month-slot .mg-week { grid-template-rows: 22px repeat(2, var(--mg-lane)) minmax(14px, auto); row-gap: 1px; }
+.month-slot .mg-day { min-height: 0; padding: 2px 6px; }
+.month-slot .mg-num { height: 20px; min-width: 20px; font-size: 12px; }
+.month-slot .mg-bar, .month-slot .mg-ev { font-size: 11.5px; }
 /* A day past the calendar sync window (issue #37): the month view can page
    further than the backend actually caches, so mark those cells "not synced"
    rather than let them read as confident-empty. A faint hatch (not a flat
@@ -2319,10 +2341,13 @@ body.integ-off-todos .todo-slot { display: none; }
 /* The Columns control stamps data-cols on <html>. "none" (default) is the flat
    layout; "wells" wraps each column's stack in a soft tinted panel; "lines"
    draws thin vertical rules between the columns. */
-:root[data-cols="wells"] .hub-grid { gap: 16px; }
+:root[data-cols="wells"] .hub-grid,
+:root[data-cols="wells"] .col-left,
+:root[data-cols="wells"] .col-mid { gap: 16px; }
 :root[data-cols="wells"] .people-col,
 :root[data-cols="wells"] .cal,
 :root[data-cols="wells"] .todo-slot,
+:root[data-cols="wells"] .month-slot,
 :root[data-cols="wells"] .tiles,
 :root[data-cols="wells"] .panels {
   background: color-mix(in srgb, var(--ink) 4%, var(--ground));
@@ -2332,16 +2357,16 @@ body.integ-off-todos .todo-slot { display: none; }
 }
 
 /* "lines": one thin vertical rule in each of the three gaps between the four
-   columns. Each rule is a pseudo-element on a column that spans BOTH grid rows
-   (people, tiles, panels); align-self:stretch overrides the grid's
+   columns. Each rule is a pseudo-element on a column that fills the grid's one
+   row (.col-left, tiles, panels); align-self:stretch overrides the grid's
    align-items:start so those columns fill the full grid height and the three
    rules render at equal length (not each column's own content height), sitting
    centered in the 24px gap. Decorative only (pointer-events off so it never
    intercepts a touch on the wall). */
-:root[data-cols="lines"] .people-col,
+:root[data-cols="lines"] .col-left,
 :root[data-cols="lines"] .tiles,
 :root[data-cols="lines"] .panels { position: relative; align-self: stretch; }
-:root[data-cols="lines"] .people-col::after,
+:root[data-cols="lines"] .col-left::after,
 :root[data-cols="lines"] .tiles::before,
 :root[data-cols="lines"] .panels::before {
   content: "";
@@ -2352,7 +2377,7 @@ body.integ-off-todos .todo-slot { display: none; }
   background: var(--edge-soft);
   pointer-events: none;
 }
-:root[data-cols="lines"] .people-col::after { right: -12px; }
+:root[data-cols="lines"] .col-left::after { right: -12px; }
 :root[data-cols="lines"] .tiles::before { left: -12px; }
 :root[data-cols="lines"] .panels::before { left: -12px; }
 
@@ -2456,12 +2481,19 @@ body.integ-off-todos .todo-slot { display: none; }
   /* column separation is a wall-only, 4-column concern; on the phone reflow
      (one stacked flex column) the "lines" rules would hang stray 1px ticks off
      a full-width section, so neutralize them here */
-  :root:not([data-layout="desktop"])[data-cols="lines"] .people-col::after,
+  :root:not([data-layout="desktop"])[data-cols="lines"] .col-left::after,
   :root:not([data-layout="desktop"])[data-cols="lines"] .tiles::before,
   :root:not([data-layout="desktop"])[data-cols="lines"] .panels::before { display: none; }
-  /* the wall's under-calendar to-do card has no phone equivalent — the
+  /* the wall's under-chores to-do card has no phone equivalent — the
      dedicated To-Dos tab already covers phones (operator, 2026-08-14) */
   :root:not([data-layout="desktop"]) .todo-slot { display: none; }
+  /* the wall's two stacked columns dissolve on the phone so every section is a
+     direct flex child of .hub-grid again (the tab rules below target them
+     directly), and the always-on month card has no phone home — the Calendar
+     tab covers it */
+  :root:not([data-layout="desktop"]) .col-left,
+  :root:not([data-layout="desktop"]) .col-mid { display: contents; }
+  :root:not([data-layout="desktop"]) .month-slot { display: none; }
   /* in-flow (static), not fixed: it's the last row of the body flex column, so
      it's always pinned below the scrolling .wrap and never overlaps content */
   :root:not([data-layout="desktop"]) .tabbar { display: flex; position: static; flex: none; }
