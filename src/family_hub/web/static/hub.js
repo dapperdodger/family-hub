@@ -3636,6 +3636,18 @@ window.addEventListener('resize', () => {
   fitDebounce = setTimeout(() => { wirePanels(); fitPanels(); }, 150);
 });
 
+/* A panel is scaled to the width of its slot at fit time, and the slot gets
+   narrower when the Columns control goes to "wells" (the well's padding) or
+   the layout flips. Neither fires a window resize, so a panel fitted before
+   the switch stayed at its old scale and overflowed its well (Mealie, 2026-09-30).
+   Watch the two attributes that change a panel column's width and re-fit; this
+   also covers a house default applied after the first fit. Fit now, not
+   debounced: the attribute is stamped synchronously and layout is current on read. */
+if (typeof MutationObserver === 'function') {
+  new MutationObserver(() => fitPanels()).observe(document.documentElement,
+    { attributes: true, attributeFilter: ['data-cols', 'data-layout'] });
+}
+
 /* Watchdog: the embedded dashboards poll their own data continuously, but if
    a page's JS ever wedges the panel would sit stale forever. A staggered
    half-hourly hard reload self-heals both panels. */

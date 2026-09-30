@@ -905,6 +905,18 @@ def test_wall_columns_and_month_card_wiring():
     assert "monthCardVisible()" in hub and "await fetchCalWindow()" in hub
 
 
+def test_panels_refit_when_the_column_style_or_layout_changes():
+    """Panels are scaled to their slot's width at fit time. Switching Columns to
+    "wells" narrows the slot (the well's padding) without a window resize, so a
+    panel fitted earlier overflowed its well (Mealie, 2026-09-30). hub.js must
+    watch data-cols / data-layout on <html> and re-run fitPanels."""
+    hub = (STATIC / "hub.js").read_text()
+    m = re.search(r"new MutationObserver\(\(\) => fitPanels\(\)\)\.observe\(document\.documentElement,\s*"
+                  r"\{[^}]*attributeFilter:\s*\[([^\]]*)\]", hub)
+    assert m, "hub.js must re-fit panels when html attributes change"
+    assert "'data-cols'" in m.group(1) and "'data-layout'" in m.group(1)
+
+
 def test_month_card_is_never_hidden_while_empty():
     """The month card is empty until its first fetch, and monthCardVisible()
     only fetches while the card's own computed display is not 'none'. A
