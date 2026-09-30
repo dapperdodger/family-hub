@@ -2344,6 +2344,12 @@ test('renderPeople: the empty-people state points at All chores → Edit, not th
   assert.match(html, /All chores/, 'directs the user to the All chores overlay');
   assert.match(html, /Edit/, 'and to its Edit mode, where people are added');
   assert.ok(!html.includes('admin.html'), 'no reference to the retired admin page');
+  // The instruction text alone isn't enough — a prior version had this exact
+  // wording with NO actual button behind it (sectionHead was skipped in the
+  // empty branch), so "tap All chores" pointed at nothing. Pin the real
+  // control, the same way the non-empty-state test below does.
+  const btn = document.getElementById('people').querySelector('[data-overlay="chores"]');
+  assert.ok(btn, 'a real data-overlay="chores" button exists to tap, not just the words');
 });
 
 // --- inline people admin on the Chores page (edit mode) ------------------
@@ -5141,6 +5147,22 @@ test('renderIntegrations: a switch per integration, and gates disabled tiles', (
     { id: 'cameras', kind: 'cameras', name: 'Cameras', enabled: true },
   ] });
   assert.ok(!sandbox.document.body.classList.contains('integ-off-cameras'));
+});
+
+test('renderIntegrations: an integration ABSENT from the list (never configured, not just toggled off) still gets hidden', () => {
+  // available_integrations() filters an unavailable integration out of the
+  // list entirely rather than returning it disabled (fleet, weather, climate
+  // and laundry are all built unconditionally into the DOM regardless of
+  // config — see the 2026-08-17 laundry lesson above renderIntegrations —
+  // so an id that's simply never configured must still get its CSS-hiding
+  // class, or its slot stays visible forever on a fresh install).
+  const { sandbox } = newHub();
+  sandbox.renderIntegrations({ integrations: [
+    { id: 'weather', kind: 'weather', name: 'Weather', enabled: true },
+  ] });   // 'fleet' is not in this list at all — cfg.fleet was never set
+  assert.ok(sandbox.document.body.classList.contains('integ-off-fleet'),
+    'an integration entirely absent from the payload must still be hidden');
+  assert.ok(!sandbox.document.body.classList.contains('integ-off-weather'));
 });
 
 test('toggleIntegration: PATCHes the opposite of the current state', async () => {

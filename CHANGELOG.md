@@ -51,6 +51,18 @@ rolls that section to a dated version via `python scripts/release.py`.
   than the hub's default 12s, with a distinct message on a client timeout
   (the write may have already succeeded server-side) instead of the
   generic failure text.
+- An integration that was never configured at all (not just toggled off —
+  e.g. Fleet on an install with no `fleet` config block) stayed visible on
+  the wall forever: the code that hides an off integration's tile only
+  ever turned its CSS class ON for integrations present in `/api/hub`'s
+  list, but the API omits an unavailable integration entirely rather than
+  listing it disabled, so an id that's simply absent never got hidden.
+  Fixed to check every known integration id, not just the ones the
+  payload happened to include.
+- The wall's first-run "No people yet" empty state told the family to
+  "tap All chores, then Edit" but skipped rendering the section header
+  that carries the "All chores" button in that state, so the instruction
+  pointed at nothing. The header now renders in the empty state too.
 - The Wyze bridge's health check now also probes the bridge's own internal
   go2rtc. That relay can exit alone right after the container starts, and
   the bridge never relaunches it, so the Wyze cameras went dark while the

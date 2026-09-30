@@ -849,7 +849,13 @@ function peopleAdminHtml(people, awayPeriods) {
 function renderPeople(data) {
   const host = document.getElementById('people');
   if (!data.people.length) {
-    host.innerHTML = `<div class="empty-hub">No people yet`
+    // The empty message tells the family to "tap All chores, then Edit" —
+    // that only works if the section header carrying the All-chores expand
+    // button is actually here to tap. Omitting it (as the previous version
+    // did) left the very first-run instruction pointing at nothing.
+    host.innerHTML =
+      sectionHead('Chores', { overlay: 'chores', expandLabel: 'All chores' })
+      + `<div class="empty-hub">No people yet`
       + `<div class="empty-sub">tap All chores, then Edit to add your family</div></div>`;
     lastPeople = [];
     return;
@@ -4755,14 +4761,36 @@ function seasonalCardHtml() {
     + `<div class="look-picker">${groups}</div>`;
 }
 
+/* Every integration id family_hub/integrations.py's available_integrations can
+   ever produce. available_integrations FILTERS OUT an unavailable integration
+   entirely rather than returning it disabled (so the settings menu never lists
+   a card with nothing to configure) — which means an integration that was never
+   configured at all (not just toggled off) is simply ABSENT from the /api/hub
+   list. A plain list.forEach over that list can only ever turn an
+   'integ-off-<id>' class ON for something present; it can never turn one off
+   for something that's just never there. That left an unconfigured
+   integration's unconditionally-built slot (fleet, weather, climate, laundry —
+   built unconditionally per the 2026-08-17 laundry lesson above) visible
+   forever on any install that never set it up. Iterating this fixed id list
+   instead — not just what the payload happened to include — turns the class on
+   OR off for every possible id, so "never configured" and "configured but
+   switched off" both hide the slot the same way. */
+const KNOWN_INTEGRATION_IDS = [
+  'chores', 'todos', 'google_calendar', 'ics_calendar', 'icloud_caldav',
+  'cameras', 'weather', 'climate', 'laundry', 'fleet',
+];
+
 /* The settings popover's Integrations section: one on/off switch per available
    data source / tile. Renders from the /api/hub `integrations` block each poll,
    and mirrors each disabled one onto a body class so CSS hides its tile. */
 function renderIntegrations(data) {
   const list = (data && data.integrations) || [];
   lastIntegrations = list;
-  list.forEach((it) =>
-    document.body.classList.toggle('integ-off-' + it.id, !it.enabled));
+  const byId = new Map(list.map((it) => [it.id, it]));
+  KNOWN_INTEGRATION_IDS.forEach((id) => {
+    const it = byId.get(id);
+    document.body.classList.toggle('integ-off-' + id, !(it && it.enabled));
+  });
   updateTabVisibility(list);
   applyWallLayout(list);
   // A laundry LISTING flip must repaint the laundry slot NOW: fetchLaundry's
