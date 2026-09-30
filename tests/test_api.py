@@ -1409,6 +1409,78 @@ def test_add_event_live_path_auth_failure_returns_409_not_connected(client, app_
     assert r.json()["detail"] == "calendar not connected"
 
 
+def test_add_event_live_path_insufficient_scope_error_returns_409_not_502(client, app_mod, monkeypatch):
+    """The residual gap the re-review caught: an old token that never
+    granted calendar.events (Fix 1's exact upgrade scenario) still
+    REFRESHES fine for its granted (readonly) scope -- _is_auth_error's
+    RefreshError/DefaultCredentialsError match never fires. It's the
+    events().insert() call itself Google rejects, with an HttpError 403
+    (ACCESS_TOKEN_SCOPE_INSUFFICIENT), which must be caught separately
+    (_is_insufficient_scope_error) and routed to the same 409 "calendar not
+    connected" -- not fall through to the generic 502 (which would tell the
+    family to "try again", and retrying can never fix a missing scope)."""
+    from googleapiclient.errors import HttpError
+
+    class _FakeResp:
+        status = 403
+        reason = "Forbidden"
+
+    err = HttpError(
+        _FakeResp(),
+        b'{"error": {"message": "Insufficient Permission", "errors": '
+        b'[{"reason": "ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}}',
+        uri="https://www.googleapis.com/calendar/v3/calendars/"
+            "someone@example.com/events")
+    _FakeWriteClient.raise_on_create = err
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    try:
+        r = client.post("/api/events", json={
+            "calendar_id": "cal", "title": "X", "all_day": False,
+            "start": start})
+    finally:
+        _FakeWriteClient.raise_on_create = None
+    assert r.status_code == 409
+    assert r.json()["detail"] == "calendar not connected"
+
+
+def test_add_event_live_path_color_lookup_failure_prevents_a_wasted_google_write(app_mod, monkeypatch):
+    """The residual gap the re-review caught: the calendar_colors read used
+    to decorate the response ran AFTER create_event had already succeeded,
+    unguarded -- a DB hiccup there would 500 the request even though the
+    real Google event already existed (the exact duplicate-on-retry risk
+    class Fix 3 and Guard A close elsewhere). Fixed by reading it BEFORE the
+    Google write is attempted, so a failure here means the write is never
+    even attempted (nothing external to duplicate), rather than an error
+    after a successful one. Uses the same raise_server_exceptions=False
+    TestClient pattern as the existing mid-backfill-crash test."""
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    calls = []
+    orig_create = _FakeWriteClient.create_event
+
+    def counting_create(self, calendar_id, body):
+        calls.append(1)
+        return orig_create(self, calendar_id, body)
+    monkeypatch.setattr(_FakeWriteClient, "create_event", counting_create)
+
+    real_kv_get = app_mod.fdb.kv_get
+
+    def flaky_kv_get(conn, key):
+        if key == "calendar_colors":
+            raise RuntimeError("db hiccup")
+        return real_kv_get(conn, key)
+    monkeypatch.setattr(app_mod.fdb, "kv_get", flaky_kv_get)
+
+    today = app_mod._today().isoformat()
+    with TestClient(app_mod.app, raise_server_exceptions=False) as tc:
+        r = tc.post("/api/events", json={
+            "calendar_id": "cal", "title": "Dentist", "all_day": False,
+            "start": f"{today}T09:00:00", "end": f"{today}T10:00:00"})
+    assert r.status_code == 500   # nothing was written; failing is legitimate here
+    assert calls == [], \
+        "the color-lookup failure must be caught BEFORE any Google write is attempted"
+
+
 def test_add_event_live_path_unreadable_google_response_still_returns_200(client, app_mod, monkeypatch):
     """Google already created the event once create_event returns -- if
     normalize_event then can't read the response shape, the endpoint must

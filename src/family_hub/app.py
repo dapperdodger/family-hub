@@ -2600,6 +2600,26 @@ def _house_local_naive(ts: str) -> str:
     return t.isoformat()
 
 
+def _is_insufficient_scope_error(exc) -> bool:
+    """True if `exc` is a googleapiclient HttpError with a 401/403 status --
+    the actual shape an old token that never granted calendar.events (see
+    calendar_sync.SCOPES) fails with. Since Fix 1 (calendar_sync stopped
+    forcing SCOPES onto loaded credentials), such a token still REFRESHES
+    fine for its granted (readonly) scope, so _creds() succeeds and
+    calendar_sync._is_auth_error (which only matches a RefreshError/
+    DefaultCredentialsError from credential loading/refresh) never fires;
+    it's the later events().insert() call itself that Google rejects with
+    HttpError 403 (ACCESS_TOKEN_SCOPE_INSUFFICIENT). Matched by class name +
+    status rather than an isinstance check, so this needs no import and
+    stays independent of whether the google libraries happen to be
+    installed (same technique as _is_auth_error). Kept local to events_add
+    rather than folded into _is_auth_error itself, which the read-sync path
+    also uses for a different condition (a revoked/expired token), not a
+    correctly-refreshing one that's merely missing a scope."""
+    return (type(exc).__name__ == "HttpError"
+            and getattr(exc, "status_code", None) in (401, 403))
+
+
 def _event_google_body(title: str, location: str, description: str,
                        start: str, end: str, all_day: bool) -> dict:
     body: dict = {"summary": title}
@@ -2673,19 +2693,32 @@ def events_add(body: EventIn, background: BackgroundTasks):
             "updated": None, "location": body.location,
             "description": body.description, "color_id": None,
         }
+        # Resolved before the local write below, not after: reading this
+        # must never turn a successful save into a failure response (same
+        # "never fail a request whose write already succeeded" reasoning as
+        # the live path's color read below, even though DEMO's own write is
+        # only ever local).
+        google_colors = fdb.kv_get(c, "calendar_colors") or {}
+        disp = _event_display_fields(body.calendar_id, google_colors)
         try:
             fdb.add_event_row(c, row)
         except Exception:
             log.exception("DEMO add-event local write failed")
             raise HTTPException(500, "could not save the event")
-        google_colors = fdb.kv_get(c, "calendar_colors") or {}
-        disp = _event_display_fields(body.calendar_id, google_colors)
         return {**row, "color": disp["color"], "label": disp["label"],
                 "event_color": GOOGLE_EVENT_COLORS.get(row.get("color_id") or "")}
 
     client = GoogleCalendarClient(TOKEN_PATH)
     if not client.configured():
         raise HTTPException(409, "calendar not connected")
+    # Resolved BEFORE the Google write, not after: this app has no way to
+    # un-create a Google event, so a DB hiccup reading the color/label here
+    # must never turn a request whose Google write is about to succeed (or
+    # already has) into an error response. Reading it up front is the only
+    # order that's safe by construction, rather than needing its own
+    # try/except the way the local-cache write below does.
+    google_colors = fdb.kv_get(c, "calendar_colors") or {}
+    disp = _event_display_fields(body.calendar_id, google_colors)
     gbody = _event_google_body(title, body.location, body.description,
                                start, end, body.all_day)
     try:
@@ -2693,12 +2726,16 @@ def events_add(body: EventIn, background: BackgroundTasks):
     except Exception as e:
         log.exception("add-event: Google insert failed for calendar %s",
                       body.calendar_id)
-        if _is_auth_error(e):
+        if _is_auth_error(e) or _is_insufficient_scope_error(e):
             # Same status/message the "not configured" branch above already
             # returns, so the frontend's existing substring-matched "check
-            # Settings" handling covers this too. An old token that never
-            # granted calendar.events (see calendar_sync.SCOPES) looks
-            # exactly like this until the operator re-authorizes.
+            # Settings" handling covers this too. _is_auth_error catches a
+            # genuinely revoked/expired token (RefreshError); an old token
+            # that never granted calendar.events (see calendar_sync.SCOPES)
+            # is a DIFFERENT shape -- per Fix 1 it still refreshes fine for
+            # its granted scope, so _creds() succeeds, and it's THIS
+            # events().insert() call that Google rejects with an HttpError
+            # 403, which _is_insufficient_scope_error catches instead.
             raise HTTPException(409, "calendar not connected") from e
         # str(e) is deliberately withheld from the client: a Google
         # HttpError's message includes the full request URL, which contains
@@ -2753,12 +2790,10 @@ def events_add(body: EventIn, background: BackgroundTasks):
     # actually run.
     background.add_task(_background_resync, client, _now_local())
     # Decorate the same way _calendar_block decorates every row on the wall
-    # (color/label from the resolved Google/config color, event_color from
+    # (color/label resolved above, before the Google write; event_color from
     # any per-event colorId) so a freshly-created event doesn't render in
     # the neutral grey fallback with no calendar chip until the next
     # /api/calendar fetch happens to run.
-    google_colors = fdb.kv_get(c, "calendar_colors") or {}
-    disp = _event_display_fields(body.calendar_id, google_colors)
     return {**row, "color": disp["color"], "label": disp["label"],
             "event_color": GOOGLE_EVENT_COLORS.get(row.get("color_id") or "")}
 

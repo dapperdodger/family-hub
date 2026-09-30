@@ -21,6 +21,16 @@ rolls that section to a dated version via `python scripts/release.py`.
   the old token, with no action needed, until that's done.
 
 ### Fixed
+- `POST /api/events`'s live path, two follow-up fixes from a scoped
+  re-review: an old token that never granted `calendar.events` (see the
+  upgrade note above) still refreshes fine for its granted scope, so the
+  failure actually shows up as an `HttpError` 403 from the insert call
+  itself, not a `RefreshError` — that shape is now also routed to the same
+  "calendar not connected" 409 rather than falling through to a generic,
+  retry-suggesting 502. And the color/label lookup used to decorate the
+  response is now read BEFORE the Google write is attempted (not after),
+  so a database hiccup at that moment can no longer 500 a request whose
+  real Google event has already been created.
 - `POST /api/events`'s live Google write path: failures are now logged and
   no longer leak a Google error's raw text (which can include the calendar
   id/URL) to the caller; an auth/insufficient-scope failure now reads as
