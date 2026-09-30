@@ -1,0 +1,5 @@
+# Shell scripts run inside a Linux container (docker-entrypoint.sh) or via
+# a POSIX shell on the deploy box (scripts/*.sh) — CRLF line endings break
+# their shebang line at runtime ("/bin/sh^M: bad interpreter"). Force LF
+# regardless of the checkout platform's core.autocrlf.
+*.sh text eol=lf

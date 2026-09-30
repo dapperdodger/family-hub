@@ -36,6 +36,22 @@ services:
       # .env). Empty = laundry off. This allowlist is the only way env vars
       # reach the container — a var missing here is invisible inside.
       - HA_TOKEN=${HA_TOKEN:-}
+      # Lets the wall reconnect Google Calendar itself (tap "Reconnect" in
+      # Settings -> approve on Google's page -> token.json written on the
+      # box) instead of running scripts/google-auth.py on a desktop. All
+      # optional; empty (the default) leaves that path off and the desktop
+      # script as the only way to (re)connect. See .env.example and README.
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI:-}
+      # Both set -> the whole app serves HTTPS (via docker-entrypoint.sh)
+      # instead of HTTP, using a cert for your tailnet hostname (e.g. from
+      # `tailscale cert`). Required for the Google reconnect flow above:
+      # Google rejects a plain-HTTP, non-localhost redirect_uri outright.
+      # Paths are INSIDE the container — point them under /data (below),
+      # e.g. put the cert/key in ./data/tls/ on the box.
+      - TLS_CERT_FILE=${TLS_CERT_FILE:-}
+      - TLS_KEY_FILE=${TLS_KEY_FILE:-}
     # HUB_BIND (in .env) pins every published port to one LAN interface.
     # The hub has NO auth — never expose it beyond your LAN. See README.
     ports: [ "${HUB_BIND:-0.0.0.0}:8138:8138" ]

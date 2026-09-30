@@ -4811,6 +4811,17 @@ function renderIntegrations(data) {
     // shows "reconnect" so the family knows to fix it (the cached view stays).
     const warn = it.status === 'needs_auth' ? 'reconnect'
       : (it.status === 'error' ? 'error' : '');
+    // Google specifically can reconnect itself right from the wall — tap,
+    // approve on Google's page, land back here with token.json already
+    // written server-side. A separate element, never nested in the toggle
+    // <button>, so tapping it doesn't also flip the enabled switch. Safe to
+    // always render for a needs_auth google_calendar row: the endpoint
+    // 404s harmlessly if this hub never set GOOGLE_OAUTH_CLIENT_ID/SECRET/
+    // REDIRECT_URI (the desktop scripts/google-auth.py path still works
+    // either way — this is an alternative, not a replacement).
+    const reconnectLink = (it.id === 'google_calendar' && it.status === 'needs_auth')
+      ? `<a class="integ-reconnect" href="/oauth/google/start">Reconnect Google Calendar</a>`
+      : '';
     return `<button class="integ-row" type="button" role="switch"`
       + ` aria-checked="${it.enabled ? 'true' : 'false'}"`
       + ` data-integ-toggle="${escapeHtml(it.id)}">`
@@ -4818,7 +4829,8 @@ function renderIntegrations(data) {
       + (warn ? `<span class="integ-warn">${warn}</span>` : '')
       + `</span>`
       + `<span class="integ-switch${it.enabled ? ' on' : ''}" aria-hidden="true"></span>`
-      + `</button>`;
+      + `</button>`
+      + reconnectLink;
   };
   // Chores/To-Dos (group: 'feature') get their own header ahead of the
   // external services, so the switch list reads as "things this hub does"

@@ -9,5 +9,6 @@
 !src
 !VERSION
 !config.example.json
+!docker-entrypoint.sh
 **/__pycache__
 **/*.pyc

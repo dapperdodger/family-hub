@@ -5192,6 +5192,39 @@ test('renderIntegrations: shows a reconnect hint when status is needs_auth', () 
   assert.match(host.innerHTML, /reconnect/);
 });
 
+test('renderIntegrations: a needs_auth google_calendar row gets a live Reconnect link', () => {
+  const { sandbox } = newHub();
+  sandbox.renderIntegrations({ integrations: [
+    { id: 'google_calendar', kind: 'calendar', name: 'Google Calendar',
+      enabled: true, status: 'needs_auth' },
+  ] });
+  const host = sandbox.document.getElementById('integrations-ctl');
+  const link = host.querySelector('a.integ-reconnect');
+  assert.ok(link, 'a real link element, not just the plain "reconnect" text badge');
+  assert.equal(link.getAttribute('href'), '/oauth/google/start');
+});
+
+test('renderIntegrations: other needs_auth integrations get the plain badge, no Google link', () => {
+  const { sandbox } = newHub();
+  sandbox.renderIntegrations({ integrations: [
+    { id: 'icloud_caldav', kind: 'caldav', name: 'iCloud (CalDAV)',
+      enabled: true, status: 'needs_auth' },
+  ] });
+  const host = sandbox.document.getElementById('integrations-ctl');
+  assert.equal(host.querySelector('a.integ-reconnect'), null,
+    'the Google-specific reconnect link must not appear for a different integration');
+});
+
+test('renderIntegrations: an enabled, healthy google_calendar row gets no reconnect link', () => {
+  const { sandbox } = newHub();
+  sandbox.renderIntegrations({ integrations: [
+    { id: 'google_calendar', kind: 'calendar', name: 'Google Calendar',
+      enabled: true, status: 'ok' },
+  ] });
+  const host = sandbox.document.getElementById('integrations-ctl');
+  assert.equal(host.querySelector('a.integ-reconnect'), null);
+});
+
 test('renderIntegrations: a broken laundry row carries its own badge', () => {
   // The backend now keeps laundry listed and reports needs_auth (no/rejected
   // token) or error (a config block that survived nothing, a machine stuck

@@ -21,17 +21,19 @@ import logging
 import math
 import os
 import re
+import secrets
 import sqlite3
 import threading
 import time
 import uuid
 from typing import Literal
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, WebSocket
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
+                               Response, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -49,8 +51,8 @@ from . import caldav_service
 from . import caldav_sync
 from . import chore_mirror
 from . import deep_health
-from .calendar_sync import (GoogleCalendarClient, _is_auth_error,
-                            normalize_event, sync_once)
+from .calendar_sync import (SCOPES, GoogleCalendarClient, _is_auth_error,
+                            _write_secret_atomic, normalize_event, sync_once)
 from .config import load_config
 
 logging.basicConfig(
@@ -87,6 +89,15 @@ _fetch_cfg = dataclasses.replace(
     cfg, go2rtc_base=os.environ.get("GO2RTC_FETCH_BASE", cfg.go2rtc_base))
 DB_PATH = os.environ.get("DB_PATH", "data/hub.db")
 TOKEN_PATH = os.environ.get("TOKEN_PATH", "data/token.json")
+# Optional: lets the wall itself reconnect Google Calendar (POST .../oauth/
+# google/start -> approve on Google's page -> token.json written server-side)
+# instead of running scripts/google-auth.py on a desktop and copying the file
+# over. All three empty (the default) leaves /oauth/google/* returning 404 —
+# the desktop script keeps working as the only path, exactly as before this
+# existed. Secrets, never in config.json: see .env.example.
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
+GOOGLE_OAUTH_REDIRECT_URI = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "")
 # Server-side store for UI-entered iCloud CalDAV credentials (default: next to
 # the DB / Google token, in the git-ignored data dir). caldav_service reads it.
 os.environ.setdefault(
@@ -2796,6 +2807,115 @@ def events_add(body: EventIn, background: BackgroundTasks):
     # /api/calendar fetch happens to run.
     return {**row, "color": disp["color"], "label": disp["label"],
             "event_color": GOOGLE_EVENT_COLORS.get(row.get("color_id") or "")}
+
+
+# --- wall-triggered Google reconnect (optional; see the three env vars) ---
+
+def _google_oauth_configured() -> bool:
+    return bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
+                and GOOGLE_OAUTH_REDIRECT_URI)
+
+
+# CSRF state for the OAuth round trip: single-process app (one uvicorn
+# worker, like every other in-memory state here — see _tls/_init_lock above),
+# so a plain dict is safe. Short-lived on purpose (a human clicking through a
+# Google consent page takes seconds, not hours) and pruned opportunistically
+# rather than on a timer, since this path is hit rarely.
+_oauth_states: dict[str, float] = {}
+_OAUTH_STATE_TTL_S = 600
+
+
+def _oauth_state_new() -> str:
+    now = time.monotonic()
+    for k in [k for k, t in _oauth_states.items() if now - t > _OAUTH_STATE_TTL_S]:
+        _oauth_states.pop(k, None)
+    state = secrets.token_urlsafe(24)
+    _oauth_states[state] = now
+    return state
+
+
+def _oauth_state_consume(state: str | None) -> bool:
+    """True iff `state` was a state we minted and it hasn't expired — pops it
+    either way, so it can never be replayed."""
+    issued_at = _oauth_states.pop(state, None) if state else None
+    return issued_at is not None and time.monotonic() - issued_at <= _OAUTH_STATE_TTL_S
+
+
+@app.get("/oauth/google/start")
+def oauth_google_start():
+    """Tapped from the Settings 'reconnect' hint. Redirects to Google's
+    consent page; the WEB OAuth client (not the Desktop one scripts/
+    google-auth.py uses) must have GOOGLE_OAUTH_REDIRECT_URI registered as
+    an authorized redirect URI, or Google rejects the request outright."""
+    if not _google_oauth_configured():
+        raise HTTPException(404, "Google reconnect is not configured on this hub")
+    params = {
+        "client_id": GOOGLE_OAUTH_CLIENT_ID,
+        "redirect_uri": GOOGLE_OAUTH_REDIRECT_URI,
+        "response_type": "code",
+        "scope": " ".join(SCOPES),
+        "access_type": "offline",
+        # Always show the consent screen, not just the account picker: a
+        # silent re-consent for an already-authorized account does NOT
+        # include a refresh_token in Google's response, and a token.json
+        # with no refresh_token is useless the moment its access token
+        # expires (about an hour) — see the check in the callback below.
+        "prompt": "consent",
+        "state": _oauth_state_new(),
+    }
+    return RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?"
+                            + urlencode(params))
+
+
+@app.get("/oauth/google/callback")
+async def oauth_google_callback(code: str | None = None, state: str | None = None,
+                                error: str | None = None):
+    if not _google_oauth_configured():
+        raise HTTPException(404, "Google reconnect is not configured on this hub")
+    if not _oauth_state_consume(state):
+        raise HTTPException(400, "invalid or expired state — start over from Settings")
+    if error:
+        raise HTTPException(400, f"Google declined: {error}")
+    if not code:
+        raise HTTPException(400, "Google's response had no authorization code")
+    try:
+        resp = await _http.post("https://oauth2.googleapis.com/token", data={
+            "code": code,
+            "client_id": GOOGLE_OAUTH_CLIENT_ID,
+            "client_secret": GOOGLE_OAUTH_CLIENT_SECRET,
+            "redirect_uri": GOOGLE_OAUTH_REDIRECT_URI,
+            "grant_type": "authorization_code",
+        })
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception as e:
+        log.exception("google oauth token exchange failed")
+        raise HTTPException(502, "could not complete Google sign-in") from e
+    if not payload.get("refresh_token"):
+        # Only happens if a caller bypasses /oauth/google/start (which always
+        # sets prompt=consent) and hits the callback with a stale code from a
+        # silent re-consent. Fail loudly rather than writing a token.json
+        # that works for about an hour and then silently stops.
+        raise HTTPException(502, "Google did not return a refresh token; "
+                             "start over from Settings")
+    from google.oauth2.credentials import Credentials
+    creds = Credentials(
+        token=payload.get("access_token"),
+        refresh_token=payload["refresh_token"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=GOOGLE_OAUTH_CLIENT_ID,
+        client_secret=GOOGLE_OAUTH_CLIENT_SECRET,
+        scopes=(payload.get("scope") or "").split())
+    _write_secret_atomic(TOKEN_PATH, creds.to_json())
+    # This is reached by navigating the WALL's own browser away to Google
+    # and back — on a kiosk touchscreen there's no "close this tab", so send
+    # it home automatically rather than stranding the wall on a dead page.
+    return HTMLResponse(
+        "<html><head><meta http-equiv='refresh' content='2;url=/'></head>"
+        "<body style='font-family:sans-serif;background:#12161f;"
+        "color:#e8ecf4;padding:3em;text-align:center'>"
+        "<h1>Google Calendar reconnected</h1>"
+        "<p>Returning to the wall…</p></body></html>")
 
 
 @app.get("/api/tiles/climate")

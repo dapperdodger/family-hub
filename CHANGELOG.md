@@ -19,6 +19,18 @@ rolls that section to a dated version via `python scripts/release.py`.
   installs should re-run `scripts/google-auth.py` and redeploy the
   resulting `token.json` to enable event creation; reads keep working with
   the old token, with no action needed, until that's done.
+- Settings can now reconnect Google Calendar from the wall itself: tap
+  "Reconnect Google Calendar" on a `needs_auth` row, approve on Google's
+  page, and `token.json` is written on the box — no desktop, no
+  `scripts/google-auth.py`, no copying files. Opt-in: needs
+  `GOOGLE_OAUTH_CLIENT_ID`/`_CLIENT_SECRET`/`_REDIRECT_URI` (a second,
+  "Web application"-type OAuth client) and `TLS_CERT_FILE`/`TLS_KEY_FILE`
+  (the app serves HTTPS instead of HTTP when both are set — required,
+  since Google rejects a redirect URI that isn't `localhost` or a real
+  HTTPS hostname; a Tailscale cert via `tailscale cert` is the easy way to
+  get one with no domain of your own). All optional; leaving them unset
+  keeps everything working exactly as before. See `.env.example` and the
+  README.
 
 ### Fixed
 - `POST /api/events`'s live path, two follow-up fixes from a scoped

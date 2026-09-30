@@ -2,6 +2,7 @@ import datetime as dt
 import importlib
 import json
 import logging
+import os
 import re
 import sqlite3
 
@@ -39,6 +40,12 @@ def _write_cfg(tmp_path):
 @pytest.fixture
 def app_mod(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "hub.db"))
+    # Isolated on purpose: the default "data/token.json" is a real, relative
+    # path. On any checkout that has ever run the real app (a dev machine,
+    # not just CI), that file can genuinely exist with a real token — tests
+    # that assume "no token configured" must not silently depend on it
+    # happening to be absent on whatever machine runs them.
+    monkeypatch.setenv("TOKEN_PATH", str(tmp_path / "token.json"))
     monkeypatch.setenv("DISABLE_SYNC", "1")
     monkeypatch.setenv("CONFIG_PATH", _write_cfg(tmp_path))
     import family_hub.app as appmod
@@ -6407,3 +6414,177 @@ def test_hub_reads_integration_availability_once_per_request(client, app_mod,
     calls.clear()
     assert client.get("/api/hub").status_code == 200
     assert len(calls) == 1
+
+
+# --- wall-triggered Google reconnect (/oauth/google/start, /callback) -----
+
+@pytest.fixture
+def app_mod_oauth(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "hub.db"))
+    # MUST be isolated: the default "data/token.json" is a real, relative
+    # path — on a real checkout that's the operator's actual Google token.
+    # A test that forgets this fixture writes a fake test token over it.
+    monkeypatch.setenv("TOKEN_PATH", str(tmp_path / "token.json"))
+    monkeypatch.setenv("DISABLE_SYNC", "1")
+    monkeypatch.setenv("CONFIG_PATH", _write_cfg(tmp_path))
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-client-secret")
+    monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI",
+                       "https://hub.example.tailnet.ts.net/oauth/google/callback")
+    import family_hub.app as appmod
+    importlib.reload(appmod)
+    return appmod
+
+
+@pytest.fixture
+def client_oauth(app_mod_oauth):
+    with TestClient(app_mod_oauth.app) as c:
+        yield c
+
+
+def test_oauth_google_start_404_when_not_configured(client):
+    # The default app_mod fixture sets none of the three env vars.
+    r = client.get("/oauth/google/start", follow_redirects=False)
+    assert r.status_code == 404
+
+
+def test_oauth_google_callback_404_when_not_configured(client):
+    r = client.get("/oauth/google/callback?code=x&state=y")
+    assert r.status_code == 404
+
+
+def test_oauth_google_start_redirects_to_google_with_the_right_params(client_oauth):
+    r = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    assert r.status_code in (302, 307)
+    loc = r.headers["location"]
+    assert loc.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
+    assert "client_id=test-client-id" in loc
+    assert "redirect_uri=https%3A%2F%2Fhub.example.tailnet.ts.net%2Foauth%2Fgoogle%2Fcallback" in loc
+    assert "access_type=offline" in loc
+    assert "prompt=consent" in loc
+    assert "state=" in loc
+    # the scope carries BOTH scopes (see calendar_sync.SCOPES) so the
+    # resulting token can read AND create events, not just one or the other
+    assert "calendar.readonly" in loc
+    assert "calendar.events" in loc
+
+
+def test_oauth_google_start_mints_a_fresh_state_each_call(client_oauth):
+    r1 = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    r2 = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    state1 = re.search(r"state=([^&]+)", r1.headers["location"]).group(1)
+    state2 = re.search(r"state=([^&]+)", r2.headers["location"]).group(1)
+    assert state1 != state2
+
+
+def test_oauth_google_callback_rejects_unknown_state(client_oauth):
+    r = client_oauth.get("/oauth/google/callback?code=abc&state=never-issued")
+    assert r.status_code == 400
+    assert "state" in r.json()["detail"].lower()
+
+
+def test_oauth_google_callback_rejects_a_replayed_state(client_oauth, monkeypatch):
+    start = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    state = re.search(r"state=([^&]+)", start.headers["location"]).group(1)
+
+    async def fake_post(url, data=None):
+        class R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"access_token": "at", "refresh_token": "rt",
+                        "scope": "https://www.googleapis.com/auth/calendar.readonly"}
+        return R()
+    monkeypatch.setattr("family_hub.app._http.post", fake_post)
+
+    r1 = client_oauth.get(f"/oauth/google/callback?code=abc&state={state}")
+    assert r1.status_code == 200
+    r2 = client_oauth.get(f"/oauth/google/callback?code=abc&state={state}")
+    assert r2.status_code == 400
+
+
+def test_oauth_google_callback_surfaces_googles_own_error(client_oauth):
+    start = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    state = re.search(r"state=([^&]+)", start.headers["location"]).group(1)
+    r = client_oauth.get(f"/oauth/google/callback?state={state}&error=access_denied")
+    assert r.status_code == 400
+    assert "access_denied" in r.json()["detail"]
+
+
+def test_oauth_google_callback_requires_a_code(client_oauth):
+    start = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    state = re.search(r"state=([^&]+)", start.headers["location"]).group(1)
+    r = client_oauth.get(f"/oauth/google/callback?state={state}")
+    assert r.status_code == 400
+
+
+def test_oauth_google_callback_exchange_failure_is_502(client_oauth, monkeypatch):
+    start = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    state = re.search(r"state=([^&]+)", start.headers["location"]).group(1)
+
+    async def boom(url, data=None):
+        raise RuntimeError("network down")
+    monkeypatch.setattr("family_hub.app._http.post", boom)
+
+    r = client_oauth.get(f"/oauth/google/callback?code=abc&state={state}")
+    assert r.status_code == 502
+
+
+def test_oauth_google_callback_no_refresh_token_is_502_not_a_written_token(
+        client_oauth, app_mod_oauth, monkeypatch, tmp_path):
+    start = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    state = re.search(r"state=([^&]+)", start.headers["location"]).group(1)
+
+    async def fake_post(url, data=None):
+        class R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"access_token": "at"}   # no refresh_token
+        return R()
+    monkeypatch.setattr("family_hub.app._http.post", fake_post)
+
+    r = client_oauth.get(f"/oauth/google/callback?code=abc&state={state}")
+    assert r.status_code == 502
+    assert not os.path.exists(app_mod_oauth.TOKEN_PATH)
+
+
+def test_oauth_google_callback_success_writes_a_real_token_json(
+        client_oauth, app_mod_oauth, monkeypatch):
+    start = client_oauth.get("/oauth/google/start", follow_redirects=False)
+    state = re.search(r"state=([^&]+)", start.headers["location"]).group(1)
+
+    async def fake_post(url, data=None):
+        assert url == "https://oauth2.googleapis.com/token"
+        assert data["code"] == "abc123"
+        assert data["client_id"] == "test-client-id"
+        assert data["client_secret"] == "test-client-secret"
+        assert data["grant_type"] == "authorization_code"
+
+        class R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"access_token": "at", "refresh_token": "rt",
+                        "scope": "https://www.googleapis.com/auth/calendar.readonly "
+                                 "https://www.googleapis.com/auth/calendar.events"}
+        return R()
+    monkeypatch.setattr("family_hub.app._http.post", fake_post)
+
+    r = client_oauth.get(f"/oauth/google/callback?code=abc123&state={state}")
+    assert r.status_code == 200
+    assert "reconnected" in r.text
+    # A kiosk touchscreen has no "close this tab" — must send itself home
+    # automatically rather than stranding the wall on a dead success page.
+    assert "http-equiv='refresh' content='2;url=/'" in r.text
+
+    with open(app_mod_oauth.TOKEN_PATH) as f:
+        written = json.load(f)
+    assert written["refresh_token"] == "rt"
+    assert written["client_id"] == "test-client-id"
+    # A GoogleCalendarClient built against this exact file must consider
+    # itself configured — the whole point of this endpoint.
+    assert app_mod_oauth.GoogleCalendarClient(app_mod_oauth.TOKEN_PATH).configured()

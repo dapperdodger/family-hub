@@ -279,14 +279,34 @@ your primary calendar). One-time auth, from any desktop:
 
 1. In the [Google Cloud console](https://console.cloud.google.com): create a
    project → enable the **Google Calendar API** → configure the OAuth consent
-   screen (External) → **publish the app to Production** (otherwise tokens
-   expire every 7 days) → create an OAuth client of type **Desktop app** and
-   download its JSON as `scripts/client_secret.json`.
+   screen (External, add yourself as a test user) → create an OAuth client of
+   type **Desktop app** and download its JSON as `scripts/client_secret.json`.
+   Leave the consent screen in Testing status — you're the only user, so
+   there's nothing to gain from publishing it, and doing so requires a real
+   verified domain for a privacy-policy link Google won't accept a free
+   GitHub/GitHub Pages URL for. The one real tradeoff of staying in Testing:
+   your refresh token expires roughly every 7 days, and you re-run step 2 to
+   renew it. `needs_auth`/"reconnect" in Settings tells you when it's time —
+   this is expected, not a failure.
 2. `cd scripts && python3 google-auth.py` (needs
    `pip install google-auth-oauthlib`). Approve calendar read AND event-create
    access; it writes `token.json`.
 3. Copy `token.json` into the box's `data/` directory. Done — the next 5-min
    sync picks it up. Your own sidebar colors and per-event colors carry over.
+
+**Reconnecting from the wall instead of a desktop (optional).** If re-running
+step 2 on a desktop every ~week is more friction than you want, `GOOGLE_OAUTH_
+CLIENT_ID`/`_SECRET`/`_REDIRECT_URI` in `.env.example` set up a second,
+web-flavored OAuth client that lets you tap "Reconnect Google Calendar" right
+in Settings — approve on Google's page, `token.json` is written on the box,
+no desktop involved. It needs the app to serve HTTPS (`TLS_CERT_FILE`/
+`TLS_KEY_FILE`, also in `.env.example`), because Google rejects a redirect URI
+that isn't either `localhost` or a real HTTPS hostname — a LAN or Tailscale
+IP address doesn't qualify even over HTTPS. If you run Tailscale,
+`tailscale cert <your-box>.<tailnet>.ts.net` gets you a real, trusted
+certificate for free, scoped to your own tailnet, with no domain purchase or
+Search Console verification needed. This is entirely optional — the plain
+desktop-script path above always keeps working, with or without it.
 
 ### Calendars: Apple / iCloud / any ICS feed
 
