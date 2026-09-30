@@ -49,7 +49,8 @@ from . import caldav_service
 from . import caldav_sync
 from . import chore_mirror
 from . import deep_health
-from .calendar_sync import GoogleCalendarClient, normalize_event, sync_once
+from .calendar_sync import (GoogleCalendarClient, _is_auth_error,
+                            normalize_event, sync_once)
 from .config import load_config
 
 logging.basicConfig(
@@ -485,6 +486,20 @@ def _writable_calendars(cal_google_on: bool, google_colors: dict) -> list[dict]:
     ]
 
 
+def _event_display_fields(calendar_id: str, google_colors: dict) -> dict:
+    """The {color, label} a non-CalDAV (Google or ICS) calendar's events
+    render with on the wall: the user's synced Google sidebar color wins over
+    the config fallback color, and label is the config label. Shared by
+    _calendar_block's per-row loop and the POST /api/events response, so a
+    freshly-created event gets the same color/chip immediately instead of
+    the neutral grey fallback until the next /api/calendar fetch."""
+    cal = next((cal for cal in cfg.calendars if cal["id"] == calendar_id), None) or {}
+    return {
+        "color": google_colors.get(calendar_id) or cal.get("color"),
+        "label": cal.get("label"),
+    }
+
+
 def _calendar_block(c, today: dt.date, days: int, past_days: int = 0) -> dict:
     status = _calendar_status_agg(c)
     cal_map = {cal["id"]: cal for cal in cfg.calendars}
@@ -548,8 +563,9 @@ def _calendar_block(c, today: dt.date, days: int, past_days: int = 0) -> dict:
                 continue
             if cal_kind == "ics" and not cal_ics_on:
                 continue
-            color = google_colors.get(cid) or cal.get("color")
-            label = cal.get("label")
+            disp = _event_display_fields(cid, google_colors)
+            color = disp["color"]
+            label = disp["label"]
         dedup_key = (e["id"], e["start_ts"], e["end_ts"])
         if dedup_key in seen_keys:
             continue
@@ -2635,6 +2651,11 @@ def events_add(body: EventIn, background: BackgroundTasks):
     _validate_event_calendar(body.calendar_id)
     start, end = _event_start_end(body)
     c = _db()
+    if not fdb.integration_enabled(c, "google_calendar", default=True):
+        # Same toggle _calendar_block already gates reads on (Task 4): a
+        # browser tab left open from before someone switched the integration
+        # off must not still be able to write a real event to Google.
+        raise HTTPException(409, "Google Calendar is turned off")
 
     if DEMO:
         # No real Google account in DEMO — write straight into the local
@@ -2657,7 +2678,10 @@ def events_add(body: EventIn, background: BackgroundTasks):
         except Exception:
             log.exception("DEMO add-event local write failed")
             raise HTTPException(500, "could not save the event")
-        return row
+        google_colors = fdb.kv_get(c, "calendar_colors") or {}
+        disp = _event_display_fields(body.calendar_id, google_colors)
+        return {**row, "color": disp["color"], "label": disp["label"],
+                "event_color": GOOGLE_EVENT_COLORS.get(row.get("color_id") or "")}
 
     client = GoogleCalendarClient(TOKEN_PATH)
     if not client.configured():
@@ -2667,17 +2691,48 @@ def events_add(body: EventIn, background: BackgroundTasks):
     try:
         item = client.create_event(body.calendar_id, gbody)
     except Exception as e:
-        raise HTTPException(502, f"could not create the event: {e}")
-    row = normalize_event(item, body.calendar_id, TZ)
+        log.exception("add-event: Google insert failed for calendar %s",
+                      body.calendar_id)
+        if _is_auth_error(e):
+            # Same status/message the "not configured" branch above already
+            # returns, so the frontend's existing substring-matched "check
+            # Settings" handling covers this too. An old token that never
+            # granted calendar.events (see calendar_sync.SCOPES) looks
+            # exactly like this until the operator re-authorizes.
+            raise HTTPException(409, "calendar not connected") from e
+        # str(e) is deliberately withheld from the client: a Google
+        # HttpError's message includes the full request URL, which contains
+        # the calendar id (often a personal email address) — fine for the
+        # server log, not for whoever is looking at the wall/browser.
+        raise HTTPException(502, "could not create the event — try again") from e
+
+    try:
+        row = normalize_event(item, body.calendar_id, TZ)
+    except Exception:
+        row = None
     if row is None:
-        # Google accepted the insert but returned a shape normalize_event
-        # can't read (e.g. no start echoed back) — say so rather than
-        # leaving the caller silently guessing whether it saved. It DID
-        # save; the next background sync (or this one below) will still
-        # pick it up from Google's own listing.
-        raise HTTPException(
-            502, f"event created ({item.get('id')}) but its response "
-            "could not be read; it will appear once the next sync runs")
+        # Google already created the event at this point — returning an
+        # HTTP error here would leave the add-event modal open with Save
+        # re-enabled (the exact duplicate-write risk Task 5 already hardened
+        # for the local-cache-write failure just below), inviting a SECOND
+        # real insert if the family taps Add again. Build a minimal row from
+        # what's already known (Google's id, plus the request's own
+        # already-validated fields) instead of failing the request; the
+        # background resync scheduled below fills in the authoritative
+        # version shortly.
+        log.warning("add-event: normalize_event could not read the Google "
+                    "response for calendar %s (item id %r); returning a "
+                    "minimal row instead of failing", body.calendar_id,
+                    item.get("id"))
+        row = {
+            "id": item.get("id") or f"local-{uuid.uuid4().hex[:12]}",
+            "calendar_id": body.calendar_id, "title": title,
+            "start_ts": start if body.all_day else _house_local_naive(start),
+            "end_ts": end if body.all_day else _house_local_naive(end),
+            "all_day": 1 if body.all_day else 0,
+            "updated": item.get("updated"), "location": body.location,
+            "description": body.description, "color_id": item.get("colorId"),
+        }
     # The Google write already succeeded at this point — a failure caching
     # it locally must never turn into an error response (the caller would
     # retry and create a DUPLICATE event on their real calendar). Log and
@@ -2697,7 +2752,15 @@ def events_add(body: EventIn, background: BackgroundTasks):
     # resync uses "now" at insert time rather than whenever it happens to
     # actually run.
     background.add_task(_background_resync, client, _now_local())
-    return row
+    # Decorate the same way _calendar_block decorates every row on the wall
+    # (color/label from the resolved Google/config color, event_color from
+    # any per-event colorId) so a freshly-created event doesn't render in
+    # the neutral grey fallback with no calendar chip until the next
+    # /api/calendar fetch happens to run.
+    google_colors = fdb.kv_get(c, "calendar_colors") or {}
+    disp = _event_display_fields(body.calendar_id, google_colors)
+    return {**row, "color": disp["color"], "label": disp["label"],
+            "event_color": GOOGLE_EVENT_COLORS.get(row.get("color_id") or "")}
 
 
 @app.get("/api/tiles/climate")

@@ -1360,6 +1360,158 @@ def test_add_event_live_path_background_resync_failure_still_returns_200(client,
     assert r.json()["id"] == "g-new1"
 
 
+class RefreshError(Exception):
+    """Stand-in for google.auth.exceptions.RefreshError. _is_auth_error
+    matches purely by class name (so calendar_sync never has to import the
+    real google-auth exception types), so a same-named local class exercises
+    the exact same branch without needing the real library."""
+
+
+def test_add_event_live_path_google_failure_502_does_not_leak_exception_text(client, app_mod, monkeypatch):
+    # A real google HttpError's str() includes the full request URL, which
+    # carries the calendar id (often a personal email) and can carry a key
+    # -- none of that belongs in a client-visible response.
+    _FakeWriteClient.raise_on_create = RuntimeError(
+        "<HttpError 500 when requesting https://www.googleapis.com/calendar/"
+        "v3/calendars/someone@example.com/events?key=SECRETVALUE>")
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    try:
+        r = client.post("/api/events", json={
+            "calendar_id": "cal", "title": "X", "all_day": False,
+            "start": start})
+    finally:
+        _FakeWriteClient.raise_on_create = None
+    assert r.status_code == 502
+    detail = r.json()["detail"]
+    assert detail == "could not create the event — try again"
+    assert "someone@example.com" not in detail
+    assert "SECRETVALUE" not in detail
+
+
+def test_add_event_live_path_auth_failure_returns_409_not_connected(client, app_mod, monkeypatch):
+    # An auth/insufficient-scope failure (e.g. an old token that never
+    # granted calendar.events -- see calendar_sync.SCOPES) must read as the
+    # SAME "calendar not connected" 409 the not-configured case already
+    # returns, so the frontend's one substring-matched "check Settings"
+    # handler covers both, rather than surfacing as an indistinguishable
+    # generic 502 outage.
+    _FakeWriteClient.raise_on_create = RefreshError("invalid_scope")
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    try:
+        r = client.post("/api/events", json={
+            "calendar_id": "cal", "title": "X", "all_day": False,
+            "start": start})
+    finally:
+        _FakeWriteClient.raise_on_create = None
+    assert r.status_code == 409
+    assert r.json()["detail"] == "calendar not connected"
+
+
+def test_add_event_live_path_unreadable_google_response_still_returns_200(client, app_mod, monkeypatch):
+    """Google already created the event once create_event returns -- if
+    normalize_event then can't read the response shape, the endpoint must
+    still return 200 with a usable row (not a 502 that invites a duplicate
+    real insert on retry). The core duplicate-prevention guard, exercised
+    here for the "normalize_event returns None" branch."""
+    class _BadResponseClient(_FakeWriteClient):
+        def create_event(self, calendar_id, body):
+            _FakeWriteClient.created_body = (calendar_id, body)
+            return {"id": "g-bad1", "summary": body["summary"]}   # no start/end
+
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _BadResponseClient)
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "Dentist", "all_day": False,
+        "start": f"{today}T09:00:00", "end": f"{today}T10:00:00"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["id"] == "g-bad1"
+    assert body["title"] == "Dentist"
+
+
+def test_add_event_live_path_response_includes_color_and_label(client, app_mod, monkeypatch):
+    """The POST response must carry the same color/label decoration
+    /api/calendar rows get (Task 4's color resolution), so a freshly-created
+    event doesn't render in the neutral grey fallback with no calendar chip
+    until the next full /api/calendar fetch."""
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "Dentist", "all_day": False,
+        "start": f"{today}T09:00:00", "end": f"{today}T10:00:00"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["color"] == "#5BC9F0"   # config's color for calendar "cal"
+    assert body["label"] == "Fam"
+
+
+def test_add_event_rejects_when_google_calendar_integration_off(client, app_mod):
+    """The write route must enforce the same toggle _writable_calendars and
+    _calendar_block already gate reads on -- a browser tab open from before
+    someone switched the integration off must not still be able to write a
+    real event to Google."""
+    c = app_mod._db()
+    fdb.set_integration_enabled(c, "google_calendar", False)
+    start = f"{app_mod._today().isoformat()}T09:00:00"
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "X", "all_day": False,
+        "start": start})
+    assert r.status_code == 409
+    assert "turned off" in r.json()["detail"]
+
+
+def test_add_event_live_path_local_cache_failure_still_returns_200_no_double_write(client, app_mod, monkeypatch):
+    """Guard A (Task 5's core duplicate-prevention fix): once Google's
+    insert has succeeded, a failure caching the row locally must still
+    return 200 with the real Google id -- and must not cause a second call
+    to create_event. Every existing test would still pass if this guard were
+    silently removed; this is the one that actually exercises it."""
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    calls = []
+    orig_create = _FakeWriteClient.create_event
+
+    def counting_create(self, calendar_id, body):
+        calls.append(1)
+        return orig_create(self, calendar_id, body)
+    monkeypatch.setattr(_FakeWriteClient, "create_event", counting_create)
+
+    def boom(*a, **k):
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(app_mod.fdb, "add_event_row", boom)
+
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "Dentist", "all_day": False,
+        "start": f"{today}T09:00:00", "end": f"{today}T10:00:00"})
+    assert r.status_code == 200
+    assert r.json()["id"] == "g-new1"
+    assert len(calls) == 1   # no accidental double-write attempted
+
+
+def test_add_event_live_path_background_resync_genuinely_runs(client, app_mod, monkeypatch):
+    """Guard B (Task 5's post-write resync): prove sync_once is actually
+    CALLED after a successful live write, not just that the response
+    doesn't 500 if it fails. TestClient runs BackgroundTasks synchronously
+    within the request/response cycle, so the recorder is populated by the
+    time the response comes back."""
+    monkeypatch.setattr(app_mod, "GoogleCalendarClient", _FakeWriteClient)
+    calls = []
+
+    def recording_sync_once(client_arg, conn, cfg_arg, now, ics_fetch=None):
+        calls.append((client_arg, now))
+        return {"ok": True}
+    monkeypatch.setattr(app_mod, "sync_once", recording_sync_once)
+
+    today = app_mod._today().isoformat()
+    r = client.post("/api/events", json={
+        "calendar_id": "cal", "title": "Dentist", "all_day": False,
+        "start": f"{today}T09:00:00", "end": f"{today}T10:00:00"})
+    assert r.status_code == 200
+    assert len(calls) == 1
+
+
 def test_tiles_routes_monkeypatched(client, monkeypatch):
     async def fake_climate(hclient, cfg):
         return {"available": True,

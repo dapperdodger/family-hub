@@ -21,6 +21,16 @@ rolls that section to a dated version via `python scripts/release.py`.
   the old token, with no action needed, until that's done.
 
 ### Fixed
+- `POST /api/events`'s live Google write path: failures are now logged and
+  no longer leak a Google error's raw text (which can include the calendar
+  id/URL) to the caller; an auth/insufficient-scope failure now reads as
+  the same "calendar not connected" 409 as an unconfigured calendar; a
+  response Google returns that this app can't parse after a successful
+  insert no longer produces a false failure that could prompt a duplicate
+  real event; the route now also honors the `google_calendar` integration
+  toggle; and the response is now decorated with the same color/label an
+  `/api/calendar` row gets, instead of rendering with the neutral fallback
+  until the next sync.
 - The Wyze bridge's health check now also probes the bridge's own internal
   go2rtc. That relay can exit alone right after the container starts, and
   the bridge never relaunches it, so the Wyze cameras went dark while the
