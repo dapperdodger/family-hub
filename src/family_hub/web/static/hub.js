@@ -216,12 +216,74 @@ function sectionHead(label, { overlay, expandLabel, chip } = {}) {
   return `<div class="shead"><span class="tick"></span><h2>${escapeHtml(label)}</h2>${chipHtml}${act}</div>`;
 }
 
+// Days the wall's agenda spans. The always-on month card sits right under it
+// (operator, 2026-09-30), and a 5-day agenda plus a 6-week month does not fit a
+// 1080px-tall wall; the month grid carries everything past these days. The
+// phone has no month card (Calendar tab instead), so it keeps the 5-day feed.
+const WALL_AGENDA_DAYS = 3;
+const PHONE_AGENDA_DAYS = 5;
+
 function renderCalendar(data) {
   indexEvents(data.calendar.events);
+  // calDefaultMode() is the JS mirror of the phone/wall CSS split: 'month' means
+  // the wall layout (and so the month card is on screen).
+  const days = calDefaultMode() === 'month' ? WALL_AGENDA_DAYS : PHONE_AGENDA_DAYS;
   document.getElementById('cal').innerHTML =
     sectionHead('Calendar', { overlay: 'calendar', expandLabel: 'Month view' })
     + calStatusNote(data.calendar)
-    + agendaHtml(data.calendar.events, data.date, data.date, 5, 2, data.calendar.window);
+    + agendaHtml(data.calendar.events, data.date, data.date, days, 2, data.calendar.window);
+}
+
+/* ------------------------------------------------------- wall month card */
+
+// Event rows per week on the wall's month card; the full calendar keeps
+// MONTH_MAX_LANES. The CSS row template for .month-slot .mg-week (styles.css)
+// has to agree: 1 date row + this many lanes + 1 "+N more" row.
+const MONTH_CARD_LANES = 2;
+
+// The card exists in the DOM on the phone too but is display:none there (and
+// when the calendar is off), so the fetch below is skipped while it is hidden.
+function monthCardVisible() {
+  const el = document.getElementById('month-slot');
+  if (!el) return false;
+  if (typeof getComputedStyle !== 'function') return true;
+  return getComputedStyle(el).display !== 'none';
+}
+
+// Shares calWin with the full calendar: the wall's calendar fetch must use the
+// server's named window (test_calendar_window_chain_stays_consistent), so the
+// card reads the same payload instead of keeping a narrower one of its own.
+function renderMonthCard() {
+  const host = document.getElementById('month-slot');
+  // Nothing fetched yet -- or only the home feed's narrow stand-in the overlay
+  // seeds while its real fetch is in flight (loading_full, which would hatch
+  // every day past +14): stay empty rather than paint a fake-free month.
+  if (!host || !calWin || (calWin.status && calWin.status.loading_full)) return;
+  const todayStr = data_date || todayISO();
+  const y = Number(todayStr.slice(0, 4));
+  const m = Number(todayStr.slice(5, 7));
+  const win = calWin.window || emptyWindow(todayStr);
+  // No status note here: the Calendar card above already shows it.
+  host.innerHTML = sectionHead(monthName(y, m))
+    + monthHtml(y, m, calWin.events || [], todayStr, win, MONTH_CARD_LANES, true);
+}
+
+// fetchCalWindow handles its own failures (keeps the cached events under a
+// downgraded status), so this never throws.
+async function refreshMonthCard() {
+  if (!monthCardVisible()) return;
+  await fetchCalWindow();
+  renderMonthCard();
+}
+
+// A tap on a day (or its "+N more") in the card opens the full calendar on that day.
+function openCalendarDay(dateStr) {
+  openOverlay('calendar');
+  calState.mode = 'day';
+  calState.day = dateStr;
+  calState.y = Number(dateStr.slice(0, 4));
+  calState.m = Number(dateStr.slice(5, 7));
+  renderCalFull();
 }
 
 /* ---------------------------------------------------- full calendar view */
@@ -281,7 +343,7 @@ function monthCellHtml(cell, col, hasEvents, todayStr, win) {
    they cover (clipped to an arrow where they carry into the next week), timed
    events as dot + time + title. Past MONTH_MAX_LANES a per-day "+N more" chip
    opens the day. */
-function monthWeekHtml(cells, events, todayStr, win) {
+function monthWeekHtml(cells, events, todayStr, win, maxLanes = MONTH_MAX_LANES) {
   const days = cells.map((c) => c.date);
   const items = assignLanes(events, days);
   const covered = new Set();
@@ -289,11 +351,11 @@ function monthWeekHtml(cells, events, todayStr, win) {
   items.forEach((it) => {
     for (let c = it.c0; c <= it.c1; c++) {
       covered.add(days[c]);
-      if (it.lane >= MONTH_MAX_LANES) overflow[c]++;
+      if (it.lane >= maxLanes) overflow[c]++;
     }
   });
   const cellHtml = cells.map((c, i) => monthCellHtml(c, i, covered.has(c.date), todayStr, win)).join('');
-  const evHtml = items.filter((it) => it.lane < MONTH_MAX_LANES).map((it) => {
+  const evHtml = items.filter((it) => it.lane < maxLanes).map((it) => {
     const color = safeColor(eventColor(it.ev));
     const place = `grid-column:${it.c0 + 1} / ${it.c1 + 2};grid-row:${it.lane + 2}`;
     const eid = escapeHtml(it.ev.id);
@@ -313,18 +375,23 @@ function monthWeekHtml(cells, events, todayStr, win) {
       + `<span class="mg-ev-title">${title}</span></span>`;
   }).join('');
   const moreHtml = overflow.map((n, i) => n > 0
-    ? `<span class="mg-more" data-date="${days[i]}" role="button" tabindex="0" style="grid-column:${i + 1};grid-row:${MONTH_MAX_LANES + 2}">+${n} more</span>`
+    ? `<span class="mg-more" data-date="${days[i]}" role="button" tabindex="0" style="grid-column:${i + 1};grid-row:${maxLanes + 2}">+${n} more</span>`
     : '').join('');
   return `<div class="mg-week">${cellHtml}${evHtml}${moreHtml}</div>`;
 }
 
-function monthHtml(y, m, events, todayStr, win) {
+function monthHtml(y, m, events, todayStr, win, maxLanes = MONTH_MAX_LANES, trimTrailingWeek = false) {
   const heads = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     .map((d) => `<span class="mg-head">${d}</span>`).join('');
   const grid = monthGrid(y, m);
+  let weekCount = grid.length / 7;
+  // The wall card drops a last row that is entirely next month (a 5-row month
+  // otherwise carries a whole dimmed week of height for nothing). Events on
+  // those days still show as bars continuing out of the last in-month row.
+  if (trimTrailingWeek && !grid.slice((weekCount - 1) * 7).some((c) => c.inMonth)) weekCount--;
   let weeks = '';
-  for (let w = 0; w < grid.length / 7; w++) {
-    weeks += monthWeekHtml(grid.slice(w * 7, w * 7 + 7), events, todayStr, win);
+  for (let w = 0; w < weekCount; w++) {
+    weeks += monthWeekHtml(grid.slice(w * 7, w * 7 + 7), events, todayStr, win, maxLanes);
   }
   return `<div class="mgrid"><div class="mg-heads">${heads}</div>${weeks}</div>`;
 }
@@ -1690,18 +1757,23 @@ function applyWallLayout(list) {
   };
   setDisp('.people-col', chores);
   setDisp('.cal', calAny);
+  setDisp('.month-slot', calAny);
   setDisp('.todo-slot', todos);
+  setDisp('.col-left', chores || todos);
+  setDisp('.col-mid', calAny);
   setDisp('.tiles', cameras);
   setDisp('.panels', dash);
+  // Four columns, ONE grid row (left and mid each stack their own cards):
+  // chores+to-dos | agenda+month | cameras | dashboards. A column whose
+  // features are all off drops out and the rest slide over.
   const cols = [];
-  if (chores) cols.push({ w: '360px', a1: 'people', a2: 'people' });
-  if (calAny || todos) cols.push({ w: 'minmax(0, 1fr)',
-    a1: calAny ? 'cal' : 'todo', a2: todos ? 'todo' : 'cal' });
-  if (cameras) cols.push({ w: '540px', a1: 'tiles', a2: 'tiles' });
-  if (dash) cols.push({ w: '340px', a1: 'panels', a2: 'panels' });
+  if (chores || todos) cols.push({ w: '360px', a: 'left' });
+  if (calAny) cols.push({ w: 'minmax(0, 1fr)', a: 'mid' });
+  if (cameras) cols.push({ w: '540px', a: 'tiles' });
+  if (dash) cols.push({ w: '340px', a: 'panels' });
   grid.style.gridTemplateColumns = cols.map((c) => c.w).join(' ');
   grid.style.gridTemplateAreas = cols.length
-    ? `"${cols.map((c) => c.a1).join(' ')}" "${cols.map((c) => c.a2).join(' ')}"`
+    ? `"${cols.map((c) => c.a).join(' ')}"`
     : '';
 }
 
@@ -3595,6 +3667,7 @@ const RENDER_STEPS = {
   initTiles: { label: 'Cameras', panel: true },
   initCamGrid: { label: 'Cameras tab', panel: false },
   renderCalendar: { label: 'Calendar', panel: true },
+  renderMonthCard: { label: 'Month calendar', panel: true },
   renderPeople: { label: 'Chores', panel: true },
   renderTodoSlot: { label: 'To-dos', panel: true },
   renderIntegrations: { label: 'Settings list', panel: false },
@@ -3667,12 +3740,14 @@ async function poll() {
   renderStep('initTiles', () => initTiles());       // camera tiles are config-driven; build once links exist
   renderStep('initCamGrid', () => initCamGrid());   // Cameras-tab 2x2 grid, also config-driven
   renderStep('renderCalendar', () => renderCalendar(data));
+  renderStep('renderMonthCard', () => renderMonthCard());   // repaint from cache (a date roll, a theme change)
   renderStep('renderPeople', () => renderPeople(data));
   renderStep('renderTodoSlot', () => renderTodoSlot(data));
   renderStep('renderIntegrations', () => renderIntegrations(data));
   renderStep('renderBackup', () => renderBackup(data));
   renderStep('pruneEvIndex', () => pruneEvIndex());
   paintConnWord();
+  refreshMonthCard();   // fire and forget: handles its own errors, repaints itself
 }
 
 // Header backup badge: absent when healthy/unknown, amber when the backup has
@@ -4148,6 +4223,9 @@ document.addEventListener('click', (e) => {
   if (viewBtn) { calState.mode = viewBtn.dataset.calview; renderCalFull(); return; }
   if (e.target.closest('[data-calback]')) { calState.mode = 'month'; renderCalFull(); return; }
   if (e.target.closest('[data-caladd]')) { openAddEventModal(); return; }
+  // the wall's always-on month card: a tap opens the FULL calendar on that day
+  const cardDay = e.target.closest('#month-slot .mg-day') || e.target.closest('#month-slot .mg-more');
+  if (cardDay) { openCalendarDay(cardDay.dataset.date); return; }
   const mgDay = e.target.closest('.mg-day') || e.target.closest('.mg-more');   // the "+N more" chip opens its day too
   if (mgDay) {
     calState.mode = 'day'; calState.day = mgDay.dataset.date;

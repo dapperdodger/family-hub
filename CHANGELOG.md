@@ -10,6 +10,15 @@ rolls that section to a dated version via `python scripts/release.py`.
 
 ## [Unreleased]
 
+### Changed
+- Wall layout: To-Do now sits under Chores in the left column, and the
+  calendar column shows a 3-day agenda with the current month's grid always
+  visible beneath it (tap a day to open it in the full calendar). Each of the
+  two columns stacks independently, so a long chore list no longer leaves a
+  gap above the month grid. The phone layout and tabs are unchanged, and the
+  month card is hidden there. A column drops out only when every feature in
+  it is off (chores and to-dos for the left one).
+
 ### Added
 - The calendar overlay has a "+" button to add an event directly to any
   configured Google calendar, with immediate visibility and no wait for
