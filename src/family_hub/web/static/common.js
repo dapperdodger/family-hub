@@ -1100,11 +1100,35 @@ function buildAddEventForm(host, calendars, submitLabel, onsubmit) {
     }
     model.title = title;
     model.calendarId = $('.f-calendar').value;
-    model.date = $('.f-evdate').value || todayISO();
+    // A date <input> reports '' if cleared or left invalid/partial — that
+    // must be a validation failure, not a silent fall-back to today (which
+    // would schedule the event on the REAL calendar for the wrong day with
+    // no warning). Same for start/end time when the event isn't all-day.
+    const dateVal = $('.f-evdate').value;
+    if (!dateVal) {
+      err.textContent = 'Pick a date.';
+      err.classList.remove('hidden');
+      return undefined;
+    }
+    model.date = dateVal;
     model.location = $('.f-location').value;
     model.description = $('.f-description').value;
-    model.startTime = $('.f-starttime').value || model.startTime;
-    model.endTime = $('.f-endtime').value || model.endTime;
+    if (!model.allDay) {
+      const startVal = $('.f-starttime').value;
+      if (!startVal) {
+        err.textContent = 'Pick a start time.';
+        err.classList.remove('hidden');
+        return undefined;
+      }
+      const endVal = $('.f-endtime').value;
+      if (!endVal) {
+        err.textContent = 'Pick an end time.';
+        err.classList.remove('hidden');
+        return undefined;
+      }
+      model.startTime = startVal;
+      model.endTime = endVal;
+    }
     if (!model.allDay && model.endTime < model.startTime) {
       err.textContent = 'End time must not be before start time.';
       err.classList.remove('hidden');

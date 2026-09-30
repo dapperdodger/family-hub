@@ -329,13 +329,21 @@ function monthHtml(y, m, events, todayStr, win) {
   return `<div class="mgrid"><div class="mg-heads">${heads}</div>${weeks}</div>`;
 }
 
-function calNavHtml(title) {
+function calNavHtml(title, hasWritableCalendars) {
   const seg = (mode, label) => {
     const active = calState.mode === mode
       || (mode === 'month' && calState.mode === 'day');
     return `<button class="seg-btn${active ? ' active' : ''}"`
       + ` type="button" data-calview="${mode}">${label}</button>`;
   };
+  // Nothing to add to (no writable Google calendars: none configured, or
+  // the google_calendar integration is toggled off) -> omit the button
+  // entirely rather than offering a tap that always dead-ends in "no
+  // calendar configured" (docs/adding-a-feature.md: anything the feature
+  // can switch off must not move a pixel when off).
+  const addBtn = hasWritableCalendars
+    ? `<button class="cal-nav-btn cal-nav-add" type="button" data-caladd="1" aria-label="Add event">+</button>`
+    : '';
   return `<div class="cal-nav">`
     + `<button class="cal-nav-btn" type="button" data-calnav="prev">‹</button>`
     + `<button class="cal-nav-btn cal-nav-today" type="button" data-calnav="today">Today</button>`
@@ -343,7 +351,7 @@ function calNavHtml(title) {
     + `<span class="cal-nav-title">${escapeHtml(title)}</span>`
     + `<span class="spacer"></span>`
     + `<div class="segmented">${seg('month', 'Month')}${seg('agenda', 'Week')}</div>`
-    + `<button class="cal-nav-btn cal-nav-add" type="button" data-caladd="1" aria-label="Add event">+</button>`
+    + addBtn
     + `</div>`;
 }
 
@@ -374,7 +382,8 @@ function renderCalFull() {
     body = monthHtml(calState.y, calState.m, events, todayStr, win);
   }
   host.innerHTML = calStatusNote(calWin || { status: {} })
-    + calNavHtml(title) + `<div class="cal-body">${body}</div>`;
+    + calNavHtml(title, !!(calWin && calWin.calendars && calWin.calendars.length))
+    + `<div class="cal-body">${body}</div>`;
 }
 
 /* Which view the calendar overlay opens on. The wall opens on the month grid;
@@ -476,21 +485,45 @@ function closeAddEventModal() {
    failure leave the modal open (the typed data is still in the form) and
    show the message inline, mirroring the doc's "never lose what they
    typed" requirement. `errEl` is the form's own .f-error node. */
+// Longer than j()'s default J_TIMEOUT_MS (12s), for this one call only:
+// Google's insert (plus a possible token refresh) can legitimately take
+// longer than that under load or on a slow connection, even though it
+// usually still succeeds server-side. A dedicated AbortController is passed
+// in as opts.signal so j() skips its own shorter timer for this call
+// without touching J_TIMEOUT_MS (which every other caller still relies on).
+const ADD_EVENT_TIMEOUT_MS = 30000;
+
 async function submitAddEvent(body, errEl) {
   let created;
+  let reqOpts = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+  let timer = null;
+  if (typeof AbortController !== 'undefined') {
+    const ac = new AbortController();
+    timer = setTimeout(() => ac.abort(), ADD_EVENT_TIMEOUT_MS);
+    reqOpts = { ...reqOpts, signal: ac.signal };
+  }
   try {
-    created = await j('/api/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    created = await j('/api/events', reqOpts);
   } catch (e) {
-    const msg = (e.message || '').includes('not connected')
-      ? "Calendar isn't connected — check Settings."
-      : (e.message || "Couldn't save — check the hub and try again.");
+    // The browser gave up waiting, not Google/the server — the insert may
+    // well have succeeded despite the abort, so this must not read like the
+    // ordinary "couldn't save" failure (which implies nothing happened) or
+    // invite an immediate retry the way that message does.
+    const msg = e.name === 'AbortError'
+      ? "The hub is still waiting on Google — the event may have already "
+        + 'been saved. Check the calendar before trying again.'
+      : (e.message || '').includes('not connected')
+        ? "Calendar isn't connected — check Settings."
+        : (e.message || "Couldn't save — check the hub and try again.");
     errEl.textContent = msg;
     errEl.classList.remove('hidden');
     return;
+  } finally {
+    if (timer !== null) clearTimeout(timer);
   }
   closeAddEventModal();
   indexEvents([...(calWin && calWin.events || []), created]);

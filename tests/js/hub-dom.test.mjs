@@ -1229,10 +1229,19 @@ test('renderCalFull passes calWin.window through to the month grid', () => {
   assert.match(html, /mg-unsynced/, 'a day beyond the fixture window is marked, via the real render path');
 });
 
-test('calNavHtml includes an add-event button', () => {
+test('calNavHtml includes an add-event button when there are writable calendars', () => {
   const { sandbox } = newHub();
-  const html = sandbox.calNavHtml('October 2026');
+  const html = sandbox.calNavHtml('October 2026', true);
   assert.match(html, /data-caladd="1"/);
+});
+
+test('calNavHtml omits the add-event button when there are no writable calendars', () => {
+  // Nothing to add to (no Google calendars configured, or the toggle is
+  // off) -- the button must not appear at all, not just fail silently when
+  // tapped (docs/adding-a-feature.md's "must not move a pixel when off").
+  const { sandbox } = newHub();
+  const html = sandbox.calNavHtml('October 2026', false);
+  assert.doesNotMatch(html, /data-caladd/);
 });
 
 // calDefaultMode picks the opening view: the wall gets the month grid, a phone
@@ -8585,6 +8594,43 @@ test('buildAddEventForm: a fast double-tap on submit only calls onsubmit once (o
   assert.equal(calls, 1, 'the second tap while the first save is in flight must be a no-op');
 });
 
+test('buildAddEventForm: an empty date is rejected, not silently defaulted to today', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+  let calls = 0;
+  sandbox.openAddEventModal();
+  const host = document.getElementById('add-event-form');
+  sandbox.buildAddEventForm(host, [{ id: 'cal', label: 'Fam', color: '#5BC9F0' }],
+    'Add event', () => { calls += 1; });
+  host.querySelector('.f-title').value = 'Dentist';
+  host.querySelector('.f-evdate').value = '';
+  const btn = host.querySelector('[data-submit]');
+  btn.onclick();
+  assert.equal(calls, 0, 'a blank/cleared date must not silently fall back to today');
+  const err = host.querySelector('.f-error');
+  assert.equal(err.classList.contains('hidden'), false);
+  assert.match(err.textContent, /date/i);
+});
+
+test('buildAddEventForm: an empty start time (not all-day) is rejected, not silently kept stale', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+  let calls = 0;
+  sandbox.openAddEventModal();
+  const host = document.getElementById('add-event-form');
+  sandbox.buildAddEventForm(host, [{ id: 'cal', label: 'Fam', color: '#5BC9F0' }],
+    'Add event', () => { calls += 1; });
+  host.querySelector('.f-title').value = 'Dentist';
+  host.querySelector('.f-evdate').value = '2026-10-01';
+  host.querySelector('.f-starttime').value = '';
+  const btn = host.querySelector('[data-submit]');
+  btn.onclick();
+  assert.equal(calls, 0, 'a blank start time must not silently keep the previous in-memory value');
+  const err = host.querySelector('.f-error');
+  assert.equal(err.classList.contains('hidden'), false);
+  assert.match(err.textContent, /start time/i);
+});
+
 test('submitAddEvent success closes the modal, shows the new event, and escapes a hostile title', async () => {
   const { document, sandbox } = newHub();
   vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
@@ -8633,6 +8679,31 @@ test('submitAddEvent keeps the modal open and shows an inline error on failure',
   assert.equal(document.getElementById('add-event-modal').classList.contains('hidden'), false,
     'a failed write must not close the modal — the typed data stays');
   assert.match(errEl.textContent, /connected/);
+});
+
+test('submitAddEvent shows a distinct message on a client timeout (AbortError), not the generic failure text', async () => {
+  // The browser gave up waiting, not Google/the server -- the insert may
+  // well have succeeded despite the abort (see j()'s longer timeout for
+  // this one call), so retrying blind risks a duplicate real event. The
+  // message must say so, distinct from both the generic "couldn't save"
+  // text and the "not connected" text.
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { calendars: [{id:'cal',label:'Fam',color:'#5BC9F0'}], events: [], window: {from:'2026-01-01', to:'2026-12-31'} };", sandbox);
+  const abortErr = new Error('The operation was aborted.');
+  abortErr.name = 'AbortError';
+  sandbox.j = async () => { throw abortErr; };
+  sandbox.openAddEventModal();
+
+  const errEl = document.getElementById('add-event-form').querySelector('.f-error');
+  await sandbox.submitAddEvent(
+    { calendar_id: 'cal', title: 'X', start: '2026-10-01T09:00:00', all_day: false },
+    errEl);
+
+  assert.equal(document.getElementById('add-event-modal').classList.contains('hidden'), false,
+    'a timed-out write must not close the modal — the typed data stays');
+  assert.match(errEl.textContent, /already.*saved|still waiting on Google/i);
+  assert.doesNotMatch(errEl.textContent, /^Couldn't save/);
+  assert.doesNotMatch(errEl.textContent, /isn't connected/);
 });
 
 // ---- iCloud connect form keeps the typed Apple ID (frontend audit) ----

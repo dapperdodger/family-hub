@@ -31,6 +31,16 @@ rolls that section to a dated version via `python scripts/release.py`.
   toggle; and the response is now decorated with the same color/label an
   `/api/calendar` row gets, instead of rendering with the neutral fallback
   until the next sync.
+- The calendar overlay's "+" add-event button no longer renders when there's
+  nothing writable to add to (no Google calendars configured, or the
+  `google_calendar` integration toggled off) — it used to always render and
+  dead-end in "no calendar configured" when tapped. The add-event form now
+  also rejects an empty/cleared date or start/end time as a validation
+  error instead of silently defaulting to today or reusing a stale
+  in-memory value, and the add-event POST now gets a longer (30s) timeout
+  than the hub's default 12s, with a distinct message on a client timeout
+  (the write may have already succeeded server-side) instead of the
+  generic failure text.
 - The Wyze bridge's health check now also probes the bridge's own internal
   go2rtc. That relay can exit alone right after the container starts, and
   the bridge never relaunches it, so the Wyze cameras went dark while the
