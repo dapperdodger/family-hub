@@ -10,6 +10,11 @@ rolls that section to a dated version via `python scripts/release.py`.
 
 ## [Unreleased]
 
+### Fixed
+- An embedded dashboard panel (for example Mealie) no longer overflows its
+  column when you switch Columns to "Wells" (or flip the layout) while the
+  wall is open: panels re-fit themselves when those settings change.
+
 ### Changed
 - Wall layout: To-Do now sits under Chores in the left column, and the
   calendar column shows a 3-day agenda with the current month's grid always
