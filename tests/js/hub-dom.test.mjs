@@ -758,8 +758,8 @@ test('applyWallLayout: calendar off -> the middle column (agenda AND month card)
     { id: 'icloud_caldav', enabled: false, group: 'integration' },
   ] });
   const grid = document.querySelector('.hub-grid');
-  assert.ok(grid.style.gridTemplateAreas.includes('left'), 'left column present');
-  assert.ok(!grid.style.gridTemplateAreas.includes('mid'), 'mid column dropped');
+  assert.equal(grid.style.gridTemplateAreas, '"left"', 'only the left column remains');
+  assert.equal(grid.style.gridTemplateColumns, '360px');
   assert.equal(document.querySelector('.cal').style.display, 'none');
   assert.equal(document.querySelector('.month-slot').style.display, 'none', 'the month card goes with the calendar');
   assert.equal(document.querySelector('.col-mid').style.display, 'none');
@@ -776,6 +776,7 @@ test('applyWallLayout: to-dos off, calendar on -> only the to-do card hides; cho
   ] });
   const grid = document.querySelector('.hub-grid');
   assert.equal(grid.style.gridTemplateAreas, '"left mid"');
+  assert.equal(grid.style.gridTemplateColumns, '360px minmax(0, 1fr)');
   assert.equal(document.querySelector('.todo-slot').style.display, 'none');
   assert.equal(document.querySelector('.col-left').style.display, '');
   assert.equal(document.querySelector('.month-slot').style.display, '', 'month card stays with the calendar');
@@ -934,6 +935,211 @@ test('tapping a day in the month card opens the FULL calendar on that day (not a
   assert.equal(vm.runInContext('calState.mode', sandbox), 'day');
   assert.equal(vm.runInContext('calState.day', sandbox), '2026-09-16');
   assert.equal(vm.runInContext('calState.m', sandbox), 9, 'back-to-month returns to the tapped month');
+});
+
+test('monthHtml: the trailing row is NOT trimmed when an event lives only on its days', () => {
+  const { sandbox } = newHub();
+  const weeks = (html) => (html.match(/class="mg-week"/g) || []).length;
+  // Oct 2026 ends on a Saturday, so its 6th row (Nov 1-7) is entirely next month
+  assert.equal(weeks(sandbox.monthHtml(2026, 10, [], '2026-10-30', undefined, 2, true)), 5, 'an empty trailing row is trimmed');
+  const nov3 = dayEv('n3', '2026-11-03');
+  const html = sandbox.monthHtml(2026, 10, [nov3], '2026-10-30', undefined, 2, true);
+  assert.equal(weeks(html), 6, 'a trailing row with an event stays');
+  assert.match(html, /data-eid="n3"/, 'the Nov 3 appointment is on the wall');
+});
+
+test('renderMonthCard carries its own status banner (it reads calWin, not the /api/hub payload)', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("data_date = '2026-09-30';", sandbox);
+  vm.runInContext("calWin = { status: { ok: true }, window: { from: '2026-08-16', to: '2027-11-01' }, events: [] };", sandbox);
+  sandbox.renderMonthCard();
+  assert.doesNotMatch(document.getElementById('month-slot').innerHTML, /cal-note/, 'healthy: no banner');
+  vm.runInContext("calWin = { status: { ok: false, error: 'boom' }, window: { from: '2026-08-16', to: '2027-11-01' }, events: [] };", sandbox);
+  sandbox.renderMonthCard();
+  assert.match(document.getElementById('month-slot').innerHTML, /class="cal-note"/,
+    'a failed refresh must say so, not show hours-old events as current');
+});
+
+test('fetchCalWindow: the newest fetch wins, an older reply or failure landing later is dropped', async () => {
+  const { sandbox } = newHub();
+  const waiting = [];
+  sandbox.fetch = () => new Promise((res) => waiting.push(res));   // each call parks until released
+  const reply = (events) => ({ ok: true, status: 200, json: async () => ({ status: { ok: true }, events, window: {} }) });
+  const first = sandbox.fetchCalWindow();
+  const second = sandbox.fetchCalWindow();
+  assert.equal(waiting.length, 2);
+  waiting[1](reply([dayEv('newer', '2026-09-30')]));   // the newer fetch answers first
+  await second;
+  waiting[0](reply([dayEv('older', '2026-09-30')]));   // the older one lands late
+  await first;
+  assert.deepEqual(vm.runInContext('calWin.events.map((e) => e.id)', sandbox), ['newer'],
+    'a late older reply must not overwrite the newer window');
+  // and an older FAILURE must not downgrade a newer success
+  const third = sandbox.fetchCalWindow();
+  const fourth = sandbox.fetchCalWindow();
+  waiting[3](reply([dayEv('ok', '2026-09-30')]));
+  await fourth;
+  waiting[2](Promise.reject(new Error('late failure')));   // settles the parked promise as a rejection
+  await third;
+  assert.equal(vm.runInContext('calWin.status.ok', sandbox), true, 'the older failure was dropped');
+});
+
+test('refreshMonthCard: a render throw is reported through renderStep, not an unhandled rejection', async () => {
+  const { sandbox } = newHub();
+  vm.runInContext("data_date = '2026-09-30';", sandbox);
+  sandbox.console = { ...console, error: () => {}, warn: () => {} };
+  sandbox.fetch = async () => ({ ok: true, status: 200,
+    json: async () => ({ status: { ok: true }, events: [], window: { from: '2026-08-16', to: '2027-11-01' } }) });
+  sandbox.monthHtml = () => { throw new Error('bad event'); };
+  await sandbox.refreshMonthCard();   // must resolve, not reject
+  assert.equal(vm.runInContext("renderFailed.has('renderMonthCard')", sandbox), true,
+    'the failure shows in the header count like any other wall section');
+});
+
+test('applyWallLayout: every feature off -> an empty template and no throw; calendar+chores+to-dos off -> just the right-hand columns', () => {
+  const { sandbox, document } = newHub();
+  seedWallGrid(document);
+  const off = (id, group = 'feature') => ({ id, enabled: false, group });
+  sandbox.renderIntegrations({ integrations: [off('chores'), off('todos'), off('google_calendar', 'integration'),
+    off('ics_calendar', 'integration'), off('icloud_caldav', 'integration'), off('cameras', 'integration'),
+    off('weather', 'integration'), off('climate', 'integration'), off('laundry'), off('fleet', 'integration')] });
+  const grid = document.querySelector('.hub-grid');
+  assert.equal(grid.style.gridTemplateAreas, '', 'nothing on -> no areas');
+  sandbox.renderIntegrations({ integrations: [off('chores'), off('todos'), off('google_calendar', 'integration'),
+    off('ics_calendar', 'integration'), off('icloud_caldav', 'integration'),
+    { id: 'cameras', enabled: true, group: 'integration' }, { id: 'weather', enabled: true, group: 'integration' }] });
+  assert.equal(grid.style.gridTemplateAreas, '"tiles panels"');
+  assert.equal(grid.style.gridTemplateColumns, '540px 340px');
+});
+
+test('applyWallLayout: calendar off -> on round trip restores the middle column and the month card', () => {
+  const { sandbox, document } = newHub();
+  seedWallGrid(document);
+  const cal = (enabled) => sandbox.renderIntegrations({ integrations: [
+    { id: 'chores', enabled: true, group: 'feature' }, { id: 'todos', enabled: true, group: 'feature' },
+    { id: 'google_calendar', enabled, group: 'integration' } ] });
+  cal(false);
+  assert.equal(document.querySelector('.col-mid').style.display, 'none');
+  cal(true);
+  assert.equal(document.querySelector('.col-mid').style.display, '', 'instant return');
+  assert.equal(document.querySelector('.month-slot').style.display, '');
+  assert.equal(document.querySelector('.hub-grid').style.gridTemplateAreas, '"left mid"');
+});
+
+test('applyWallLayout drives monthCardVisible: a calendar-off wall never fetches for the hidden card', async () => {
+  const { sandbox, document } = newHub();
+  seedWallGrid(document);
+  // no getComputedStyle stub: this is the real setDisp output being read back
+  sandbox.getComputedStyle = (el) => ({ display: el.style.display || 'block' });
+  sandbox.renderIntegrations({ integrations: [
+    { id: 'chores', enabled: true, group: 'feature' }, { id: 'todos', enabled: true, group: 'feature' },
+    { id: 'google_calendar', enabled: false, group: 'integration' } ] });
+  // the fake DOM keeps the fixture's parsed .month-slot (what applyWallLayout hides) and the
+  // registry's #month-slot as two nodes; in a real page they are one. Carry the display across.
+  document.getElementById('month-slot').style.display = document.querySelector('.month-slot').style.display;
+  assert.equal(sandbox.monthCardVisible(), false);
+  let fetched = 0;
+  sandbox.fetch = async () => { fetched++; return { ok: true, status: 200, json: async () => ({ status: { ok: true }, events: [] }) }; };
+  await sandbox.refreshMonthCard();
+  assert.equal(fetched, 0);
+});
+
+test('renderCalendar: a forced Desktop layout keeps the 3-day wall agenda even at a phone-width viewport', () => {
+  const { document, sandbox } = newHub();
+  document.documentElement.setAttribute('data-layout', 'desktop');
+  sandbox.window.matchMedia = (q) => ({ matches: q === '(max-width: 1000px)' });   // a narrow window...
+  const days = ['2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'];
+  sandbox.renderCalendar({ date: '2026-09-30', calendar: { status: { ok: true }, events: days.map((d, i) => dayEv(`f${i}`, d)) } });
+  assert.equal((document.getElementById('cal').innerHTML.match(/class="card cal-day/g) || []).length, 3,
+    '...with Desktop forced the month card shows, so the agenda is capped');
+});
+
+test('renderCalendar: the wall cap is a DAY window, not an event count (a gap day stays a gap)', () => {
+  const { document, sandbox } = newHub();
+  document.documentElement.setAttribute('data-layout', 'auto');
+  sandbox.window.matchMedia = () => ({ matches: false });
+  sandbox.renderCalendar({ date: '2026-09-30', calendar: { status: { ok: true },
+    events: [dayEv('a', '2026-09-30'), dayEv('b', '2026-10-04')] } });
+  const html = document.getElementById('cal').innerHTML;
+  assert.match(html, /data-eid="a"/);
+  assert.doesNotMatch(html, /data-eid="b"/, 'Oct 4 is past the 3-day window (the month card carries it)');
+});
+
+test('refreshMonthCard: a failed fetch keeps the cached events AND says so', async () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("data_date = '2026-09-30';", sandbox);
+  vm.runInContext(`calWin = { status: { ok: true }, window: { from: '2026-08-16', to: '2027-11-01' }, events: [${JSON.stringify(dayEv('kept', '2026-09-30'))}] };`, sandbox);
+  sandbox.console = { ...console, warn: () => {}, error: () => {} };
+  sandbox.fetch = async () => { throw new Error('down'); };
+  await sandbox.refreshMonthCard();
+  const html = document.getElementById('month-slot').innerHTML;
+  assert.match(html, /data-eid="kept"/, 'the last events we saw are still shown');
+  assert.match(html, /class="cal-note"/, '...under a banner, not as if current');
+  assert.equal(vm.runInContext('calWin.status.ok', sandbox), false);
+});
+
+test('refreshMonthCard: a first-ever failure paints an all-"not synced" month, never a confident-free one', async () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("data_date = '2026-09-30'; calWin = null;", sandbox);
+  sandbox.console = { ...console, warn: () => {}, error: () => {} };
+  sandbox.fetch = async () => { throw new Error('down'); };
+  await sandbox.refreshMonthCard();
+  const html = document.getElementById('month-slot').innerHTML;
+  assert.match(html, /mg-unsynced/);
+  assert.match(html, /class="cal-note"/);
+});
+
+test('renderMonthCard: a date rollover repaints with the new month title and moves the today marker', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("calWin = { status: { ok: true }, window: { from: '2026-08-16', to: '2027-11-01' }, events: [] };", sandbox);
+  vm.runInContext("data_date = '2026-09-30';", sandbox);
+  sandbox.renderMonthCard();
+  assert.match(document.getElementById('month-slot').innerHTML, /<h2>September 2026<\/h2>/);
+  vm.runInContext("data_date = '2026-10-01';", sandbox);
+  sandbox.renderMonthCard();
+  const html = document.getElementById('month-slot').innerHTML;
+  assert.match(html, /<h2>October 2026<\/h2>/);
+  assert.match(html, /mg-today"[^>]*data-date="2026-10-01"/, 'today moved to the 1st');
+  assert.doesNotMatch(html, /mg-today"[^>]*data-date="2026-09-30"/);
+});
+
+test('the month card is inert to hostile event text, ids and colors', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("data_date = '2026-09-30';", sandbox);
+  const hostile = { ...dayEv('x', '2026-09-30'), id: '"><script>alert(1)</script>',
+    title: '<img src=x onerror=alert(1)>', color: 'red;background:url(https://evil/x)' };
+  const bar = { ...allday('y', '2026-09-30', '2026-10-02'), title: '<b onmouseover=alert(2)>bar</b>',
+    color: 'red;background:url(https://evil/y)' };
+  vm.runInContext(`calWin = { status: { ok: true }, window: { from: '2026-08-16', to: '2027-11-01' }, events: ${JSON.stringify([hostile, bar])} };`, sandbox);
+  sandbox.renderMonthCard();
+  const html = document.getElementById('month-slot').innerHTML;
+  assert.doesNotMatch(html, /<script|<img|<b /, 'no live markup from event data');
+  assert.doesNotMatch(html, /evil/, 'a hostile color fails closed');
+});
+
+test('month card taps: "+N more" opens that day; an event bar opens the detail card, NOT the day view', () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-09-30';", sandbox);
+  const evs = [1, 2, 3].map((n) => dayEv(`m${n}`, '2026-09-16')).concat([allday('bar1', '2026-09-20', '2026-09-22')]);
+  vm.runInContext(`calWin = { status: { ok: true }, window: { from: '2026-08-16', to: '2027-11-01' }, events: ${JSON.stringify(evs)} }; indexEvents(calWin.events);`, sandbox);
+  sandbox.renderMonthCard();
+  const host = document.getElementById('month-slot');
+  ['ev-modal', 'ev-card'].forEach((id) => document.getElementById(id).classList.add('hidden'));
+  // "+1 more" on the 16th (2 lanes, 3 events)
+  const more = host.querySelector('.mg-more[data-date="2026-09-16"]');
+  assert.ok(more, 'the +N more chip rendered');
+  more.closest = (sel) => (sel === '#month-slot .mg-more' ? more : null);
+  fire('click', { target: more, preventDefault() {} });
+  assert.equal(vm.runInContext('openView', sandbox), 'calendar');
+  assert.equal(vm.runInContext('calState.day', sandbox), '2026-09-16');
+  sandbox.closeOverlay();
+  // an event bar: the [data-eid] branch runs first, so the detail card opens
+  const bar = host.querySelector('.mg-bar[data-eid="bar1"]');
+  assert.ok(bar, 'the bar rendered');
+  bar.closest = (sel) => (sel === '[data-eid]' ? bar : null);
+  fire('click', { target: bar, preventDefault() {} });
+  assert.equal(document.getElementById('ev-modal').classList.contains('hidden'), false, 'event detail opened');
+  assert.equal(vm.runInContext('openView', sandbox), null, 'and the calendar overlay did not');
 });
 
 test('refreshMonthCard does not fetch while the card is hidden (phone / calendar off)', async () => {
@@ -9497,7 +9703,7 @@ test('poll: a failed step with no plain name is still counted, under its own nam
 
 test('poll: every render step has a plain name, and every name is a step', () => {
   const { sandbox } = newHub();
-  const steps = [...hubSrc.matchAll(/renderStep\('(\w+)'/g)].map((m) => m[1]);
+  const steps = [...new Set([...hubSrc.matchAll(/renderStep\('(\w+)'/g)].map((m) => m[1]))];
   assert.ok(steps.length >= 10, 'found the render steps');
   const named = vm.runInContext('Object.keys(RENDER_STEPS)', sandbox);
   assert.deepEqual([...steps].sort(), [...named].sort(),

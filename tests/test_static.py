@@ -880,6 +880,11 @@ def test_wall_columns_and_month_card_wiring():
     assert left and mid, "index.html must wrap the wall's two stacked columns"
     assert 'class="people-col"' in left.group(1) and 'id="todo-slot"' in left.group(1)
     assert 'id="cal"' in mid.group(1) and 'id="month-slot"' in mid.group(1)
+    # the point of the layout: chores OVER to-dos, agenda OVER the month grid,
+    # and each in its own column (not both in one)
+    assert left.group(1).index('class="people-col"') < left.group(1).index('id="todo-slot"')
+    assert mid.group(1).index('id="cal"') < mid.group(1).index('id="month-slot"')
+    assert 'id="todo-slot"' not in mid.group(1) and 'class="people-col"' not in mid.group(1)
     # CSS: one row of four named areas; both wrappers are flex columns
     grid = re.search(r"\.hub-grid\s*\{[^}]*\}", CSS, re.S).group(0)
     assert '"left mid tiles panels"' in grid, "the wall grid must be one row of four areas"
@@ -898,6 +903,38 @@ def test_wall_columns_and_month_card_wiring():
     # a hidden card must not cost a request, and it shares the server-named
     # calendar window (test_calendar_window_chain_stays_consistent)
     assert "monthCardVisible()" in hub and "await fetchCalWindow()" in hub
+
+
+def test_month_card_is_never_hidden_while_empty():
+    """The month card is empty until its first fetch, and monthCardVisible()
+    only fetches while the card's own computed display is not 'none'. A
+    `.month-slot:empty { display: none }` (tried to avoid an empty tinted box
+    in "wells" mode) made the card permanently invisible and empty: it never
+    fetched, so it never filled. Caught on the wall's screenshot, not by a test."""
+    assert not re.search(r"\.month-slot:empty\s*\{[^}]*display:\s*none", CSS), \
+        "hiding an empty .month-slot means it can never fill"
+    hub = (STATIC / "hub.js").read_text()
+    assert "getComputedStyle(el).display !== 'none'" in hub
+
+
+def test_columns_control_styles_the_new_wrappers():
+    """The Columns control ("wells" / "lines") styles the wall's column stacks.
+    With chores+to-dos and agenda+month now in wrapper columns, "wells" must
+    still tint every card stack (including the month card) and tighten the
+    wrappers' gap, and "lines" must hang its rule off .col-left (which spans
+    the row), not .people-col (which no longer does). Each was silently
+    unguarded: a rename back would have passed every other test."""
+    wells = CSS[CSS.index(':root[data-cols="wells"] .people-col,'):]
+    wells = wells[:wells.index("{")]
+    for sel in (".people-col", ".cal", ".todo-slot", ".month-slot", ".tiles", ".panels"):
+        assert f'.{sel.lstrip(".")}' in wells, f"wells must tint {sel}"
+    gap = re.search(r':root\[data-cols="wells"\] \.hub-grid,[^{]*\{[^}]*gap:\s*16px', CSS)
+    assert gap and ".col-left" in gap.group(0) and ".col-mid" in gap.group(0), \
+        "wells tightens the gap between the stacked cards too"
+    assert ':root[data-cols="lines"] .col-left::after { right: -12px; }' in CSS
+    assert ".people-col::after" not in CSS, "the lines rule belongs on .col-left now"
+    assert '[data-cols="lines"] .col-left::after' in _phone_shell_css(), \
+        "the phone shell must neutralize the lines rule on .col-left"
 
 
 def test_layout_mode_control_present_and_wired():

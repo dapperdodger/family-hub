@@ -263,17 +263,24 @@ function renderMonthCard() {
   const y = Number(todayStr.slice(0, 4));
   const m = Number(todayStr.slice(5, 7));
   const win = calWin.window || emptyWindow(todayStr);
-  // No status note here: the Calendar card above already shows it.
+  // This card reads calWin (its own /api/calendar response), NOT the /api/hub
+  // payload the Calendar card above is painted from, so it carries its own
+  // status: a failed refresh keeps the last events under a banner instead of
+  // looking confidently current.
   host.innerHTML = sectionHead(monthName(y, m))
+    + calStatusNote(calWin)
     + monthHtml(y, m, calWin.events || [], todayStr, win, MONTH_CARD_LANES, true);
 }
 
-// fetchCalWindow handles its own failures (keeps the cached events under a
-// downgraded status), so this never throws.
+// fetchCalWindow handles its own fetch failures (keeps the cached events under a
+// downgraded status). The paint goes through renderStep like every other wall
+// section, so a render throw is reported in the header ("live · 1 panel
+// failed") instead of becoming an unhandled rejection from poll()'s
+// fire-and-forget call.
 async function refreshMonthCard() {
   if (!monthCardVisible()) return;
   await fetchCalWindow();
-  renderMonthCard();
+  renderStep('renderMonthCard', () => renderMonthCard());
 }
 
 // A tap on a day (or its "+N more") in the card opens the full calendar on that day.
@@ -293,11 +300,21 @@ function openCalendarDay(dateStr) {
 const calState = { mode: 'month', y: 0, m: 0, weekStart: '', day: '' };
 let calWin = null;    // {status, events} — the full cached window
 
+// Numbers the fetches so the newest one wins: the month card now refreshes this
+// on every poll, alongside the overlay's own refresh and every write's repoll,
+// and an older reply that landed late (or an older FAILURE) must not overwrite
+// a newer window (or an event just added to it).
+let calWinSeq = 0;
+
 async function fetchCalWindow() {
+  const seq = ++calWinSeq;
   try {
-    calWin = await j('/api/calendar?days=400&past=45');
+    const w = await j('/api/calendar?days=400&past=45');
+    if (seq !== calWinSeq) return;
+    calWin = w;
     indexEvents(calWin.events);
   } catch (e) {
+    if (seq !== calWinSeq) return;
     // failedCalWindow (common.js) decides what a failure looks like: keep the
     // cached events under a downgraded status, or — with nothing cached — an
     // EMPTY window so no day renders as confidently free. Pure and unit-tested
@@ -386,9 +403,15 @@ function monthHtml(y, m, events, todayStr, win, maxLanes = MONTH_MAX_LANES, trim
   const grid = monthGrid(y, m);
   let weekCount = grid.length / 7;
   // The wall card drops a last row that is entirely next month (a 5-row month
-  // otherwise carries a whole dimmed week of height for nothing). Events on
-  // those days still show as bars continuing out of the last in-month row.
-  if (trimTrailingWeek && !grid.slice((weekCount - 1) * 7).some((c) => c.inMonth)) weekCount--;
+  // otherwise carries a whole dimmed week of height for nothing) -- but only an
+  // EMPTY one. An event that lives only on those days (an appointment on the 3rd
+  // while it is the 30th) would otherwise show nowhere on the wall: the agenda
+  // only spans a few days and the row is gone.
+  if (trimTrailingWeek) {
+    const tail = grid.slice((weekCount - 1) * 7);
+    const byDay = bucketByDay(events);
+    if (!tail.some((c) => c.inMonth) && !tail.some((c) => (byDay[c.date] || []).length)) weekCount--;
+  }
   let weeks = '';
   for (let w = 0; w < weekCount; w++) {
     weeks += monthWeekHtml(grid.slice(w * 7, w * 7 + 7), events, todayStr, win, maxLanes);
@@ -944,8 +967,9 @@ function renderPeople(data) {
   lastPeople = data.people;
 }
 
-/* Wall-only: the to-do card sits under the calendar, in its own grid slot
-   (operator, 2026-08-14) — separate from the person cards it used to trail. */
+/* Wall-only: the to-do card sits under the chores in the left column
+   (operator, 2026-09-30; it sat under the calendar from 2026-08-14) —
+   separate from the person cards it used to trail. */
 function renderTodoSlot(data) {
   const host = document.getElementById('todo-slot');
   // The To-Do surface can be backed by the local whiteboard (default) or by

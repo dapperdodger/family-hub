@@ -18,6 +18,9 @@ rolls that section to a dated version via `python scripts/release.py`.
   gap above the month grid. The phone layout and tabs are unchanged, and the
   month card is hidden there. A column drops out only when every feature in
   it is off (chores and to-dos for the left one).
+- The calendar window fetch is now newest-wins: a slow older reply (or an
+  older failure) landing late can no longer overwrite a newer one, or make
+  an event you just added vanish from the calendar until the next refresh.
 
 ### Added
 - The calendar overlay has a "+" button to add an event directly to any

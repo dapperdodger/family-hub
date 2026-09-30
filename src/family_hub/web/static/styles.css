@@ -1020,7 +1020,7 @@ body {
 
 
 /* ========================== calendar ========================= */
-.cal { grid-area: cal; display: flex; flex-direction: column; gap: 12px; }
+.cal { display: flex; flex-direction: column; gap: 12px; }
 .cal-note {
   background: var(--surface);
   border: 1px solid var(--edge);
@@ -1273,8 +1273,8 @@ body {
 }
 
 /* --------------------------- to-dos -------------------------- */
-/* The shared household list. The card lives in its own #todo-slot column
-   under the calendar (no longer a DOM sibling of .person-card), but keeps
+/* The shared household list. The card lives in its own #todo-slot under the
+   chores in the left column (no longer a DOM sibling of .person-card), but keeps
    the same surface treatment; rows echo .chore-row but complete in the
    neutral --accent, since nobody owns a shared item. */
 /* Task 3: re-boxed like everything else — sectionHead sits OUTSIDE the box,
@@ -1844,6 +1844,9 @@ body.overlay-open { overflow: hidden; }
    wall: 2 event lanes per week (MONTH_CARD_LANES in hub.js) and no fixed
    132px day floor. Hidden on the phone, which has the Calendar tab. */
 .month-slot { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+/* NEVER hide an empty .month-slot (:empty { display: none }): monthCardVisible() in
+   hub.js reads this element's computed display to decide whether to fetch, and the
+   card is empty until its first fetch, so hiding it would mean it never fills. */
 .month-slot .mgrid { --mg-lane: 16px; }
 .month-slot .mg-head { padding: 6px 0 4px; }
 .month-slot .mg-week { grid-template-rows: 22px repeat(2, var(--mg-lane)) minmax(14px, auto); row-gap: 1px; }
@@ -2481,7 +2484,7 @@ body.integ-off-todos .todo-slot { display: none; }
   :root:not([data-layout="desktop"])[data-cols="lines"] .col-left::after,
   :root:not([data-layout="desktop"])[data-cols="lines"] .tiles::before,
   :root:not([data-layout="desktop"])[data-cols="lines"] .panels::before { display: none; }
-  /* the wall's under-calendar to-do card has no phone equivalent — the
+  /* the wall's under-chores to-do card has no phone equivalent — the
      dedicated To-Dos tab already covers phones (operator, 2026-08-14) */
   :root:not([data-layout="desktop"]) .todo-slot { display: none; }
   /* the wall's two stacked columns dissolve on the phone so every section is a
