@@ -202,6 +202,35 @@ def test_google_auth_script_writes_token_owner_only(tmp_path, monkeypatch):
     assert stat.S_IMODE(os.stat(tok).st_mode) == 0o600
 
 
+def test_readonly_only_token_still_configured_and_refreshable(tmp_path):
+    """An existing install's token.json, written before this feature shipped,
+    only ever granted calendar.readonly. Loading credentials must NOT force
+    the module's (now-broader) SCOPES onto it -- from_authorized_user_file is
+    called with no `scopes` argument, so the Credentials object keeps
+    whatever scopes are actually stored in the file. A future refresh then
+    asks Google for calendar.readonly only, and keeps working, instead of
+    requesting calendar.events (never granted) and failing with invalid_scope."""
+    import json
+
+    token = tmp_path / "token.json"
+    token.write_text(json.dumps({
+        "token": "at",
+        "refresh_token": "rt",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "client_id": "cid",
+        "client_secret": "csecret",
+        "scopes": ["https://www.googleapis.com/auth/calendar.readonly"],
+        "expiry": "2999-01-01T00:00:00Z",
+    }))
+    client = GoogleCalendarClient(str(token))
+
+    assert client.configured() is True   # still recognized, not "not connected"
+
+    creds = client._creds()   # far-future expiry -> no refresh attempted
+    assert creds.scopes == ["https://www.googleapis.com/auth/calendar.readonly"], \
+        "loading from file must not force the broader module SCOPES onto old creds"
+
+
 def test_create_event_inserts_and_returns_the_created_item():
     svc = _fake_service()
     created = {"id": "new1", "summary": "Dentist",

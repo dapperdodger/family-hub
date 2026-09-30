@@ -129,7 +129,8 @@ frontend is dependency-free vanilla JS baked into the image.
 ```
 Wall / phones ─► http://<your-server>:8138/       family-hub (FastAPI + SQLite)
                           │ server-side sync/proxies
-                          ├─► Google Calendar API   (read-only, polled every 5 min)
+                          ├─► Google Calendar API   (reads polled every 5 min; the "+"
+                          │                          button also writes new events)
                           ├─► any ICS/webcal feeds  (iCloud, school, holidays…)
                           ├─► iCloud CalDAV         (reminders + chore mirror, two-way, optional)
                           ├─► Home Assistant        (laundry, optional)
@@ -282,8 +283,8 @@ your primary calendar). One-time auth, from any desktop:
    expire every 7 days) → create an OAuth client of type **Desktop app** and
    download its JSON as `scripts/client_secret.json`.
 2. `cd scripts && python3 google-auth.py` (needs
-   `pip install google-auth-oauthlib`). Approve read-only access; it writes
-   `token.json`.
+   `pip install google-auth-oauthlib`). Approve calendar read AND event-create
+   access; it writes `token.json`.
 3. Copy `token.json` into the box's `data/` directory. Done — the next 5-min
    sync picks it up. Your own sidebar colors and per-event colors carry over.
 

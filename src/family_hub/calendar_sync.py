@@ -286,7 +286,7 @@ class GoogleCalendarClient:
             return False
         try:
             from google.oauth2.credentials import Credentials
-            Credentials.from_authorized_user_file(self.token_path, SCOPES)
+            Credentials.from_authorized_user_file(self.token_path)
             self._bad_token_warned = False
             return True
         except Exception:
@@ -307,7 +307,7 @@ class GoogleCalendarClient:
     def _creds(self):
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
-        creds = Credentials.from_authorized_user_file(self.token_path, SCOPES)
+        creds = Credentials.from_authorized_user_file(self.token_path)
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
             try:

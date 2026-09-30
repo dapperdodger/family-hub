@@ -14,6 +14,11 @@ rolls that section to a dated version via `python scripts/release.py`.
 - The calendar overlay has a "+" button to add an event directly to any
   configured Google calendar, with immediate visibility and no wait for
   the next background sync.
+- **Upgrade note:** the above needs a broader Google OAuth grant
+  (`calendar.events`, alongside the existing `calendar.readonly`). Existing
+  installs should re-run `scripts/google-auth.py` and redeploy the
+  resulting `token.json` to enable event creation; reads keep working with
+  the old token, with no action needed, until that's done.
 
 ### Fixed
 - The Wyze bridge's health check now also probes the bridge's own internal
