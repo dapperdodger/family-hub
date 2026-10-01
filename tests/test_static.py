@@ -980,6 +980,9 @@ def test_meals_following_days_scroll_on_the_wall_and_not_on_the_phone():
     mobile = _phone_shell_css()
     assert re.search(r'\.meal-rows\s*\{\s*max-height:\s*none;\s*overflow:\s*visible', mobile), \
         "the phone must show the whole week, not a small scroller inside a scrolling page"
+    # the phone's generic .meal-btn rule outranks the menu button's own size: restated there
+    assert re.search(r'\.meal-row \.meal-btn-more\s*\{\s*font-size:\s*20px', mobile), \
+        "the ⋮ must keep its glyph size on the phone, where the generic button rule would shrink it"
 
 
 def test_known_integration_ids_cover_every_registry_id():

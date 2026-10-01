@@ -3722,10 +3722,10 @@ function mealsRowHtml(day, todayStr) {
   const nm = escapeHtml(dn.name);
   const menuBtn = canAct
     ? `<button type="button" class="meal-btn meal-btn-more" data-meals-menu="${escapeHtml(day.date)}"`
-      + ` aria-label="More for ${nm}" aria-haspopup="true" aria-expanded="${open}">⋮</button>`
+      + ` aria-label="More for ${nm}" aria-expanded="${open}"${open ? ' aria-controls="meals-menu"' : ''}>⋮</button>`
     : '';
   return `<div class="meal-row">${wd}<span class="meal-rname">${nm}</span>${mealMoreHtml(dn)}${menuBtn}</div>`
-    + (open ? `<div class="meal-menu" role="group" aria-label="Actions for ${nm}">${mealActions(day, dn)}</div>` : '');
+    + (open ? `<div class="meal-menu" id="meals-menu" role="group" aria-label="Actions for ${nm}">${mealActions(day, dn)}</div>` : '');
 }
 
 // Open/close a row's menu. One at a time; it closes by itself, on Escape, on a tap anywhere
@@ -3734,11 +3734,29 @@ function closeMealsMenu(render = true) {
   clearTimeout(mealsMenuTimer);
   mealsMenuTimer = null;
   if (mealsMenuOpen === null) return;
+  const date = mealsMenuOpen;
   mealsMenuOpen = null;
-  if (render) renderMeals();
+  if (!render) return;
+  // The repaint replaces the focused element (the menu button, or a button inside the menu).
+  // If focus was in the card, put it back on that row's menu button: Escape or the idle timer
+  // must not send a keyboard user back to the top of the page.
+  const host = document.getElementById('meals-slot');
+  const ae = document.activeElement;
+  const hadFocus = !!(host && ae && typeof host.contains === 'function' && host.contains(ae));
+  renderMeals();
+  if (hadFocus) mealsFocusMenuBtn(date);
+}
+
+function mealsFocusMenuBtn(date) {
+  const host = document.getElementById('meals-slot');
+  if (!host || typeof host.querySelectorAll !== 'function') return;
+  const btn = [...host.querySelectorAll('[data-meals-menu]')].find((b) => b.dataset.mealsMenu === date);
+  // preventScroll: focusing must not scroll the list under the user's finger
+  if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true });
 }
 
 function toggleMealsMenu(date) {
+  mealsScrollAt = Date.now();     // any use of the list counts, not just a scroll: keep its place
   clearTimeout(mealsMenuTimer);
   mealsMenuTimer = null;
   mealsMenuOpen = mealsMenuOpen === date ? null : date;
@@ -3750,8 +3768,7 @@ function toggleMealsMenu(date) {
     const menu = host.querySelector('.meal-menu');
     if (menu && typeof menu.scrollIntoView === 'function') menu.scrollIntoView({ block: 'nearest' });
   }
-  const btn = [...host.querySelectorAll('[data-meals-menu]')].find((b) => b.dataset.mealsMenu === date);
-  if (btn && typeof btn.focus === 'function') btn.focus();
+  mealsFocusMenuBtn(date);
 }
 
 document.addEventListener('keydown', (e) => {
@@ -3838,7 +3855,7 @@ function mealsRestoreFocus(f) {
   let el = [...host.querySelectorAll('[data-meals-act]')].find((b) =>
     b.dataset.mealsAct === f.act && (b.dataset.date || '') === f.date && (b.dataset.recipe || '') === f.recipe);
   if (!el) el = [...host.querySelectorAll('[data-meals-menu]')].find((b) => b.dataset.mealsMenu === f.date);
-  if (el && !el.disabled && typeof el.focus === 'function') el.focus();
+  if (el && !el.disabled && typeof el.focus === 'function') el.focus({ preventScroll: true });
 }
 
 /* One meal button was tapped. A key per action+target disables just that
@@ -3852,6 +3869,7 @@ async function mealsAct(btn) {
   const act = btn.dataset.mealsAct;
   const key = `${act}:${btn.dataset.date || btn.dataset.recipe}`;
   const focus = { act, date: btn.dataset.date || '', recipe: btn.dataset.recipe || '' };
+  mealsScrollAt = Date.now();     // acting on a row counts as using the list (see toggleMealsMenu)
   if (mealsBusy.has(key)) return;
   mealsBusy.add(key);
   try {

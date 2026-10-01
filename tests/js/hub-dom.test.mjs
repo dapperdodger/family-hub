@@ -1230,11 +1230,13 @@ test('renderMeals: rows keep their room (a menu button, not action buttons); ton
   assert.equal((html.match(/data-meals-menu=/g) || []).length, 2, 'one menu button per planned following day');
   assert.doesNotMatch(html.split('meal-rows')[1], /data-meals-act="shop"/, 'no action buttons crowding the rows');
   assert.match(html, /meal-today-body.*data-meals-act="shop"/s, "tonight's block still has its Add to list");
-  assert.match(html, /aria-label="More for Soup" aria-haspopup="true" aria-expanded="false">⋮</);
+  assert.match(html, /aria-label="More for Soup" aria-expanded="false">⋮</);
+  assert.doesNotMatch(html, /aria-haspopup/, 'an inline disclosure is not a menu widget: no aria-haspopup');
   r.sandbox.toggleMealsMenu('2026-10-02');
   const open = r.document.getElementById('meals-slot').innerHTML;
-  assert.match(open, new RegExp(`class="meal-menu" role="group" aria-label="Actions for Soup"><button[^>]*data-meals-act="shop" data-recipe="${RID_B}" data-date="2026-10-02" aria-label="Add the ingredients to the shopping list"[^>]*>🛒 Add to list</button>`));
-  assert.match(open, /aria-expanded="true"/);
+  assert.match(open, new RegExp(`class="meal-menu" id="meals-menu" role="group" aria-label="Actions for Soup"><button[^>]*data-meals-act="shop" data-recipe="${RID_B}" data-date="2026-10-02" aria-label="Add the ingredients to the shopping list"[^>]*>🛒 Add to list</button>`));
+  assert.match(open, /aria-expanded="true" aria-controls="meals-menu"/, 'the open button points at its panel');
+  assert.match(open, /class="meal-menu" id="meals-menu"/);
   const noRecipe = mealsHtml({ ...MEALS_WEEK(), days: [mealDay('2026-10-01', dinner({ recipe_id: null })),
     mealDay('2026-10-02', dinner({ id: 2, recipe_id: null }))] }).html;
   assert.doesNotMatch(noRecipe, /data-meals-act="shop"/, 'a note-only entry has no ingredients to add');
@@ -1665,6 +1667,42 @@ test('an open row menu survives a refresh of the card, and the menu button keeps
   assert.equal(focused, '2026-10-04', 'focus returns to the menu button after the repaint');
   sandbox.renderMeals();                                         // the next fetch repaints
   assert.match(host.innerHTML, /Actions for Salmon/, 'the menu a person is using is not closed by a refresh');
+});
+
+test('closing the menu (Escape, idle timer, a tap) returns keyboard focus to that row\'s menu button, not to the page', () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  tapMenuBtn(sandbox, fire, host, '2026-10-04');
+  // a keyboard user has focus inside the card; the fake DOM answers contains/activeElement
+  host.contains = () => true;
+  document.activeElement = {};
+  let focused = null;
+  const orig = host.querySelectorAll.bind(host);
+  host.querySelectorAll = (sel) => orig(sel).map((b) => { b.focus = (o) => { focused = [b.dataset.mealsMenu, o && o.preventScroll]; }; return b; });
+  fire('keydown', { key: 'Escape' });
+  assert.deepEqual(focused, ['2026-10-04', true], 'focus goes back to the menu button, without scrolling the list');
+  focused = null;
+  document.activeElement = null;                 // focus was elsewhere (a mouse tap): nothing is stolen
+  tapMenuBtn(sandbox, fire, host, '2026-10-02');
+  focused = null;
+  host.contains = () => false;
+  fire('keydown', { key: 'Escape' });
+  assert.equal(focused, null, 'closing never pulls focus into the card when it was not there');
+});
+
+test('any use of the list (opening a menu, acting on a row) keeps its scroll position, not only a scroll', () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  const rowsOf = () => host.querySelector('.meal-rows');
+  rowsOf().scrollTop = 150;
+  vm.runInContext('mealsScrollAt = Date.now() - 45000;', sandbox);       // last scrolled long ago
+  tapMenuBtn(sandbox, fire, host, '2026-10-04');                         // a tap: counts as using it
+  assert.equal(rowsOf().scrollTop, 150, 'opening a menu does not snap the list to the top');
+  assert.ok(vm.runInContext('Date.now() - mealsScrollAt < 5000', sandbox));
 });
 
 test('applyWallLayout + updateTabVisibility: empty list is a no-op (fail-open)', () => {

@@ -2596,6 +2596,7 @@ body.integ-off-todos .todo-slot { display: none; }
   :root:not([data-layout="desktop"]) .meal-rows { max-height: none; overflow: visible; }
   :root:not([data-layout="desktop"]) .meal-btn { min-height: 44px; padding: 10px 14px; font-size: 14px; }
   :root:not([data-layout="desktop"]) .meal-row .meal-btn { min-width: 44px; }
+  :root:not([data-layout="desktop"]) .meal-row .meal-btn-more { font-size: 20px; }
   :root:not([data-layout="desktop"]) .meal-row { min-height: 52px; }
   :root:not([data-layout="desktop"]) .meal-photo { height: 190px; }
   :root:not([data-layout="desktop"]) body[data-tab="todos"] .people-col,

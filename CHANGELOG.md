@@ -21,6 +21,10 @@ rolls that section to a dated version via `python scripts/release.py`.
   Escape, after an action, or by itself), so a long recipe name keeps the whole
   row. Tonight's dinner keeps its buttons, and an empty day still has its big
   Random dinner button.
+- Meals row menu polish: closing the menu (Escape, a tap, its idle timer) keeps
+  keyboard focus on that row's menu button, tapping in the list never snaps it
+  back to the top, the button no longer claims to be a popup menu to screen
+  readers, and the ⋮ is full size on the phone.
 
 ### Fixed
 - An embedded dashboard panel (for example Mealie) no longer overflows its
