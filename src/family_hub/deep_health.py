@@ -42,6 +42,7 @@ log = logging.getLogger("family_hub.deep_health")
 WEATHER_MAX_AGE_S = 600      # the weather adapter rewrites wx.json every ~20 s
 CLIMATE_MAX_AGE_S = 900      # house-climate polls its room sensors every 3 min
 FLEET_MAX_AGE_S = 300        # the fleet rollup is computed per request
+MEALS_MAX_AGE_S = 3600       # unused (the plan carries no timestamp: stamps_data=False)
 LAUNDRY_MAX_AGE_S = 60       # the laundry watcher reads HA every 5 s
 CALENDAR_MAX_AGE_S = 900     # the calendar sync runs every 5 min
 

@@ -473,3 +473,32 @@ def test_demo_multi_day_events_are_all_day_with_exclusive_ends(demo_client):
         assert ev["end_ts"] == (today + dt.timedelta(days=e)).isoformat(), title
     # the fair and the visit overlap so the month view stacks them in lanes
     assert by["Grandma visiting"]["start_ts"] < by["State fair"]["end_ts"]
+
+
+def test_demo_meals_tile_shows_the_card_best_states(demo_client):
+    """DEMO serves a canned week with no Mealie hit: tonight planned, a gap day
+    (the random-dinner button), a hub-picked day (the re-roll button), dated
+    relative to today so a screenshot always looks current. The integration is
+    forced available so the wall card, phone tab and settings row exist."""
+    import datetime as dt
+    t = demo_client.get("/api/tiles/mealie").json()
+    assert t["available"] is True
+    days = t["days"]
+    assert len(days) == 5
+    assert abs((dt.date.fromisoformat(days[0]["date"]) - dt.date.today()).days) <= 1   # the app's own local date
+    assert [d["date"] for d in days] == sorted({d["date"] for d in days}), "consecutive, unique days"
+    assert days[0]["dinner"] and days[0]["dinner"]["name"] and days[0]["dinner"]["description"]
+    assert all(d["dinner"]["recipe_id"] for d in days if d["dinner"]), "every planned day shows its add-to-list button"
+    assert any(d["dinner"] is None for d in days), "an empty day shows the random-dinner button"
+    assert any(d["dinner"] and d["dinner"]["rolled"] for d in days), "a hub-picked day shows re-roll"
+    assert all(set(d["dinner"]) == {"id", "recipe_id", "name", "description", "has_image", "rolled", "more"}
+               for d in days if d["dinner"]), "the same shape meals.meals_tile serves"
+    ids = {i["id"]: i for i in demo_client.get("/api/hub").json()["integrations"]}
+    assert "mealie" in ids and ids["mealie"]["enabled"] is True
+
+
+def test_demo_meals_writes_change_nothing_and_never_reach_mealie(demo_client):
+    assert demo_client.post("/api/mealie/random", json={"date": "2026-10-03"}).json() == {"ok": True, "demo": True}
+    r = demo_client.post("/api/mealie/shopping", json={"recipe_id": "anything"})
+    assert r.status_code == 200 and r.json()["demo"] is True
+    assert demo_client.get("/api/mealie/image/08481e68-b32a-45db-9f99-f036126dba27").status_code == 404

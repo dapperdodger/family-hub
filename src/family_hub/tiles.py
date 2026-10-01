@@ -158,6 +158,8 @@ def reset_caches() -> None:
     _laundry_cache.clear()
     _fleet_cache.clear()
     _camera_cache.clear()
+    from . import meals          # local: meals imports this module
+    meals.reset_caches()
     _camera_inflight.clear()
     _camera_unreachable.clear()
     _ha_warned.clear()

@@ -74,6 +74,11 @@ class Config:
     # rollup (host + 3D-printer status) via /api/tiles/fleet.
     # {"base": url, "label"?: str}. None/absent = no fleet integration.
     fleet: dict | None = None
+    # Meals card: tonight's dinner + the next few days from a Mealie server.
+    # {"base": url, "open_url"?: url, "shopping_list"?: str, "days": 3..7}
+    # (the API token is a secret and lives in the MEALIE_API_TOKEN env var).
+    # None/absent = no meals integration.
+    mealie: dict | None = None
 
 
 # Allowed values per theme axis; anything else is dropped (never crashes).
@@ -203,6 +208,61 @@ def _clean_fleet(raw: object) -> dict | None:
     return result
 
 
+MEALIE_DAYS_DEFAULT = 5
+MEALIE_DAYS_RANGE = (3, 7)
+
+
+def _clean_mealie(raw: object) -> dict | None:
+    """Keep only a well-formed mealie block: a dict with an http(s) `base`.
+    `open_url` (what the browser opens full-screen; defaults to base) must also
+    be http(s) or it is dropped with a warning. `days` is clamped to 3..7 and
+    `shopping_list` (an id or a name; default: Mealie's first list) is kept as
+    text. Malformed input is dropped and logged loudly, never a crash: a
+    silently-vanished integration is the trap this gate exists to catch.
+    Returns {"base", "days", "open_url"?, "shopping_list"?} or None."""
+    if raw is None:
+        return None
+
+    def http_url(v) -> str:
+        v = str(v or "").strip().rstrip("/")
+        return v if v.lower().startswith(("http://", "https://")) else ""
+
+    base = http_url(raw.get("base")) if isinstance(raw, dict) else ""
+    if not base:
+        log.warning("mealie: dropping malformed config block %r (needs an "
+                    "http(s) \"base\" url) -- the meals integration is OFF", raw)
+        return None
+    unknown = sorted(set(raw) - {"base", "days", "open_url", "shopping_list"})
+    if unknown:
+        log.warning("mealie: ignoring unknown key(s) %s (known: base, days, open_url, "
+                    "shopping_list) -- a typo here silently changes behaviour", unknown)
+    result = {"base": base, "days": MEALIE_DAYS_DEFAULT}
+    days = raw.get("days")
+    if days is not None:
+        if isinstance(days, int) and not isinstance(days, bool):
+            lo, hi = MEALIE_DAYS_RANGE
+            result["days"] = max(lo, min(hi, days))
+            if result["days"] != days:
+                log.warning("mealie: days=%r is outside %d..%d; using %d",
+                            days, lo, hi, result["days"])
+        else:
+            log.warning("mealie: ignoring non-integer days=%r (using %d)",
+                        days, MEALIE_DAYS_DEFAULT)
+    if raw.get("open_url") is not None:
+        url = http_url(raw.get("open_url"))
+        if url:
+            result["open_url"] = url
+        else:
+            log.warning("mealie: ignoring open_url=%r (needs http(s))", raw.get("open_url"))
+    sl = raw.get("shopping_list")
+    if isinstance(sl, str) and sl.strip():
+        result["shopping_list"] = sl.strip()
+    elif sl is not None and not (isinstance(sl, str) and not sl.strip()):
+        log.warning("mealie: ignoring shopping_list=%r (must be a list name or id, as text); "
+                    "the first Mealie list will be used", sl)
+    return result
+
+
 def load_config(path: str) -> Config:
     with open(path, encoding="utf-8") as f:
         raw = json.load(f)
@@ -223,4 +283,5 @@ def load_config(path: str) -> Config:
         panels=list(raw.get("panels", [])),
         theme=_clean_theme(raw.get("theme")),
         fleet=_clean_fleet(raw.get("fleet")),
+        mealie=_clean_mealie(raw.get("mealie")),
     )

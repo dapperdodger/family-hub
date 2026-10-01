@@ -371,6 +371,36 @@ def demo_laundry() -> dict:
     }
 
 
+def demo_meals(today) -> dict:
+    """A live-shaped meals tile (matches meals.meals_tile): tonight planned, a
+    gap day the card offers a random pick for, and a couple more planned days,
+    one of them picked by the hub itself so its re-roll shows. Dates are
+    relative to ``today`` so a screenshot always looks current. No photo: the
+    demo has no Mealie to serve one."""
+    import datetime as _dt
+
+    def day(n, name=None, desc="", rolled=False, entry_id=None):
+        d = (today + _dt.timedelta(days=n)).isoformat()
+        if name is None:
+            return {"date": d, "dinner": None}
+        # a made-up recipe id so each planned day shows its add-to-list button
+        # (the demo's shopping route is a no-op); no photo, the demo has no Mealie
+        return {"date": d, "dinner": {
+            "id": entry_id, "recipe_id": f"00000000-0000-4000-8000-{entry_id:012d}",
+            "name": name, "description": desc,
+            "has_image": False, "rolled": rolled, "more": 0}}
+
+    return {"available": True, "open_url": "", "days": [
+        day(0, "Crock Pot Chicken & Dumplings",
+            "Store-bought biscuits for quick dumplings, with chicken cooked low and slow in a creamy, savory broth.",
+            entry_id=1),
+        day(1, "Sheet Pan Sausage & Veggies", entry_id=2),
+        day(2),
+        day(3, "Lemon Herb Salmon", rolled=True, entry_id=4),
+        day(4, "Homemade Pizza Night", entry_id=5),
+    ]}
+
+
 def demo_fleet() -> dict:
     """A live-shaped fleet tile (matches tiles.fleet_tile's trimmed contract):
     a fully healthy fleet with real-looking vitals (CPU/RAM/storage/hottest

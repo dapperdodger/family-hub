@@ -52,7 +52,7 @@ at one URL.
 
   ![Seasonal looks: fall and Halloween](docs/seasons.jpg)
 - **Phone / tablet (≤1000px):** the same page reflows to bottom tabs —
-  Chores / To-Dos / Calendar / Cameras / Weather / Laundry. On iPhone, open the
+  Chores / To-Dos / Calendar / Cameras / Weather / Laundry / Meals. On iPhone, open the
   hub in **Safari** and use Share → **Add to Home Screen** for a full-screen
   app with no browser toolbar (and no browser quirks); a normal browser tab
   also self-heals the occasional stuck-height reload on its own.
@@ -109,6 +109,16 @@ at one URL.
   the observing, the log fills even with no wall open. Built for LG
   ThinQ's sensors, but any HA integration exposing a status enum + a
   remaining-time timestamp works. Fails soft like weather/climate.
+- **Meals (Mealie):** an optional "Dinner" card for a [Mealie](https://mealie.io)
+  server: tonight's dinner with its photo and description, then one row per
+  following day. An **empty day** is a big **🎲 Random dinner** button; a dinner
+  the hub itself picked also gets a **🎲** to re-roll it (it never replaces a
+  dinner somebody planned by hand, and a re-roll draws again if it lands on the
+  same recipe); every planned day has a **🛒** that adds that recipe's
+  ingredients to your shopping list. **⛶ Full screen** opens Mealie itself. It
+  rides the panels column on the wall and has its own **Meals** tab on the
+  phone. Needs a `mealie` config block and a `MEALIE_API_TOKEN` env var (below);
+  off entirely without the block.
 - **Fleet Console:** an optional card proxying a separate home-lab dashboard's
   compact status rollup — a system-health line ("N of M hosts up", the worst
   problem in words when something's down) over a 3D printer's state, job,
@@ -270,6 +280,7 @@ once with **`?kiosk=1`** to turn it on (the setting is then remembered;
 | `weather_base` | Base URL of a weather JSON feed for the native weather card (the card shows for a configured `weather` panel; empty base = "unavailable" note) |
 | `climate_base` | Base URL of a per-room climate JSON feed for the native climate card (shows for a configured `climate` panel; empty base = "unavailable" note) |
 | `laundry` | Washer/dryer status via Home Assistant: `{"ha_base", "machines": [{"id","label","kind","status_entity","remaining_entity"}]}` — `kind` is `washer` or `dryer` (sets the drum tint), the entities are HA sensor ids (LG ThinQ's *Current status* enum + *Remaining time* timestamp, or equivalents). Optional per machine: `total_entity` (cycle length in minutes; LG *Total time*), `start_entity` (LG *Delayed start* timestamp) and `error_entity` (LG *Error* event). Each only adds detail; leave any out. The HA long-lived token comes from the `HA_TOKEN` env var, never this file. Omit to skip the card. |
+| `mealie` | Meals card: `{"base": "http://192.168.1.50:9000", "days": 5, "shopping_list": "Groceries", "open_url": "http://192.168.1.50:9000"}`. Only `base` is required (http/https; what the hub itself calls). `days` is how many days the card shows, today first (3-7, default 5). `shopping_list` is the list the 🛒 button adds to, by name or id (default: Mealie's first list). `open_url` is what **Full screen** opens in the browser (default: `base`), for when the hub reaches Mealie by a different address than your screens do. The API token comes from the `MEALIE_API_TOKEN` env var, never this file. A malformed block is dropped with a warning in the log. Old configs may still carry a `panels` entry with id `mealie`: it is no longer embedded (the card replaces it) and is ignored. |
 | `fleet` | Fleet Console card: `{"base": "http://192.168.1.50:3000"}` — the base URL of a separate home-lab dashboard app exposing a compact `/api/rollup` status endpoint (host + 3D-printer status). Optional `"label"`. Omit to skip the card. Pair with a `"fleet"` entry in `panels` (below) to get the **⛶ Console** full-screen button. |
 | `theme` | House default display theme — `{"mode","accent","columns","layout","idleReturn","season"}` (`mode`: light/soft/dark/grey/black, `accent`: cyan/violet/amber/green, `columns`: none/wells/lines, `layout`: auto/desktop, `idleReturn`: on/off, `season`: on/off for seasonal looks). Applied on a fresh device with no saved override |
 
@@ -324,6 +335,25 @@ Calendar**, copy the `webcal://` link. Works equally for school calendars,
 sports team feeds, national holidays — anything that publishes ICS.
 Recurring events are fully expanded. A feed that goes dark keeps its
 last-synced events on the wall instead of vanishing.
+
+### Meals: a Mealie server
+
+1. In Mealie, open your profile -> **API Tokens** and create one. It can plan
+   meals and edit shopping lists, so treat it like a password.
+2. Put it in the box's `.env` as `MEALIE_API_TOKEN=...` (it is in the compose
+   `environment:` allowlist; a var missing from that list is invisible inside
+   the container) and add the `mealie` block to `config.json` (reference above).
+3. Check `/health/full`: its `meals` source and the `mealie_token` setting say
+   whether the card can READ (it checks the plan read, not the writes: a token
+   that can read but not edit shows a refusal toast on the first tap). A configured card with no token still shows on
+   the wall, as "Meals needs a Mealie token", rather than vanishing.
+
+The hub has no login, like the rest of the wall: anyone who can open it can plan
+a random dinner or add to the shopping list. Re-roll is limited to dinners the
+hub itself picked (remembered in its database), so a stray tap cannot replace
+something you planned by hand. The photo comes through the hub
+(`/api/mealie/image/<id>`), so a phone never needs a route to Mealie and nothing
+sees the token.
 
 ### Panels: embed any dashboard you already run
 
