@@ -36,6 +36,10 @@ services:
       # .env). Empty = laundry off. This allowlist is the only way env vars
       # reach the container — a var missing here is invisible inside.
       - HA_TOKEN=${HA_TOKEN:-}
+      # Mealie API token for the Meals card (optional; see .env). Empty with a
+      # `mealie` config block = the card shows "needs a token". Like HA_TOKEN,
+      # a var missing from this allowlist is invisible inside the container.
+      - MEALIE_API_TOKEN=${MEALIE_API_TOKEN:-}
       # Lets the wall reconnect Google Calendar itself (tap "Reconnect" in
       # Settings -> approve on Google's page -> token.json written on the
       # box) instead of running scripts/google-auth.py on a desktop. All

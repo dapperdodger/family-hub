@@ -28,6 +28,16 @@ rolls that section to a dated version via `python scripts/release.py`.
   an event you just added vanish from the calendar until the next refresh.
 
 ### Added
+- A **Meals** card for Mealie: tonight's dinner (with its photo and
+  description) and the next few days on the wall's dashboards column, and its
+  own **Meals** tab on the phone. An empty day has a **Random dinner** button;
+  a dinner the hub picked can be re-rolled (never one you planned by hand, and
+  it draws again if it lands on the same recipe); each planned day has a
+  button that adds that recipe's ingredients to your shopping list. **Full
+  screen** opens Mealie itself. Configure with a `mealie` block in `config.json`
+  and a `MEALIE_API_TOKEN` env var (see the README); `/health/full` reports a
+  `meals` source and the `mealie_token` setting. An old `panels` entry with id
+  `mealie` is no longer embedded.
 - The calendar overlay has a "+" button to add an event directly to any
   configured Google calendar, with immediate visibility and no wait for
   the next background sync.

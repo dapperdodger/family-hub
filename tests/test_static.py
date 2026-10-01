@@ -803,7 +803,7 @@ def test_admin_html_is_retired():
         "no frontend file may still link to the retired /admin.html"
 
 
-MOBILE_TABS = ("chores", "cal", "cams", "weather", "laundry")
+MOBILE_TABS = ("chores", "cal", "cams", "weather", "laundry", "meals")
 
 # the wall sections that each live in the hub grid; a tab shows one and hides
 # the rest. (.camgrid is not here — it is default-hidden and only the cams tab
@@ -817,7 +817,9 @@ TAB_SURFACE = {"chores": ".people-col", "cal": ".cal",
                "cams": ".camgrid", "weather": ".panels",
                # laundry reuses .panels, filtered to the laundry slot by its
                # own child rule (asserted in test_laundry_card_static_guards)
-               "laundry": ".panels"}
+               "laundry": ".panels",
+               # meals does the same, filtered to its own slot
+               "meals": ".panels"}
 
 
 def test_mobile_reflow_block_present():
@@ -927,6 +929,46 @@ def test_month_card_is_never_hidden_while_empty():
         "hiding an empty .month-slot means it can never fill"
     hub = (STATIC / "hub.js").read_text()
     assert "getComputedStyle(el).display !== 'none'" in hub
+
+
+def test_meals_card_is_wired_end_to_end():
+    """The Meals card (operator, 2026-09-30): its toggle hook, its phone tab,
+    its tab-visibility mapping, the phone rules that give it the whole screen
+    (and keep it off every other tab), and the guard against the width bug that
+    pushed the whole phone page wider than the screen (an unshrinkable recipe
+    name bubbling its min-content up through every ancestor)."""
+    index = (STATIC / "index.html").read_text()
+    hub = (STATIC / "hub.js").read_text()
+    assert 'data-tab="meals"' in index, "the phone Meals tab button"
+    assert re.search(r"meals:\s*\['mealie'\]", hub), "TAB_FEATURES must back the Meals tab with the mealie integration"
+    assert re.search(r"body\.integ-off-mealie[^\{]*#meals-slot[^\{]*\{[^}]*display:\s*none", CSS), \
+        "turning the integration off must hide the card"
+    mobile = _phone_shell_css()
+    assert re.search(r'body\[data-tab="meals"\] \.panels > :not\(\.meals-slot\)\s*\{[^}]*display:\s*none', mobile), \
+        "the Meals tab shows only its own slot of the panels column"
+    assert re.search(r'body\[data-tab="weather"\] \.meals-slot\s*\{[^}]*display:\s*none', mobile), \
+        "the Weather tab must not also show the Meals card"
+    # the long-name width bug: the name must be allowed to shrink to nothing
+    name = re.search(r"\.meal-rname\s*\{([^}]*)\}", CSS).group(1)
+    assert "width: 0" in name and "min-width: 0" in name, \
+        ".meal-rname must shrink (width:0, min-width:0) or a long recipe name widens the phone page"
+    for sel in (".meals-slot", ".meals-card", ".meal-row"):
+        assert re.search(rf"{re.escape(sel)}[^{{]*\{{[^}}]*min-width:\s*0", CSS), f"{sel} needs min-width:0"
+    # every control is a real <button> that routes through mealsAct (never a div with a click)
+    assert "data-meals-act" in hub and "mealsAct(" in hub
+    # tap targets: >=44px on the phone
+    assert re.search(r'\.meal-btn\s*\{\s*min-height:\s*44px', mobile)
+
+
+def test_tab_bar_comment_matches_the_tab_count():
+    """The small-type media query is width-tuned to the tab COUNT, and its
+    comment records the count it was measured at. Adding the Meals tab made it
+    seven; measured at 360/375/390/414/430px with all seven visible, nothing
+    clips (see the comment). Keep the comment in step with the buttons."""
+    index = (STATIC / "index.html").read_text()
+    n = len(re.findall(r'class="tab-btn', index))
+    word = {6: "SIX", 7: "SEVEN", 8: "EIGHT"}[n]
+    assert f"{word} tabs" in CSS, f"the tab-bar sizing comment must say {word} tabs (there are {n})"
 
 
 def test_columns_control_styles_the_new_wrappers():

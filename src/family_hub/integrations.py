@@ -23,6 +23,12 @@ def ha_token(env: dict) -> str:
     return (env.get("HA_TOKEN") or "").strip()
 
 
+def mealie_token(env: dict) -> str:
+    """The Mealie API token, whitespace-stripped (one definition, like
+    ha_token: a token of "   " must read as absent everywhere)."""
+    return (env.get("MEALIE_API_TOKEN") or "").strip()
+
+
 def laundry_configured(cfg, env: dict | None = None) -> bool:
     """True iff this hub ASKED for laundry: either a laundry block survived
     cleaning, or one was written and nothing valid survived it (config.py
@@ -105,6 +111,9 @@ def available_integrations(cfg, env: dict | None = None,
         bool(getattr(cfg, "climate_base", "")))
     add("laundry", "laundry", "Laundry", laundry_configured(cfg, env))
     add("fleet", "fleet", "Fleet status", bool(getattr(cfg, "fleet", None)))
+    # Configured by a `mealie` block, listed even with no token (it then carries
+    # needs_auth): the credential only arrives out of band, in the box's env.
+    add("mealie", "mealie", "Meals (Mealie)", bool(getattr(cfg, "mealie", None)))
     return out
 
 

@@ -33,7 +33,7 @@ const hubSrc = readFileSync(join(staticDir, 'hub.js'), 'utf8');
 // for anything else (e.g. 'toast'), so hub.js's create-if-missing branches run
 // for real — that's the whole point of the showToast assertions below.
 const SEEDED_IDS = [
-  'conn-word', 'clock-date', 'clock-time', 'cal', 'month-slot', 'people', 'todo-slot', 'tiles',
+  'conn-word', 'clock-date', 'clock-time', 'cal', 'month-slot', 'meals-slot', 'people', 'todo-slot', 'tiles',
   'camgrid', 'integrations-ctl',
   'panels', 'tabbar', 'overlay', 'overlay-home', 'overlay-content', 'ev-modal',
   'ev-card',
@@ -549,7 +549,8 @@ function seedTabbar(document) {
     '<button class="tab-btn" data-tab="cal">Calendar</button>' +
     '<button class="tab-btn" data-tab="cams">Cameras</button>' +
     '<button class="tab-btn" data-tab="weather">Weather</button>' +
-    '<button class="tab-btn" data-tab="laundry">Laundry</button>';
+    '<button class="tab-btn" data-tab="laundry">Laundry</button>' +
+    '<button class="tab-btn" data-tab="meals">Meals</button>';
   return bar;
 }
 
@@ -1152,6 +1153,236 @@ test('refreshMonthCard does not fetch while the card is hidden (phone / calendar
   sandbox.getComputedStyle = () => ({ display: 'block' });
   await sandbox.refreshMonthCard();
   assert.equal(fetched, 1, 'a visible card refreshes through the shared calendar fetch');
+});
+
+// ---- the native Meals card (operator, 2026-09-30) ----
+
+const RID_A = '08481e68-b32a-45db-9f99-f036126dba27';
+const RID_B = '9cc3dd7f-6004-48f8-b70a-188022e816b9';
+const mealDay = (date, dinner) => ({ date, dinner: dinner || null });
+const dinner = (over = {}) => ({ id: 1, recipe_id: RID_A, name: 'Baked Ziti', description: 'Cheesy pasta.',
+  has_image: false, rolled: false, more: 0, ...over });
+const MEALS_WEEK = () => ({ available: true, open_url: 'http://mealie.invalid:9000', days: [
+  mealDay('2026-10-01', dinner({ has_image: true })),
+  mealDay('2026-10-02', dinner({ id: 2, recipe_id: RID_B, name: 'Soup' })),
+  mealDay('2026-10-03'),
+  mealDay('2026-10-04', dinner({ id: 4, name: 'Salmon', rolled: true })),
+] });
+
+function mealsHtml(payload) {
+  const { document, sandbox } = newHub();
+  vm.runInContext("data_date = '2026-10-01';", sandbox);
+  sandbox.renderMeals(payload);
+  return { html: document.getElementById('meals-slot').innerHTML, document, sandbox };
+}
+
+test('renderMeals: loading placeholder, unavailable and needs-a-token notes, header always stands', () => {
+  let r = mealsHtml(null);
+  assert.match(r.html, /wx-loading/);
+  assert.doesNotMatch(r.html, /unavailable/i, 'never flashes unavailable before the first fetch');
+  r = mealsHtml({ available: false });
+  assert.match(r.html, /Meals unavailable/);
+  assert.match(r.html, />Dinner</, 'the header stands even when unavailable');
+  r = mealsHtml({ available: false, needs_auth: true });
+  assert.match(r.html, /Meals needs a Mealie token/);
+  assert.doesNotMatch(r.html, /data-overlay/, 'no dead Full screen button when nothing is available');
+});
+
+test('renderMeals: Full screen only with an http(s) URL to open', () => {
+  assert.match(mealsHtml(MEALS_WEEK()).html, /data-overlay="meals-full"/);
+  for (const url of ['', 'javascript:alert(1)', 'ftp://x', undefined, 5]) {
+    assert.doesNotMatch(mealsHtml({ ...MEALS_WEEK(), open_url: url }).html, /data-overlay/, `url ${url}`);
+  }
+});
+
+test('renderMeals: tonight is the hero (name, description, photo only when there is one)', () => {
+  const html = mealsHtml(MEALS_WEEK()).html;
+  assert.match(html, /class="meal-day">Tonight</);
+  assert.match(html, /<h3 class="meal-name">Baked Ziti</);
+  assert.match(html, /class="meal-desc">Cheesy pasta\./);
+  assert.match(html, new RegExp(`<img class="meal-photo" src="/api/mealie/image/${RID_A}"`));
+  const noPhoto = mealsHtml({ ...MEALS_WEEK(), days: [mealDay('2026-10-01', dinner())] }).html;
+  assert.doesNotMatch(noPhoto, /<img/, 'no photo, no broken image');
+});
+
+test('renderMeals: an empty day offers a random pick (full width tonight, a row later); a hub-picked day offers re-roll', () => {
+  const html = mealsHtml(MEALS_WEEK()).html;
+  assert.match(html, /meal-row meal-row-empty">.*data-meals-act="random" data-date="2026-10-03"/s);
+  const rows = html.split('<div class="meal-row').slice(1);
+  const sat = rows.find((r) => r.includes('Salmon'));
+  assert.match(sat, /data-meals-act="reroll" data-date="2026-10-04" data-entry="4"/, 'rolled -> re-roll offered');
+  const tomorrow = rows.find((r) => r.includes('Soup'));
+  assert.doesNotMatch(tomorrow, /reroll/, 'a hand-planned dinner is never offered for re-roll');
+  const emptyTonight = mealsHtml({ ...MEALS_WEEK(), days: [mealDay('2026-10-01'), ...MEALS_WEEK().days.slice(1)] }).html;
+  assert.match(emptyTonight, /Nothing planned/);
+  assert.match(emptyTonight, /meal-btn-random meal-btn-big" data-meals-act="random" data-date="2026-10-01"/);
+});
+
+test('renderMeals: every planned day with a recipe offers add-to-list, labelled for screen readers', () => {
+  const html = mealsHtml(MEALS_WEEK()).html;
+  assert.equal((html.match(/data-meals-act="shop"/g) || []).length, 3);
+  assert.match(html, new RegExp(`data-meals-act="shop" data-recipe="${RID_B}" data-date="2026-10-02" aria-label="Add the ingredients to the shopping list"`));
+  const noRecipe = mealsHtml({ ...MEALS_WEEK(), days: [mealDay('2026-10-01', dinner({ recipe_id: null }))] }).html;
+  assert.doesNotMatch(noRecipe, /data-meals-act="shop"/, 'a note-only entry has no ingredients to add');
+});
+
+test('renderMeals: names, descriptions and ids from Mealie are inert', () => {
+  const evil = dinner({ name: '<img src=x onerror=alert(1)>', description: '<script>alert(2)</script>',
+    recipe_id: '"><b>x</b>', has_image: true });
+  const html = mealsHtml({ ...MEALS_WEEK(), days: [mealDay('2026-10-01', evil),
+    mealDay('2026-10-02', dinner({ name: '"><svg onload=alert(3)>', rolled: true, id: 7 }))] }).html;
+  assert.doesNotMatch(html, /<script|<svg|<img src=x|<b>x/, 'no live markup from upstream text');
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('renderMeals: after midnight (today missing from the days) the first day is the hero', () => {
+  const html = mealsHtml({ ...MEALS_WEEK(), days: MEALS_WEEK().days.slice(1) }).html;
+  assert.match(html, /<h3 class="meal-name">Soup</);
+});
+
+test('renderMeals: a malformed days list degrades to a note, never throws', () => {
+  for (const days of [null, 'x', 5, [], [null, 5, {}], [{ date: 5 }]]) {
+    const r = mealsHtml({ available: true, open_url: '', days });
+    assert.match(r.html, /Nothing planned|wx-offline/);
+  }
+});
+
+const mealsFetchLog = (sandbox, { failWith, week = MEALS_WEEK() } = {}) => {
+  const calls = [];
+  sandbox.fetch = async (url, opts = {}) => {
+    calls.push({ url, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
+    if (failWith && opts.method === 'POST') {
+      return { ok: false, status: failWith.status, json: async () => ({ detail: failWith.detail }) };
+    }
+    return { ok: true, status: 200, json: async () => (url.includes('/api/tiles/mealie')
+      ? week : { ok: true, entry_id: 9, list: 'Groceries' }) };
+  };
+  return calls;
+};
+
+const tapMeals = (sandbox, fire, host, sel) => {
+  const btn = host.querySelector(sel);
+  assert.ok(btn, `${sel} rendered`);
+  btn.closest = (s) => (s === '[data-meals-act]' ? btn : null);
+  fire('click', { target: btn, preventDefault() {} });
+  return btn;
+};
+
+test('mealsAct: Random dinner posts the date, disables its own button while it runs, then re-reads the card', async () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';", sandbox);
+  const calls = mealsFetchLog(sandbox);
+  vm.runInContext(`mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
+  assert.match(host.innerHTML, /data-meals-act="random" data-date="2026-10-03"[^>]* disabled/, 'busy while in flight');
+  // a second tap on the same button is ignored (no double pick)
+  tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
+  await flush(); await flush();
+  const posts = calls.filter((c) => c.method === 'POST');
+  assert.equal(posts.length, 1, 'one request, not two');
+  assert.deepEqual(posts[0], { url: '/api/mealie/random', method: 'POST', body: { date: '2026-10-03' } });
+  assert.ok(calls.some((c) => c.url === '/api/tiles/mealie' && c.method === 'GET'), 'the card is re-read afterwards');
+  assert.equal(document.getElementById('toast').textContent, 'Dinner picked');
+  assert.doesNotMatch(host.innerHTML, / disabled/, 'busy cleared');
+});
+
+test('mealsAct: Re-roll sends the entry to replace; Add to list sends the recipe and says which list', async () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';", sandbox);
+  const calls = mealsFetchLog(sandbox);
+  vm.runInContext(`mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  tapMeals(sandbox, fire, host, '[data-meals-act="reroll"]');
+  await flush(); await flush();
+  assert.deepEqual(calls.find((c) => c.method === 'POST').body, { date: '2026-10-04', replace_id: 4 });
+  assert.equal(document.getElementById('toast').textContent, 'Picked a different dinner');
+  calls.length = 0;
+  tapMeals(sandbox, fire, host, '[data-meals-act="shop"]');   // first in document order = tonight's
+  await flush(); await flush();
+  assert.deepEqual(calls.find((c) => c.method === 'POST'), { url: '/api/mealie/shopping', method: 'POST', body: { recipe_id: RID_A } });
+  assert.equal(document.getElementById('toast').textContent, 'Added to Groceries');
+});
+
+test('mealsAct: a refusal shows the SERVER\'s reason, frees the button, and still re-reads the card', async () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';", sandbox);
+  const calls = mealsFetchLog(sandbox, { failWith: { status: 409, detail: 'that day already has a dinner' } });
+  vm.runInContext(`mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
+  await flush(); await flush();
+  assert.equal(document.getElementById('toast').textContent, 'that day already has a dinner');
+  assert.doesNotMatch(host.innerHTML, / disabled/);
+  assert.ok(calls.some((c) => c.url === '/api/tiles/mealie'), 'shows what Mealie really has now');
+});
+
+test('the Meals card is built once per page, its slot rides the panels column, and a "mealie" panels entry is NOT embedded', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("links = { panels: [{ id: 'weather' }, { id: 'mealie', url: 'http://m/', vw: 700, vh: 800 }] }; panelsBuilt = false;", sandbox);
+  sandbox.buildPanels();
+  const html = document.getElementById('panels').innerHTML;
+  assert.match(html, /id="meals-slot"/);
+  assert.doesNotMatch(html, /frame-mealie/, 'the old always-on embed is gone');
+  vm.runInContext("links = { panels: [] }; panelsBuilt = false;", sandbox);
+  sandbox.buildPanels();
+  assert.match(document.getElementById('panels').innerHTML, /id="meals-slot"/, 'built with no panels entry too');
+});
+
+test('a leftover "mealie" panels entry neither keeps the phone Weather tab alive nor counts as a custom panel', () => {
+  const { sandbox } = newHub();
+  vm.runInContext("links = { panels: [{ id: 'mealie' }] };", sandbox);
+  assert.equal(sandbox.customPanelExists(), false);
+  vm.runInContext("links = { panels: [{ id: 'mealie' }, { id: 'other' }] };", sandbox);
+  assert.equal(sandbox.customPanelExists(), true);
+});
+
+test('applyWallLayout: meals alone keeps the dashboards column; off with nothing else drops it', () => {
+  const { sandbox, document } = newHub();
+  seedWallGrid(document);
+  vm.runInContext('links = { panels: [] };', sandbox);
+  const mealie = (enabled) => sandbox.renderIntegrations({ integrations: [
+    { id: 'chores', enabled: true, group: 'feature' }, { id: 'todos', enabled: true, group: 'feature' },
+    { id: 'google_calendar', enabled: true, group: 'integration' },
+    { id: 'mealie', enabled, group: 'integration' } ] });
+  const grid = document.querySelector('.hub-grid');
+  mealie(true);
+  assert.equal(grid.style.gridTemplateAreas, '"left mid panels"');
+  mealie(false);
+  assert.equal(grid.style.gridTemplateAreas, '"left mid"');
+});
+
+test('updateTabVisibility: the Meals tab shows only with the mealie integration on', () => {
+  const { sandbox, document } = newHub();
+  seedTabbar(document);
+  document.body.dataset.tab = 'chores';
+  const byTab = (t) => document.querySelectorAll('.tab-btn').find((b) => b.dataset.tab === t);
+  const list = (mealieOn) => sandbox.renderIntegrations({ integrations: [
+    { id: 'chores', enabled: true, group: 'feature' },
+    { id: 'mealie', enabled: mealieOn, group: 'integration' } ] });
+  list(true);
+  assert.equal(byTab('meals').hidden, false);
+  list(false);
+  assert.equal(byTab('meals').hidden, true, 'toggled off -> tab and surface go together');
+});
+
+test('the full-screen Meals view opens only an http(s) URL the TILE supplied', () => {
+  const { document, sandbox } = newHub();
+  const made = [];
+  sandbox.makeIframe = (url) => { made.push(url); return document.createElement('div'); };
+  vm.runInContext("mealsData = { available: true, open_url: 'http://mealie.invalid:9000' };", sandbox);
+  sandbox.openOverlay('meals-full');
+  assert.deepEqual(made, ['http://mealie.invalid:9000']);
+  sandbox.closeOverlay();
+  for (const url of ['javascript:alert(1)', 'data:text/html,x', '', undefined, 5]) {
+    vm.runInContext(`mealsData = { available: true, open_url: ${JSON.stringify(url) ?? 'undefined'} };`, sandbox);
+    sandbox.openOverlay('meals-full');
+    sandbox.closeOverlay();
+  }
+  assert.equal(made.length, 1, 'a non-http(s) URL never becomes an iframe');
 });
 
 test('applyWallLayout + updateTabVisibility: empty list is a no-op (fail-open)', () => {

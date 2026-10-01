@@ -27,6 +27,9 @@ let laundryData = null;   // last /api/tiles/laundry payload (native laundry car
 let laundryFails = 0;     // consecutive laundry fetch failures (see fetchLaundry)
 let fleetData = null;     // last /api/tiles/fleet payload (native fleet card)
 let fleetFails = 0;       // consecutive fleet fetch failures (see fetchFleet)
+let mealsData = null;     // last /api/tiles/mealie payload (native Meals card)
+let mealsFails = 0;       // consecutive meals fetch failures (see fetchMeals)
+const mealsBusy = new Set();   // in-flight meal actions (a button is disabled while its key is here)
 let lastIntegrations = [];  // last /api/hub integrations block (settings toggles)
 const TILE_FAIL_LIMIT = 3;   // keep the last good card until this many in a row
 let warnedNoWeatherSlot = false;   // one-time warn: weather_base set, no 'weather' panel
@@ -1682,6 +1685,7 @@ const TAB_FEATURES = {
   cams: ['cameras'],
   weather: ['weather', 'climate'],
   laundry: ['laundry'],
+  meals: ['mealie'],
 };
 
 // A custom dashboard panel (links.panels entry that isn't the weather/climate
@@ -1689,7 +1693,7 @@ const TAB_FEATURES = {
 // Weather tab, and the not-empty state alive even with weather+climate off.
 function customPanelExists() {
   return ((links && links.panels) || [])
-    .some((p) => p.id !== 'weather' && p.id !== 'climate');
+    .some((p) => p.id !== 'weather' && p.id !== 'climate' && p.id !== 'mealie');
 }
 
 // True unless the integration is present AND disabled. Fail-open: an id absent
@@ -1774,7 +1778,7 @@ function applyWallLayout(list) {
   // buildPanels renders those via panelHtml, and they have no toggle of
   // their own, so the column must survive even with weather+climate both
   // off or an operator's custom panel would silently lose its column).
-  const dash = has('weather', 'climate', 'laundry', 'fleet') || customPanelExists();
+  const dash = has('weather', 'climate', 'laundry', 'fleet', 'mealie') || customPanelExists();
   const setDisp = (sel, show) => {
     const el = document.querySelector(sel);
     if (el) el.style.display = show ? '' : 'none';
@@ -1945,6 +1949,12 @@ function openOverlay(view) {
     const cam = [...(links.cameras || []), ...(links.camera_page || [])]
       .find((c) => c.src === view.slice(7));
     if (cam) openCameraFull(content, cam, view);
+  } else if (view === 'meals-full') {
+    // Mealie itself, full screen (recipes, the meal plan, the shopping lists).
+    // The URL comes from the tile (config mealie.open_url, else mealie.base),
+    // never from the page, so there is nothing for a click to inject.
+    const url = mealsData && typeof mealsData.open_url === 'string' ? mealsData.open_url : '';
+    if (/^https?:\/\//.test(url)) content.appendChild(makeIframe(url));
   } else if (view === 'cameras-page') {
     // Full-screen 2x2 live grid — the "camera page" reachable from the wall's
     // Cameras header (the wall has no tab bar). Same tiles as the mobile
@@ -2243,11 +2253,16 @@ function buildPanels() {
       // always-on iframe embed in the column — fleetSlotHtml below already
       // covers its native card, appended once regardless of this entry.
       if (p.id === 'fleet') return '';
+      // the same for mealie: its native Meals card replaced the old always-on
+      // embed, and the entry (if any) is left in old configs as a harmless
+      // full-screen URL. The Meals card itself is appended once below.
+      if (p.id === 'mealie') return '';
       return panelHtml(p);
-    }).join('') + laundrySlotHtml() + fleetSlotHtml();
+    }).join('') + mealsSlotHtml() + laundrySlotHtml() + fleetSlotHtml();
   panelsBuilt = true;
   renderWeather();   // fill the just-built weather slot from cached data (if any)
   renderClimate();   // fill the just-built climate slot from cached data (if any)
+  renderMeals();     // fill the just-built meals slot from cached data (if any)
   renderLaundry();   // fill the just-built laundry slot from cached data (if any)
   renderFleet();     // fill the just-built fleet slot from cached data (if any)
 }
@@ -2259,7 +2274,7 @@ function wirePanels() {
   // panels entry (if configured) is full-screen-only, never an always-on
   // embed either. Wire only genuine embeds.
   const ps = (links.panels || [])
-    .filter((p) => p.id !== 'weather' && p.id !== 'climate' && p.id !== 'fleet');
+    .filter((p) => p.id !== 'weather' && p.id !== 'climate' && p.id !== 'fleet' && p.id !== 'mealie');
   if (!ps.length) { panelsWired = true; return; }
   const first = document.getElementById(`frame-${ps[0].id}`);
   if (!first) return;
@@ -3613,6 +3628,157 @@ async function fetchFleet() {
   renderFleet();
 }
 
+/* ----------------------------------------------------- native Meals card */
+
+/* Tonight's dinner (with its photo) and the next few days from Mealie
+   (operator, 2026-09-30: replaces the embedded Mealie panel, which was
+   unreadable scaled into a 340px column). An empty day offers a random pick;
+   a day the hub itself picked offers a re-roll; a planned day offers "add the
+   ingredients to the shopping list". Every control is a real <button> (>=44px
+   on the phone) and goes through mealsAct. Mealie's own UI stays one tap away
+   under "Full screen". */
+
+function mealsDayLabel(dateStr, todayStr, short = false) {
+  if (dateStr === todayStr) return 'Tonight';
+  if (dateStr === addDays(todayStr, 1)) return 'Tomorrow';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: short ? 'short' : 'long' });
+}
+
+// an HTML attribute, not a class: held in a constant so the static class guard
+// (which reads quoted words after a ternary as class names) leaves it alone
+const MEAL_LOCK_ATTR = ' disabled';
+
+function mealBtn(act, label, attrs, extra = '', aria = '') {
+  const key = `${act}:${attrs.date || attrs.rid}`;
+  const data = Object.entries(attrs)
+    .map(([k, v]) => ` data-${k === 'rid' ? 'recipe' : k}="${escapeHtml(String(v))}"`).join('');
+  const busy = mealsBusy.has(key);
+  const cls = extra ? `meal-btn ${extra}` : 'meal-btn';
+  const lock = busy ? MEAL_LOCK_ATTR : '';
+  const tip = aria ? ` aria-label="${escapeHtml(aria)}" title="${escapeHtml(aria)}"` : '';
+  return `<button type="button" class="${cls}" data-meals-act="${act}"${data}${tip}${lock}>${busy ? '…' : label}</button>`;
+}
+
+// Tonight's block spells the buttons out; the compact rows below it use icons
+// (labelled for screen readers and as a tooltip) so the recipe name keeps its room.
+function mealActions(day, dn, compact = false) {
+  const out = [];
+  if (dn.recipe_id) {
+    out.push(mealBtn('shop', compact ? '🛒' : '🛒 Add to list', { rid: dn.recipe_id, date: day.date },
+      'meal-btn-shop', 'Add the ingredients to the shopping list'));
+  }
+  if (dn.rolled && dn.id != null) {
+    out.push(mealBtn('reroll', compact ? '🎲' : '🎲 Re-roll', { date: day.date, entry: dn.id },
+      'meal-btn-roll', 'Pick a different dinner'));
+  }
+  return out.join('');
+}
+
+function mealsTodayHtml(day, todayStr) {
+  const dn = day.dinner;
+  const label = `<span class="meal-day">${escapeHtml(mealsDayLabel(day.date, todayStr))}</span>`;
+  if (!dn) {
+    return `<div class="meal-today meal-today-empty">${label}`
+      + `<div class="meal-none">Nothing planned</div>`
+      + mealBtn('random', '🎲 Random dinner', { date: day.date }, 'meal-btn-random meal-btn-big')
+      + `</div>`;
+  }
+  const photo = dn.has_image && dn.recipe_id
+    ? `<img class="meal-photo" src="/api/mealie/image/${escapeHtml(dn.recipe_id)}" alt="" decoding="async">`
+    : '';
+  return `<div class="meal-today">${photo}<div class="meal-today-body">${label}`
+    + `<h3 class="meal-name">${escapeHtml(dn.name)}</h3>`
+    + (dn.description ? `<p class="meal-desc">${escapeHtml(dn.description)}</p>` : '')
+    + `<div class="meal-actions">${mealActions(day, dn)}</div></div></div>`;
+}
+
+function mealsRowHtml(day, todayStr) {
+  const dn = day.dinner;
+  const wd = `<span class="meal-wd">${escapeHtml(mealsDayLabel(day.date, todayStr, true))}</span>`;
+  if (!dn) {
+    return `<div class="meal-row meal-row-empty">${wd}`
+      + mealBtn('random', '🎲 Random dinner', { date: day.date }, 'meal-btn-random') + `</div>`;
+  }
+  return `<div class="meal-row">${wd}<span class="meal-rname">${escapeHtml(dn.name)}</span>`
+    + `<span class="meal-row-actions">${mealActions(day, dn, true)}</span></div>`;
+}
+
+function mealsCardHtml(m) {
+  const todayStr = data_date || todayISO();
+  const days = Array.isArray(m.days) ? m.days.filter((d) => d && typeof d.date === 'string') : [];
+  const first = days.find((d) => d.date === todayStr) || days[0];
+  if (!first) return `<div class="wx-offline">Nothing planned</div>`;
+  const rest = days.filter((d) => d !== first);
+  return `<article class="card meals-card">${mealsTodayHtml(first, todayStr)}`
+    + (rest.length ? `<div class="meal-rows">${rest.map((d) => mealsRowHtml(d, todayStr)).join('')}</div>` : '')
+    + `</article>`;
+}
+
+function mealsSlotHtml() {
+  return `<div class="meals-slot" id="meals-slot"></div>`;
+}
+
+/* Paint the Meals card. The header sits OUTSIDE the card like every section
+   and offers "Full screen" only when the tile carries a URL to open (the demo
+   has none: no dead button). Never blanks the column: an unconfigured token or
+   a dead Mealie gets a slim note, header intact. */
+function renderMeals(m = mealsData) {
+  const host = document.getElementById('meals-slot');
+  if (!host) return;
+  const hasUrl = !!(m && m.available && typeof m.open_url === 'string' && /^https?:\/\//.test(m.open_url));
+  const head = sectionHead('Dinner', hasUrl ? { overlay: 'meals-full', expandLabel: 'Full screen' } : {});
+  const body = m == null
+    ? `<div class="card wx-loading" aria-hidden="true"></div>`
+    : m.available
+      ? mealsCardHtml(m)
+      : `<div class="wx-offline">${m.needs_auth ? 'Meals needs a Mealie token' : 'Meals unavailable'}</div>`;
+  host.innerHTML = head + body;
+}
+
+async function fetchMeals() {
+  try {
+    mealsData = await j('/api/tiles/mealie');
+    mealsFails = 0;
+  } catch (e) {
+    mealsFails += 1;
+    if (!mealsData || mealsFails >= TILE_FAIL_LIMIT) mealsData = { available: false };
+  }
+  renderMeals();
+}
+
+/* One meal button was tapped. A key per action+target disables just that
+   button while it runs (a double tap can neither plan twice nor add twice),
+   the result (or the server's reason) goes to the toast, and the card is
+   re-read either way so it shows what Mealie actually has. */
+const JSON_POST = (body) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body) });
+
+async function mealsAct(btn) {
+  const act = btn.dataset.mealsAct;
+  const key = `${act}:${btn.dataset.date || btn.dataset.recipe}`;
+  if (mealsBusy.has(key)) return;
+  mealsBusy.add(key);
+  renderMeals();
+  try {
+    if (act === 'random') {
+      await j('/api/mealie/random', JSON_POST({ date: btn.dataset.date }));
+      showToast('Dinner picked');
+    } else if (act === 'reroll') {
+      await j('/api/mealie/random', JSON_POST({ date: btn.dataset.date, replace_id: Number(btn.dataset.entry) }));
+      showToast('Picked a different dinner');
+    } else if (act === 'shop') {
+      const r = await j('/api/mealie/shopping', JSON_POST({ recipe_id: btn.dataset.recipe }));
+      showToast(`Added to ${(r && r.list) || 'the shopping list'}`);
+    }
+  } catch (e) {
+    showToast((e && e.message) ? e.message : 'That did not work');
+  } finally {
+    mealsBusy.delete(key);
+  }
+  await fetchMeals();
+}
+
 let fitDebounce = null;
 /* Fit-to-screen. The wall is authored at a fixed 1920x1080 canvas. On the
    target Pi kiosk that IS the viewport, so nothing scales (1:1). On any other
@@ -4250,6 +4416,8 @@ document.addEventListener('click', (e) => {
       || (e.target.closest('.ev-modal') && !e.target.closest('.ev-card'))) {
     closeEventDetail(); return;
   }
+  const mealBtnEl = e.target.closest('[data-meals-act]');
+  if (mealBtnEl) { mealsAct(mealBtnEl); return; }
   const evRow = e.target.closest('[data-eid]');
   if (evRow) { openEventDetail(evRow.dataset.eid); return; }
   // full-calendar controls
@@ -5649,6 +5817,7 @@ fetchWeather();
 fetchClimate();
 fetchLaundry();
 fetchFleet();
+fetchMeals();
 lnConnect();   // the laundry live stream (fetchLaundry stays as fallback)
 setInterval(scheduledPoll, POLL_MS);
 // the poll beat doubles as the stream's re-arm: lnConnect is idempotent on
@@ -5659,6 +5828,7 @@ setInterval(fetchWeather, POLL_MS);
 setInterval(fetchClimate, POLL_MS);
 setInterval(fetchLaundry, POLL_MS);
 setInterval(fetchFleet, POLL_MS);
+setInterval(fetchMeals, POLL_MS);
 // the countdown + timer arc stay live between polls (in-place, no re-render)
 setInterval(laundryTick, 30000);
 setInterval(scheduledProbeCamera, CAM_PROBE_MS);
