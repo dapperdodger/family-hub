@@ -1169,9 +1169,11 @@ const MEALS_WEEK = () => ({ available: true, open_url: 'http://mealie.invalid:90
   mealDay('2026-10-04', dinner({ id: 4, name: 'Salmon', rolled: true })),
 ] });
 
+const LISTED = "hubData = { integrations: [{ id: 'mealie', enabled: true }] };";
+
 function mealsHtml(payload) {
   const { document, sandbox } = newHub();
-  vm.runInContext("data_date = '2026-10-01';", sandbox);
+  vm.runInContext("data_date = '2026-10-01';" + LISTED, sandbox);
   sandbox.renderMeals(payload);
   return { html: document.getElementById('meals-slot').innerHTML, document, sandbox };
 }
@@ -1272,7 +1274,7 @@ test('mealsAct: Random dinner posts the date, disables its own button while it r
   const { document, sandbox, fire } = newHub();
   vm.runInContext("data_date = '2026-10-01';", sandbox);
   const calls = mealsFetchLog(sandbox);
-  vm.runInContext(`mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
+  vm.runInContext(LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
   sandbox.renderMeals();
   const host = document.getElementById('meals-slot');
   tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
@@ -1292,7 +1294,7 @@ test('mealsAct: Re-roll sends the entry to replace; Add to list sends the recipe
   const { document, sandbox, fire } = newHub();
   vm.runInContext("data_date = '2026-10-01';", sandbox);
   const calls = mealsFetchLog(sandbox);
-  vm.runInContext(`mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
+  vm.runInContext(LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
   sandbox.renderMeals();
   const host = document.getElementById('meals-slot');
   tapMeals(sandbox, fire, host, '[data-meals-act="reroll"]');
@@ -1310,7 +1312,7 @@ test('mealsAct: a refusal shows the SERVER\'s reason, frees the button, and stil
   const { document, sandbox, fire } = newHub();
   vm.runInContext("data_date = '2026-10-01';", sandbox);
   const calls = mealsFetchLog(sandbox, { failWith: { status: 409, detail: 'that day already has a dinner' } });
-  vm.runInContext(`mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
+  vm.runInContext(LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
   sandbox.renderMeals();
   const host = document.getElementById('meals-slot');
   tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
@@ -1383,6 +1385,177 @@ test('the full-screen Meals view opens only an http(s) URL the TILE supplied', (
     sandbox.closeOverlay();
   }
   assert.equal(made.length, 1, 'a non-http(s) URL never becomes an iframe');
+});
+
+// ---- review round (2026-10-01): off-switch, newest-wins, labels, the +N badge ----
+
+test('an UNLISTED Meals (no mealie block, or switched off) renders nothing, never a dead "Dinner / unavailable" card', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("hubData = { integrations: [{ id: 'weather', enabled: true }] };", sandbox);
+  for (const m of [null, { available: false }, { available: false, needs_auth: true }]) {
+    sandbox.renderMeals(m);
+    assert.equal(document.getElementById('meals-slot').innerHTML, '', JSON.stringify(m));
+  }
+  // unlisted but the tile still reports available (a partial /api/hub): live data outranks a missing entry
+  sandbox.renderMeals(MEALS_WEEK());
+  assert.match(document.getElementById('meals-slot').innerHTML, /meals-card/);
+});
+
+test('renderIntegrations: switching Meals off sets integ-off-mealie (the CSS hide hook) and a listing flip repaints the card', () => {
+  const { document, sandbox } = newHub();
+  const list = (extra) => ({ integrations: [{ id: 'chores', enabled: true, group: 'feature' }, ...extra] });
+  const on = list([{ id: 'mealie', enabled: true, group: 'integration' }]);
+  vm.runInContext(`hubData = ${JSON.stringify(on)}; mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.fetch = async () => ({ ok: true, status: 200, json: async () => MEALS_WEEK() });
+  sandbox.renderIntegrations(on);
+  assert.equal(document.body.classList.contains('integ-off-mealie'), false);
+  assert.match(document.getElementById('meals-slot').innerHTML, /meals-card/, 'listed: painted at once');
+  const off = list([{ id: 'mealie', enabled: false, group: 'integration' }]);
+  sandbox.renderIntegrations(off);
+  assert.equal(document.body.classList.contains('integ-off-mealie'), true, 'the toggle hides the card');
+  const gone = list([]);
+  vm.runInContext(`hubData = ${JSON.stringify(gone)};`, sandbox);
+  sandbox.renderIntegrations(gone);
+  assert.equal(document.body.classList.contains('integ-off-mealie'), true, 'never configured hides it the same way');
+  assert.equal(document.getElementById('meals-slot').innerHTML, '', 'and the unlisted card is blanked, not left stale');
+});
+
+test('fetchMeals: keeps the last good card through two failures, gives up on the third, recovers', async () => {
+  const { document, sandbox } = newHub();
+  await flush();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED, sandbox);
+  const errs = { console: { ...console, error: () => {}, warn: () => {} } };
+  sandbox.console = errs.console;
+  let mode = 'ok';
+  sandbox.fetch = async () => {
+    if (mode === 'down') throw new Error('down');
+    return { ok: true, status: 200, json: async () => MEALS_WEEK() };
+  };
+  await sandbox.fetchMeals();
+  assert.match(document.getElementById('meals-slot').innerHTML, /meals-card/);
+  mode = 'down';
+  await sandbox.fetchMeals(); await sandbox.fetchMeals();
+  assert.match(document.getElementById('meals-slot').innerHTML, /meals-card/, 'two blips: the last good card stays');
+  await sandbox.fetchMeals();
+  assert.match(document.getElementById('meals-slot').innerHTML, /Meals unavailable/, 'the third gives up honestly');
+  mode = 'ok';
+  await sandbox.fetchMeals();
+  assert.match(document.getElementById('meals-slot').innerHTML, /meals-card/, 'and it recovers');
+  assert.equal(vm.runInContext('mealsFails', sandbox), 0);
+});
+
+test('fetchMeals: the very first failure with nothing cached shows unavailable (not a blank)', async () => {
+  const { document, sandbox } = newHub();
+  await flush();
+  vm.runInContext(LISTED, sandbox);
+  sandbox.console = { ...console, warn: () => {}, error: () => {} };
+  sandbox.fetch = async () => { throw new Error('down'); };
+  vm.runInContext('mealsData = null; mealsFails = 0;', sandbox);
+  await sandbox.fetchMeals();
+  assert.match(document.getElementById('meals-slot').innerHTML, /Meals unavailable/);
+});
+
+test('fetchMeals: the newest request wins, an older reply (or failure) landing late is dropped', async () => {
+  const { sandbox } = newHub();
+  await flush();
+  vm.runInContext(LISTED + 'mealsData = null; mealsFails = 0;', sandbox);
+  sandbox.console = { ...console, warn: () => {}, error: () => {} };
+  const waiting = [];
+  sandbox.fetch = () => new Promise((res) => waiting.push(res));
+  const reply = (name) => ({ ok: true, status: 200, json: async () => ({ ...MEALS_WEEK(),
+    days: [mealDay('2026-10-01', dinner({ name }))] }) });
+  const first = sandbox.fetchMeals();
+  const second = sandbox.fetchMeals();
+  waiting[1](reply('Newer'));
+  await second;
+  waiting[0](reply('Older'));                       // an older reply lands after the newer one
+  await first;
+  assert.equal(vm.runInContext('mealsData.days[0].dinner.name', sandbox), 'Newer');
+  const third = sandbox.fetchMeals();
+  const fourth = sandbox.fetchMeals();
+  waiting[3](reply('Fresh'));
+  await fourth;
+  waiting[2](Promise.reject(new Error('late failure')));   // an older FAILURE
+  await third;
+  assert.equal(vm.runInContext('mealsData.days[0].dinner.name', sandbox), 'Fresh');
+  assert.equal(vm.runInContext('mealsFails', sandbox), 0, 'the stale failure did not count');
+});
+
+test('fetchMeals: a hub whose registry is loaded WITHOUT mealie never asks (no request at all)', async () => {
+  const { sandbox } = newHub();
+  await flush();
+  let asked = 0;
+  sandbox.fetch = async () => { asked++; return { ok: true, status: 200, json: async () => ({ available: false }) }; };
+  vm.runInContext("hubData = { integrations: [{ id: 'weather', enabled: true }] };", sandbox);
+  await sandbox.fetchMeals();
+  assert.equal(asked, 0);
+  vm.runInContext("hubData = null;", sandbox);            // registry not loaded yet: ask (it renders nothing until listed)
+  await sandbox.fetchMeals();
+  assert.equal(asked, 1);
+});
+
+test('the boot sequence starts the Meals fetch and keeps it on the poll cadence', () => {
+  assert.match(hubSrc, /^fetchMeals\(\);$/m, 'fetched at boot');
+  assert.match(hubSrc, /setInterval\(fetchMeals, POLL_MS\);/, 'and on the poll beat');
+});
+
+test('mealsDayLabel: Tonight / Tomorrow / weekday (long and short), across a month boundary', () => {
+  const { sandbox } = newHub();
+  const f = (day, today, short) => sandbox.mealsDayLabel(day, today, short);
+  assert.equal(f('2026-09-30', '2026-09-30'), 'Tonight');
+  assert.equal(f('2026-10-01', '2026-09-30'), 'Tomorrow', 'tomorrow across the month end');
+  assert.equal(f('2026-10-02', '2026-09-30'), 'Friday');
+  assert.equal(f('2026-10-02', '2026-09-30', true), 'Fri');
+  assert.equal(f('2027-01-01', '2026-12-31'), 'Tomorrow', 'and across the year end');
+});
+
+test('the card says when Mealie holds more than one dinner on a day (the +N badge, hero and rows)', () => {
+  const week = { ...MEALS_WEEK(), days: [mealDay('2026-10-01', dinner({ more: 1 })), mealDay('2026-10-02', dinner({ id: 2, more: 2 }))] };
+  const html = mealsHtml(week).html;
+  assert.match(html, /<h3 class="meal-name">Baked Ziti <span class="meal-more" title="Mealie has 2 dinners planned this day">\+1<\/span>/);
+  assert.match(html, /meal-rname">Baked Ziti<\/span> <span class="meal-more" title="Mealie has 3 dinners planned this day">\+2</);
+  assert.doesNotMatch(mealsHtml(MEALS_WEEK()).html, /meal-more/, 'no badge when there is one dinner');
+});
+
+test('mealsAct: a network failure toasts the error text, falls back to a plain message, and frees the button', async () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  sandbox.fetch = async (url, opts = {}) => { if (opts.method === 'POST') throw new TypeError('Failed to fetch'); return { ok: true, status: 200, json: async () => MEALS_WEEK() }; };
+  tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
+  await flush(); await flush();
+  assert.equal(document.getElementById('toast').textContent, 'Failed to fetch');
+  assert.doesNotMatch(host.innerHTML, / disabled/);
+  sandbox.fetch = async (url, opts = {}) => { if (opts.method === 'POST') throw {}; return { ok: true, status: 200, json: async () => MEALS_WEEK() }; };
+  tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
+  await flush(); await flush();
+  assert.equal(document.getElementById('toast').textContent, 'That did not work');
+});
+
+test('mealsAct: a re-roll that kept the same recipe says so instead of "picked a different dinner"', async () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.renderMeals();
+  sandbox.fetch = async (url, opts = {}) => ({ ok: true, status: 200,
+    json: async () => (opts.method === 'POST' ? { ok: true, entry_id: 9, same: true } : MEALS_WEEK()) });
+  tapMeals(sandbox, fire, document.getElementById('meals-slot'), '[data-meals-act="reroll"]');
+  await flush(); await flush();
+  assert.equal(document.getElementById('toast').textContent, 'No other recipe to pick');
+});
+
+test('mealsAct: the tapped button is re-found (for keyboard focus) after the card repaints', async () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  sandbox.fetch = async () => ({ ok: true, status: 200, json: async () => MEALS_WEEK() });
+  let focused = null;
+  const orig = host.querySelectorAll.bind(host);
+  host.querySelectorAll = (sel) => orig(sel).map((b) => { b.focus = () => { focused = `${b.dataset.mealsAct}:${b.dataset.date}`; }; return b; });
+  tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
+  await flush(); await flush();
+  assert.equal(focused, 'random:2026-10-03', 'focus goes back to the same Random button, not lost to the page');
 });
 
 test('applyWallLayout + updateTabVisibility: empty list is a no-op (fail-open)', () => {

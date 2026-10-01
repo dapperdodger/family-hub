@@ -29,6 +29,8 @@ let fleetData = null;     // last /api/tiles/fleet payload (native fleet card)
 let fleetFails = 0;       // consecutive fleet fetch failures (see fetchFleet)
 let mealsData = null;     // last /api/tiles/mealie payload (native Meals card)
 let mealsFails = 0;       // consecutive meals fetch failures (see fetchMeals)
+let mealsSeq = 0;         // numbers meals fetches so a late older reply never repaints over a newer one
+let mealsWasListed = null;   // last seen 'mealie' registry listing (a flip repaints the card)
 const mealsBusy = new Set();   // in-flight meal actions (a button is disabled while its key is here)
 let lastIntegrations = [];  // last /api/hub integrations block (settings toggles)
 const TILE_FAIL_LIMIT = 3;   // keep the last good card until this many in a row
@@ -3675,6 +3677,13 @@ function mealActions(day, dn, compact = false) {
   return out.join('');
 }
 
+// Mealie can hold more than one dinner on a day; the card shows the first and says so
+function mealMoreHtml(dn) {
+  return dn.more > 0
+    ? ` <span class="meal-more" title="Mealie has ${Number(dn.more) + 1} dinners planned this day">+${Number(dn.more)}</span>`
+    : '';
+}
+
 function mealsTodayHtml(day, todayStr) {
   const dn = day.dinner;
   const label = `<span class="meal-day">${escapeHtml(mealsDayLabel(day.date, todayStr))}</span>`;
@@ -3688,7 +3697,7 @@ function mealsTodayHtml(day, todayStr) {
     ? `<img class="meal-photo" src="/api/mealie/image/${escapeHtml(dn.recipe_id)}" alt="" decoding="async">`
     : '';
   return `<div class="meal-today">${photo}<div class="meal-today-body">${label}`
-    + `<h3 class="meal-name">${escapeHtml(dn.name)}</h3>`
+    + `<h3 class="meal-name">${escapeHtml(dn.name)}${mealMoreHtml(dn)}</h3>`
     + (dn.description ? `<p class="meal-desc">${escapeHtml(dn.description)}</p>` : '')
     + `<div class="meal-actions">${mealActions(day, dn)}</div></div></div>`;
 }
@@ -3700,7 +3709,7 @@ function mealsRowHtml(day, todayStr) {
     return `<div class="meal-row meal-row-empty">${wd}`
       + mealBtn('random', '🎲 Random dinner', { date: day.date }, 'meal-btn-random') + `</div>`;
   }
-  return `<div class="meal-row">${wd}<span class="meal-rname">${escapeHtml(dn.name)}</span>`
+  return `<div class="meal-row">${wd}<span class="meal-rname">${escapeHtml(dn.name)}</span>${mealMoreHtml(dn)}`
     + `<span class="meal-row-actions">${mealActions(day, dn, true)}</span></div>`;
 }
 
@@ -3726,6 +3735,12 @@ function mealsSlotHtml() {
 function renderMeals(m = mealsData) {
   const host = document.getElementById('meals-slot');
   if (!host) return;
+  // Unlisted (no `mealie` block on this hub) and nothing good to show: render
+  // nothing, like laundry. An unconfigured wall must not carry a dead "Dinner /
+  // unavailable" card, and a switched-off Meals goes the same way. Unlisted but
+  // the tile still reports available (a partial /api/hub payload) keeps the card.
+  const listed = ((hubData && hubData.integrations) || []).some((i) => i.id === 'mealie');
+  if (!listed && (m == null || !m.available)) { host.innerHTML = ''; return; }
   const hasUrl = !!(m && m.available && typeof m.open_url === 'string' && /^https?:\/\//.test(m.open_url));
   const head = sectionHead('Dinner', hasUrl ? { overlay: 'meals-full', expandLabel: 'Full screen' } : {});
   const body = m == null
@@ -3737,14 +3752,32 @@ function renderMeals(m = mealsData) {
 }
 
 async function fetchMeals() {
+  // A hub that has loaded its registry and has no Meals in it never asks. Before the
+  // first /api/hub answer (hubData null) it does ask: the card renders nothing
+  // until it is listed anyway, and the answer is cached for then.
+  const known = hubData && Array.isArray(hubData.integrations);
+  if (known && !hubData.integrations.some((i) => i.id === 'mealie')) return;
+  const seq = ++mealsSeq;
   try {
-    mealsData = await j('/api/tiles/mealie');
+    const m = await j('/api/tiles/mealie');
+    if (seq !== mealsSeq) return;
+    mealsData = m;
     mealsFails = 0;
   } catch (e) {
+    if (seq !== mealsSeq) return;
     mealsFails += 1;
     if (!mealsData || mealsFails >= TILE_FAIL_LIMIT) mealsData = { available: false };
   }
   renderMeals();
+}
+
+// A repaint replaces the button that had keyboard focus; put it back on the same one.
+function mealsRestoreFocus(f) {
+  const host = document.getElementById('meals-slot');
+  if (!host || typeof host.querySelectorAll !== 'function') return;
+  const el = [...host.querySelectorAll('[data-meals-act]')].find((b) =>
+    b.dataset.mealsAct === f.act && (b.dataset.date || '') === f.date && (b.dataset.recipe || '') === f.recipe);
+  if (el && !el.disabled && typeof el.focus === 'function') el.focus();
 }
 
 /* One meal button was tapped. A key per action+target disables just that
@@ -3757,16 +3790,17 @@ const JSON_POST = (body) => ({ method: 'POST', headers: { 'Content-Type': 'appli
 async function mealsAct(btn) {
   const act = btn.dataset.mealsAct;
   const key = `${act}:${btn.dataset.date || btn.dataset.recipe}`;
+  const focus = { act, date: btn.dataset.date || '', recipe: btn.dataset.recipe || '' };
   if (mealsBusy.has(key)) return;
   mealsBusy.add(key);
-  renderMeals();
   try {
+    renderMeals();
     if (act === 'random') {
       await j('/api/mealie/random', JSON_POST({ date: btn.dataset.date }));
       showToast('Dinner picked');
     } else if (act === 'reroll') {
-      await j('/api/mealie/random', JSON_POST({ date: btn.dataset.date, replace_id: Number(btn.dataset.entry) }));
-      showToast('Picked a different dinner');
+      const r = await j('/api/mealie/random', JSON_POST({ date: btn.dataset.date, replace_id: Number(btn.dataset.entry) }));
+      showToast(r && r.same ? 'No other recipe to pick' : 'Picked a different dinner');
     } else if (act === 'shop') {
       const r = await j('/api/mealie/shopping', JSON_POST({ recipe_id: btn.dataset.recipe }));
       showToast(`Added to ${(r && r.list) || 'the shopping list'}`);
@@ -3775,8 +3809,10 @@ async function mealsAct(btn) {
     showToast((e && e.message) ? e.message : 'That did not work');
   } finally {
     mealsBusy.delete(key);
+    try { renderMeals(); } catch (e) { /* the re-read below repaints */ }
   }
   await fetchMeals();
+  mealsRestoreFocus(focus);
 }
 
 let fitDebounce = null;
@@ -5059,7 +5095,7 @@ function seasonalCardHtml() {
    switched off" both hide the slot the same way. */
 const KNOWN_INTEGRATION_IDS = [
   'chores', 'todos', 'google_calendar', 'ics_calendar', 'icloud_caldav',
-  'cameras', 'weather', 'climate', 'laundry', 'fleet',
+  'cameras', 'weather', 'climate', 'laundry', 'fleet', 'mealie',
 ];
 
 /* The settings popover's Integrations section: one on/off switch per available
@@ -5081,6 +5117,17 @@ function renderIntegrations(data) {
   // sticks on a blank slot where "Laundry unavailable" is owed — or keeps a
   // stale card after unlisting. Only a FLIP repaints (renderLaundry rebuilds
   // innerHTML, which restarts the tumble mid-spin — never do it per poll).
+  // A listing FLIP repaints the card. Unlisting also drops the cached tile: the poller
+  // stops asking once Meals is out of the registry, so without this the last good data
+  // would keep the card on screen forever. An empty list (a partial payload) is no
+  // evidence either way: fail open, like applyWallLayout.
+  const mealsListed = list.some((i) => i.id === 'mealie');
+  if (list.length && mealsListed !== mealsWasListed) {
+    mealsWasListed = mealsListed;
+    if (!mealsListed) { mealsData = null; mealsFails = 0; }
+    renderMeals();
+    if (mealsListed) fetchMeals();
+  }
   const lnListed = list.some((i) => i.id === 'laundry');
   if (lnListed !== lnWasListed) {
     lnWasListed = lnListed;

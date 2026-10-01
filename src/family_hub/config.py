@@ -225,13 +225,17 @@ def _clean_mealie(raw: object) -> dict | None:
 
     def http_url(v) -> str:
         v = str(v or "").strip().rstrip("/")
-        return v if v.startswith(("http://", "https://")) else ""
+        return v if v.lower().startswith(("http://", "https://")) else ""
 
     base = http_url(raw.get("base")) if isinstance(raw, dict) else ""
     if not base:
         log.warning("mealie: dropping malformed config block %r (needs an "
                     "http(s) \"base\" url) -- the meals integration is OFF", raw)
         return None
+    unknown = sorted(set(raw) - {"base", "days", "open_url", "shopping_list"})
+    if unknown:
+        log.warning("mealie: ignoring unknown key(s) %s (known: base, days, open_url, "
+                    "shopping_list) -- a typo here silently changes behaviour", unknown)
     result = {"base": base, "days": MEALIE_DAYS_DEFAULT}
     days = raw.get("days")
     if days is not None:
@@ -253,6 +257,9 @@ def _clean_mealie(raw: object) -> dict | None:
     sl = raw.get("shopping_list")
     if isinstance(sl, str) and sl.strip():
         result["shopping_list"] = sl.strip()
+    elif sl is not None and not (isinstance(sl, str) and not sl.strip()):
+        log.warning("mealie: ignoring shopping_list=%r (must be a list name or id, as text); "
+                    "the first Mealie list will be used", sl)
     return result
 
 

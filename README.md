@@ -344,7 +344,8 @@ last-synced events on the wall instead of vanishing.
    `environment:` allowlist; a var missing from that list is invisible inside
    the container) and add the `mealie` block to `config.json` (reference above).
 3. Check `/health/full`: its `meals` source and the `mealie_token` setting say
-   whether the card can work. A configured card with no token still shows on
+   whether the card can READ (it checks the plan read, not the writes: a token
+   that can read but not edit shows a refusal toast on the first tap). A configured card with no token still shows on
    the wall, as "Meals needs a Mealie token", rather than vanishing.
 
 The hub has no login, like the rest of the wall: anyone who can open it can plan

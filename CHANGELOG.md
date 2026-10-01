@@ -38,6 +38,12 @@ rolls that section to a dated version via `python scripts/release.py`.
   and a `MEALIE_API_TOKEN` env var (see the README); `/health/full` reports a
   `meals` source and the `mealie_token` setting. An old `panels` entry with id
   `mealie` is no longer embedded.
+- Meals is safe to leave unconfigured and to tap in a crowd: a hub with no
+  `mealie` block shows nothing (no card, no tab) and switching Meals off in
+  Settings hides it. The hub remembers which dinners it picked (recipe and
+  date), so a re-roll can never replace one you planned or edited in Mealie,
+  even if Mealie reuses an id; the write path checks every step, serializes
+  concurrent taps, and reports a half-finished re-roll instead of hiding it.
 - The calendar overlay has a "+" button to add an event directly to any
   configured Google calendar, with immediate visibility and no wait for
   the next background sync.

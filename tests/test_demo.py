@@ -485,7 +485,7 @@ def test_demo_meals_tile_shows_the_card_best_states(demo_client):
     assert t["available"] is True
     days = t["days"]
     assert len(days) == 5
-    assert days[0]["date"] == dt.date.today().isoformat()
+    assert abs((dt.date.fromisoformat(days[0]["date"]) - dt.date.today()).days) <= 1   # the app's own local date
     assert [d["date"] for d in days] == sorted({d["date"] for d in days}), "consecutive, unique days"
     assert days[0]["dinner"] and days[0]["dinner"]["name"] and days[0]["dinner"]["description"]
     assert all(d["dinner"]["recipe_id"] for d in days if d["dinner"]), "every planned day shows its add-to-list button"

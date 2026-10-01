@@ -368,6 +368,11 @@ async def _lifespan(_app):
     global _laundry_watch_task
     # Configured but unusable is a misconfiguration, not a runtime failure:
     # say it once, here, before anything tries to use it.
+    if not DEMO and getattr(cfg, "mealie", None) and not fintegrations.mealie_token(os.environ):
+        log.error("meals is configured in config.json but MEALIE_API_TOKEN is empty: the "
+                  "Meals card can only show 'Meals needs a Mealie token'. In a container "
+                  "this usually means the var is missing from the compose environment: "
+                  "allowlist or the box's .env.")
     if _laundry_env_broken():
         log.error("laundry is configured in config.json but HA_TOKEN is "
                   "empty: every laundry read will fail and the wall can only "
@@ -843,7 +848,9 @@ def _integ_status(iid: str, caldav_status: dict, cal_status: dict,
     if iid == "laundry":
         return laundry_status
     if iid == "mealie":
-        return "ok" if fintegrations.mealie_token(os.environ) else "needs_auth"
+        # no token, or Mealie has refused the one we have (see meals._note_auth)
+        rejected = (tiles.SOURCE_STATE.get("meals") or {}).get("auth_rejected")
+        return "needs_auth" if (rejected or not fintegrations.mealie_token(os.environ)) else "ok"
     src = (caldav_status if iid == "icloud_caldav"
            else cal_status if iid == "google_calendar" else None)
     if not src:
@@ -2962,16 +2969,33 @@ async def tile_fleet():
 
 MEALS_ROLLED_KEY = "meals_rolled"
 MEALS_ROLLED_KEEP = 200
+# One write at a time: the rolled map is read-modify-written around two awaits,
+# and two phones picking at once would otherwise lose each other's entry (and
+# could plant two dinners on one day, since "is the day empty?" and "plan one"
+# are separate requests to Mealie). Single process, so a plain asyncio lock.
+_meals_write_lock = asyncio.Lock()
 
 
-def _meals_rolled() -> set[int]:
-    ids = fdb.kv_get(_db(), MEALS_ROLLED_KEY) or []
-    return {i for i in ids if isinstance(i, int) and not isinstance(i, bool)} \
-        if isinstance(ids, list) else set()
+def _meals_rolled() -> dict[int, tuple[str | None, str]]:
+    """entry id -> (the recipe the hub picked, the date it picked it for).
+    Anything malformed in the stored value (an older shape, a hand edit) is
+    skipped: re-roll is then simply not offered, never offered wrongly."""
+    raw = fdb.kv_get(_db(), MEALS_ROLLED_KEY)
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[int, tuple[str | None, str]] = {}
+    for k, v in raw.items():
+        try:
+            rid, day = v
+            out[int(k)] = (rid if isinstance(rid, str) or rid is None else None, str(day))
+        except (TypeError, ValueError):
+            continue
+    return out
 
 
-def _meals_rolled_save(ids: set[int]) -> None:
-    fdb.kv_set(_db(), MEALS_ROLLED_KEY, sorted(ids)[-MEALS_ROLLED_KEEP:])
+def _meals_rolled_save(rolled: dict[int, tuple[str | None, str]]) -> None:
+    keep = sorted(rolled)[-MEALS_ROLLED_KEEP:]
+    fdb.kv_set(_db(), MEALS_ROLLED_KEY, {str(i): list(rolled[i]) for i in keep})
 
 
 def _meals_reply(result: dict) -> dict:
@@ -3012,13 +3036,19 @@ async def mealie_image(recipe_id: str):
 async def mealie_random(body: MealsRandomIn):
     if DEMO:
         return {"ok": True, "demo": True}
-    rolled = _meals_rolled()
-    res = _meals_reply(await meals.random_dinner(
-        _http, cfg, os.environ, body.date, _today(), rolled, body.replace_id))
-    # remember the new pick (and forget the replaced one): the transition, once
-    rolled.discard(body.replace_id)
-    rolled.add(res["entry_id"])
-    _meals_rolled_save(rolled)
+    async with _meals_write_lock:
+        rolled = _meals_rolled()
+        res = _meals_reply(await meals.random_dinner(
+            _http, cfg, os.environ, body.date, _today(), rolled, body.replace_id))
+        # remember the new pick (and forget the replaced one): the transition, once.
+        # Mealie has ALREADY changed, so a failed save must not turn a good pick into
+        # an error toast; it only costs the re-roll button on this one dinner.
+        rolled.pop(body.replace_id, None)
+        rolled[res["entry_id"]] = (res.get("recipe_id"), body.date)
+        try:
+            _meals_rolled_save(rolled)
+        except Exception:
+            log.exception("meals: could not save the re-roll memory (the pick itself succeeded)")
     return res
 
 

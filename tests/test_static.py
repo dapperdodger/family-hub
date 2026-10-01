@@ -949,15 +949,34 @@ def test_meals_card_is_wired_end_to_end():
     assert re.search(r'body\[data-tab="weather"\] \.meals-slot\s*\{[^}]*display:\s*none', mobile), \
         "the Weather tab must not also show the Meals card"
     # the long-name width bug: the name must be allowed to shrink to nothing
-    name = re.search(r"\.meal-rname\s*\{([^}]*)\}", CSS).group(1)
-    assert "width: 0" in name and "min-width: 0" in name, \
-        ".meal-rname must shrink (width:0, min-width:0) or a long recipe name widens the phone page"
-    for sel in (".meals-slot", ".meals-card", ".meal-row"):
-        assert re.search(rf"{re.escape(sel)}[^{{]*\{{[^}}]*min-width:\s*0", CSS), f"{sel} needs min-width:0"
+    name = re.search(r"(?m)^\.meal-rname\s*\{([^}]*)\}", CSS).group(1)
+    assert re.search(r"(?<![-\w])width:\s*0\b", name), ".meal-rname needs its own width:0"
+    assert re.search(r"(?<![-\w])min-width:\s*0\b", name), ".meal-rname needs min-width:0"
+    assert re.search(r"flex:\s*1 1 0\b", name), ".meal-rname needs a zero flex-basis (flex: 1 1 0)"
+    for sel in (".meals-slot", ".meals-card", ".meal-rows", ".meal-row"):
+        assert re.search(rf"(?m)^{re.escape(sel)}\s*\{{[^}}]*min-width:\s*0", CSS), \
+            f"{sel} (that exact rule) needs min-width:0"
     # every control is a real <button> that routes through mealsAct (never a div with a click)
     assert "data-meals-act" in hub and "mealsAct(" in hub
     # tap targets: >=44px on the phone
     assert re.search(r'\.meal-btn\s*\{\s*min-height:\s*44px', mobile)
+    assert re.search(r'\.meal-row \.meal-btn\s*\{\s*min-width:\s*44px', mobile), \
+        "the icon buttons in the rows must be 44px wide on a phone, not just 44px tall"
+
+
+def test_known_integration_ids_cover_every_registry_id():
+    """renderIntegrations is the ONLY place the body.integ-off-<id> hide classes
+    are set, and it loops KNOWN_INTEGRATION_IDS. An id the registry can emit but
+    this list lacks never gets its hook, so its CSS hide rule is dead code and
+    its card cannot be switched off (the Meals card shipped that way once)."""
+    hub = (STATIC / "hub.js").read_text()
+    known = set(re.findall(r"'([a-z_]+)'", re.search(r"const KNOWN_INTEGRATION_IDS = \[(.*?)\];", hub, re.S).group(1)))
+    registry = set(re.findall(r'add\("([a-z_]+)",', (ROOT / "src/family_hub/integrations.py").read_text()))
+    assert registry, "found no add(...) calls in integrations.py"
+    assert registry <= known, f"registry ids missing from KNOWN_INTEGRATION_IDS: {sorted(registry - known)}"
+    # and every integ-off-<id> CSS rule names an id that list sets
+    for m in re.finditer(r"body\.integ-off-([a-z_]+)", CSS):
+        assert m.group(1) in known, f"CSS hides integ-off-{m.group(1)} but hub.js never sets it"
 
 
 def test_tab_bar_comment_matches_the_tab_count():
