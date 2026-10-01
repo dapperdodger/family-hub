@@ -31,6 +31,11 @@ let mealsData = null;     // last /api/tiles/mealie payload (native Meals card)
 let mealsFails = 0;       // consecutive meals fetch failures (see fetchMeals)
 let mealsSeq = 0;         // numbers meals fetches so a late older reply never repaints over a newer one
 let mealsWasListed = null;   // last seen 'mealie' registry listing (a flip repaints the card)
+let mealsScrollAt = 0;       // when the following-days list was last scrolled by hand
+let mealsMenuOpen = null;    // the date whose row menu (the ⋮) is open: one at a time
+let mealsMenuTimer = null;
+const MEALS_MENU_IDLE_MS = 15000;     // an open menu closes itself after this
+const MEALS_SCROLL_KEEP_MS = 30000;   // keep a hand-scrolled list in place this long, then return to the top
 const mealsBusy = new Set();   // in-flight meal actions (a button is disabled while its key is here)
 let lastIntegrations = [];  // last /api/hub integrations block (settings toggles)
 const TILE_FAIL_LIMIT = 3;   // keep the last good card until this many in a row
@@ -3709,9 +3714,49 @@ function mealsRowHtml(day, todayStr) {
     return `<div class="meal-row meal-row-empty">${wd}`
       + mealBtn('random', '🎲 Random dinner', { date: day.date }, 'meal-btn-random') + `</div>`;
   }
-  return `<div class="meal-row">${wd}<span class="meal-rname">${escapeHtml(dn.name)}</span>${mealMoreHtml(dn)}`
-    + `<span class="meal-row-actions">${mealActions(day, dn, true)}</span></div>`;
+  // The actions (add to list, re-roll) sit behind a menu button, like Mealie's own, so a long
+  // recipe name keeps the row. The menu opens INLINE under its row rather than as a floating
+  // popover: the list scrolls on the wall, and a popover would be clipped by it.
+  const canAct = !!dn.recipe_id || (dn.rolled && dn.id != null);
+  const open = canAct && mealsMenuOpen === day.date;
+  const nm = escapeHtml(dn.name);
+  const menuBtn = canAct
+    ? `<button type="button" class="meal-btn meal-btn-more" data-meals-menu="${escapeHtml(day.date)}"`
+      + ` aria-label="More for ${nm}" aria-haspopup="true" aria-expanded="${open}">⋮</button>`
+    : '';
+  return `<div class="meal-row">${wd}<span class="meal-rname">${nm}</span>${mealMoreHtml(dn)}${menuBtn}</div>`
+    + (open ? `<div class="meal-menu" role="group" aria-label="Actions for ${nm}">${mealActions(day, dn)}</div>` : '');
 }
+
+// Open/close a row's menu. One at a time; it closes by itself, on Escape, on a tap anywhere
+// else, and after an action (mealsAct). Focus stays on the menu button across the repaint.
+function closeMealsMenu(render = true) {
+  clearTimeout(mealsMenuTimer);
+  mealsMenuTimer = null;
+  if (mealsMenuOpen === null) return;
+  mealsMenuOpen = null;
+  if (render) renderMeals();
+}
+
+function toggleMealsMenu(date) {
+  clearTimeout(mealsMenuTimer);
+  mealsMenuTimer = null;
+  mealsMenuOpen = mealsMenuOpen === date ? null : date;
+  renderMeals();
+  const host = document.getElementById('meals-slot');
+  if (!host || typeof host.querySelector !== 'function') return;
+  if (mealsMenuOpen !== null) {
+    mealsMenuTimer = setTimeout(closeMealsMenu, MEALS_MENU_IDLE_MS);
+    const menu = host.querySelector('.meal-menu');
+    if (menu && typeof menu.scrollIntoView === 'function') menu.scrollIntoView({ block: 'nearest' });
+  }
+  const btn = [...host.querySelectorAll('[data-meals-menu]')].find((b) => b.dataset.mealsMenu === date);
+  if (btn && typeof btn.focus === 'function') btn.focus();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e && e.key === 'Escape' && mealsMenuOpen !== null) closeMealsMenu();
+});
 
 function mealsCardHtml(m) {
   const todayStr = data_date || todayISO();
@@ -3748,8 +3793,23 @@ function renderMeals(m = mealsData) {
     : m.available
       ? mealsCardHtml(m)
       : `<div class="wx-offline">${m.needs_auth ? 'Meals needs a Mealie token' : 'Meals unavailable'}</div>`;
+  // The list of following days scrolls on the wall. innerHTML replaces it every fetch, which
+  // would snap a list somebody is scrolling back to the top; carry the position across a
+  // repaint while it is being used, and let it return to the top once it has been left alone.
+  const prev = typeof host.querySelector === 'function' ? host.querySelector('.meal-rows') : null;
+  const keep = prev && prev.scrollTop > 0 && Date.now() - mealsScrollAt < MEALS_SCROLL_KEEP_MS ? prev.scrollTop : 0;
   host.innerHTML = head + body;
+  if (keep) {
+    const next = host.querySelector('.meal-rows');
+    if (next) next.scrollTop = keep;
+  }
 }
+
+// scroll does not bubble: listen in the capture phase to learn when the list is being used
+document.addEventListener('scroll', (e) => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('meal-rows')) mealsScrollAt = Date.now();
+}, true);
 
 async function fetchMeals() {
   // A hub that has loaded its registry and has no Meals in it never asks. Before the
@@ -3775,8 +3835,9 @@ async function fetchMeals() {
 function mealsRestoreFocus(f) {
   const host = document.getElementById('meals-slot');
   if (!host || typeof host.querySelectorAll !== 'function') return;
-  const el = [...host.querySelectorAll('[data-meals-act]')].find((b) =>
+  let el = [...host.querySelectorAll('[data-meals-act]')].find((b) =>
     b.dataset.mealsAct === f.act && (b.dataset.date || '') === f.date && (b.dataset.recipe || '') === f.recipe);
+  if (!el) el = [...host.querySelectorAll('[data-meals-menu]')].find((b) => b.dataset.mealsMenu === f.date);
   if (el && !el.disabled && typeof el.focus === 'function') el.focus();
 }
 
@@ -3809,6 +3870,7 @@ async function mealsAct(btn) {
     showToast((e && e.message) ? e.message : 'That did not work');
   } finally {
     mealsBusy.delete(key);
+    closeMealsMenu(false);          // the repaint below drops the menu
     try { renderMeals(); } catch (e) { /* the re-read below repaints */ }
   }
   await fetchMeals();
@@ -4427,6 +4489,8 @@ async function confirmDelete() {
 /* --------------------------------------------------------------- wiring */
 
 document.addEventListener('click', (e) => {
+  // a tap anywhere outside an open meal menu closes it (and still does whatever it was aimed at)
+  if (mealsMenuOpen !== null && !e.target.closest('.meal-menu') && !e.target.closest('[data-meals-menu]')) closeMealsMenu();
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn) { setTab(tabBtn.dataset.tab); return; }
   // delete confirm (above everything): Cancel or a backdrop tap dismisses it
@@ -4452,6 +4516,8 @@ document.addEventListener('click', (e) => {
       || (e.target.closest('.ev-modal') && !e.target.closest('.ev-card'))) {
     closeEventDetail(); return;
   }
+  const mealMenuBtn = e.target.closest('[data-meals-menu]');
+  if (mealMenuBtn) { toggleMealsMenu(mealMenuBtn.dataset.mealsMenu); return; }
   const mealBtnEl = e.target.closest('[data-meals-act]');
   if (mealBtnEl) { mealsAct(mealBtnEl); return; }
   const evRow = e.target.closest('[data-eid]');

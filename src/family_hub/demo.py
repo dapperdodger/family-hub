@@ -372,7 +372,8 @@ def demo_laundry() -> dict:
 
 
 def demo_meals(today) -> dict:
-    """A live-shaped meals tile (matches meals.meals_tile): tonight planned, a
+    """A live-shaped meals tile (matches meals.meals_tile): a full week (7 days,
+    the most the card shows; the list scrolls on the wall), tonight planned, a
     gap day the card offers a random pick for, and a couple more planned days,
     one of them picked by the hub itself so its re-roll shows. Dates are
     relative to ``today`` so a screenshot always looks current. No photo: the
@@ -398,6 +399,8 @@ def demo_meals(today) -> dict:
         day(2),
         day(3, "Lemon Herb Salmon", rolled=True, entry_id=4),
         day(4, "Homemade Pizza Night", entry_id=5),
+        day(5, "Taco Tuesday Beef Tacos", entry_id=6),
+        day(6),
     ]}
 
 

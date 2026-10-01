@@ -1207,25 +1207,38 @@ test('renderMeals: tonight is the hero (name, description, photo only when there
   assert.doesNotMatch(noPhoto, /<img/, 'no photo, no broken image');
 });
 
-test('renderMeals: an empty day offers a random pick (full width tonight, a row later); a hub-picked day offers re-roll', () => {
-  const html = mealsHtml(MEALS_WEEK()).html;
-  assert.match(html, /meal-row meal-row-empty">.*data-meals-act="random" data-date="2026-10-03"/s);
-  const rows = html.split('<div class="meal-row').slice(1);
-  const sat = rows.find((r) => r.includes('Salmon'));
-  assert.match(sat, /data-meals-act="reroll" data-date="2026-10-04" data-entry="4"/, 'rolled -> re-roll offered');
-  const tomorrow = rows.find((r) => r.includes('Soup'));
-  assert.doesNotMatch(tomorrow, /reroll/, 'a hand-planned dinner is never offered for re-roll');
+test('renderMeals: an empty day offers a random pick (full width tonight, a row later); only a hub-picked day offers re-roll (in its menu)', () => {
+  const r = mealsHtml(MEALS_WEEK());
+  vm.runInContext(`mealsData = ${JSON.stringify(MEALS_WEEK())};`, r.sandbox);   // the live state the menu repaints from
+  assert.match(r.html, /meal-row meal-row-empty">.*data-meals-act="random" data-date="2026-10-03"/s);
+  assert.doesNotMatch(r.html, /data-meals-act="reroll"/, 'closed menus show no re-roll');
+  r.sandbox.toggleMealsMenu('2026-10-04');                      // Salmon: picked by the hub
+  assert.match(r.document.getElementById('meals-slot').innerHTML,
+    /data-meals-act="reroll" data-date="2026-10-04" data-entry="4"/, 'rolled -> re-roll offered in its menu');
+  r.sandbox.toggleMealsMenu('2026-10-02');                      // Soup: planned by hand
+  assert.doesNotMatch(r.document.getElementById('meals-slot').innerHTML, /data-meals-act="reroll"/,
+    'a hand-planned dinner is never offered for re-roll');
   const emptyTonight = mealsHtml({ ...MEALS_WEEK(), days: [mealDay('2026-10-01'), ...MEALS_WEEK().days.slice(1)] }).html;
   assert.match(emptyTonight, /Nothing planned/);
   assert.match(emptyTonight, /meal-btn-random meal-btn-big" data-meals-act="random" data-date="2026-10-01"/);
 });
 
-test('renderMeals: every planned day with a recipe offers add-to-list, labelled for screen readers', () => {
-  const html = mealsHtml(MEALS_WEEK()).html;
-  assert.equal((html.match(/data-meals-act="shop"/g) || []).length, 3);
-  assert.match(html, new RegExp(`data-meals-act="shop" data-recipe="${RID_B}" data-date="2026-10-02" aria-label="Add the ingredients to the shopping list"`));
-  const noRecipe = mealsHtml({ ...MEALS_WEEK(), days: [mealDay('2026-10-01', dinner({ recipe_id: null }))] }).html;
+test('renderMeals: rows keep their room (a menu button, not action buttons); tonight keeps its buttons; the menu has add-to-list', () => {
+  const r = mealsHtml(MEALS_WEEK());
+  vm.runInContext(`mealsData = ${JSON.stringify(MEALS_WEEK())};`, r.sandbox);   // the live state the menu repaints from
+  const html = r.html;
+  assert.equal((html.match(/data-meals-menu=/g) || []).length, 2, 'one menu button per planned following day');
+  assert.doesNotMatch(html.split('meal-rows')[1], /data-meals-act="shop"/, 'no action buttons crowding the rows');
+  assert.match(html, /meal-today-body.*data-meals-act="shop"/s, "tonight's block still has its Add to list");
+  assert.match(html, /aria-label="More for Soup" aria-haspopup="true" aria-expanded="false">⋮</);
+  r.sandbox.toggleMealsMenu('2026-10-02');
+  const open = r.document.getElementById('meals-slot').innerHTML;
+  assert.match(open, new RegExp(`class="meal-menu" role="group" aria-label="Actions for Soup"><button[^>]*data-meals-act="shop" data-recipe="${RID_B}" data-date="2026-10-02" aria-label="Add the ingredients to the shopping list"[^>]*>🛒 Add to list</button>`));
+  assert.match(open, /aria-expanded="true"/);
+  const noRecipe = mealsHtml({ ...MEALS_WEEK(), days: [mealDay('2026-10-01', dinner({ recipe_id: null })),
+    mealDay('2026-10-02', dinner({ id: 2, recipe_id: null }))] }).html;
   assert.doesNotMatch(noRecipe, /data-meals-act="shop"/, 'a note-only entry has no ingredients to add');
+  assert.doesNotMatch(noRecipe, /data-meals-menu/, 'and a row with nothing to offer has no menu button');
 });
 
 test('renderMeals: names, descriptions and ids from Mealie are inert', () => {
@@ -1265,7 +1278,15 @@ const mealsFetchLog = (sandbox, { failWith, week = MEALS_WEEK() } = {}) => {
 const tapMeals = (sandbox, fire, host, sel) => {
   const btn = host.querySelector(sel);
   assert.ok(btn, `${sel} rendered`);
-  btn.closest = (s) => (s === '[data-meals-act]' ? btn : null);
+  btn.closest = (s) => (s === '[data-meals-act]' || s === '.meal-menu' ? btn : null);
+  fire('click', { target: btn, preventDefault() {} });
+  return btn;
+};
+
+const tapMenuBtn = (sandbox, fire, host, date) => {
+  const btn = host.querySelector(`[data-meals-menu="${date}"]`);
+  assert.ok(btn, `the menu button for ${date} rendered`);
+  btn.closest = (s) => (s === '[data-meals-menu]' ? btn : null);
   fire('click', { target: btn, preventDefault() {} });
   return btn;
 };
@@ -1290,17 +1311,19 @@ test('mealsAct: Random dinner posts the date, disables its own button while it r
   assert.doesNotMatch(host.innerHTML, / disabled/, 'busy cleared');
 });
 
-test('mealsAct: Re-roll sends the entry to replace; Add to list sends the recipe and says which list', async () => {
+test('mealsAct: Re-roll (from its menu) sends the entry to replace; Add to list sends the recipe and says which list', async () => {
   const { document, sandbox, fire } = newHub();
-  vm.runInContext("data_date = '2026-10-01';", sandbox);
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
   const calls = mealsFetchLog(sandbox);
-  vm.runInContext(LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);   // the live state mealsAct repaints from
   sandbox.renderMeals();
   const host = document.getElementById('meals-slot');
+  tapMenuBtn(sandbox, fire, host, '2026-10-04');
   tapMeals(sandbox, fire, host, '[data-meals-act="reroll"]');
   await flush(); await flush();
   assert.deepEqual(calls.find((c) => c.method === 'POST').body, { date: '2026-10-04', replace_id: 4 });
   assert.equal(document.getElementById('toast').textContent, 'Picked a different dinner');
+  assert.equal(vm.runInContext('mealsMenuOpen', sandbox), null, 'the menu closes after an action');
+  assert.doesNotMatch(host.innerHTML, /class="meal-menu"/);
   calls.length = 0;
   tapMeals(sandbox, fire, host, '[data-meals-act="shop"]');   // first in document order = tonight's
   await flush(); await flush();
@@ -1539,7 +1562,9 @@ test('mealsAct: a re-roll that kept the same recipe says so instead of "picked a
   sandbox.renderMeals();
   sandbox.fetch = async (url, opts = {}) => ({ ok: true, status: 200,
     json: async () => (opts.method === 'POST' ? { ok: true, entry_id: 9, same: true } : MEALS_WEEK()) });
-  tapMeals(sandbox, fire, document.getElementById('meals-slot'), '[data-meals-act="reroll"]');
+  const host = document.getElementById('meals-slot');
+  tapMenuBtn(sandbox, fire, host, '2026-10-04');
+  tapMeals(sandbox, fire, host, '[data-meals-act="reroll"]');
   await flush(); await flush();
   assert.equal(document.getElementById('toast').textContent, 'No other recipe to pick');
 });
@@ -1556,6 +1581,90 @@ test('mealsAct: the tapped button is re-found (for keyboard focus) after the car
   tapMeals(sandbox, fire, host, '[data-meals-act="random"]');
   await flush(); await flush();
   assert.equal(focused, 'random:2026-10-03', 'focus goes back to the same Random button, not lost to the page');
+});
+
+test('the following-days list keeps its scroll position across a repaint while it is being used, and returns to the top once left alone', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED, sandbox);
+  const rowsOf = () => document.getElementById('meals-slot').querySelector('.meal-rows');
+  sandbox.renderMeals(MEALS_WEEK());
+  assert.ok(rowsOf(), 'the list rendered');
+  rowsOf().scrollTop = 120;                                          // somebody scrolled it
+  vm.runInContext('mealsScrollAt = Date.now();', sandbox);           // ...just now
+  sandbox.renderMeals(MEALS_WEEK());                                 // the next fetch repaints
+  assert.equal(rowsOf().scrollTop, 120, 'a list in use is not snapped back to the top');
+  vm.runInContext('mealsScrollAt = Date.now() - 31000;', sandbox);   // left alone for a while
+  rowsOf().scrollTop = 120;
+  sandbox.renderMeals(MEALS_WEEK());
+  assert.equal(rowsOf().scrollTop || 0, 0, 'tomorrow is back in view when nobody is scrolling');
+  vm.runInContext('mealsScrollAt = Date.now();', sandbox);
+  sandbox.renderMeals({ ...MEALS_WEEK(), days: [mealDay('2026-10-01', dinner())] });   // no rows at all: no throw
+  assert.equal(document.getElementById('meals-slot').querySelector('.meal-rows'), null);
+});
+
+test('scrolling the following-days list is what marks it as in use', () => {
+  const { sandbox, docListeners } = newHub();
+  const handler = (docListeners.scroll || [])[0];
+  assert.ok(handler, 'a capture-phase scroll listener is registered on the document');
+  vm.runInContext('mealsScrollAt = 0;', sandbox);
+  handler({ target: { classList: { contains: (c) => c === 'meal-rows' } } });
+  assert.ok(vm.runInContext('mealsScrollAt', sandbox) > 0);
+  vm.runInContext('mealsScrollAt = 0;', sandbox);
+  handler({ target: { classList: { contains: () => false } } });          // some other scroller
+  assert.equal(vm.runInContext('mealsScrollAt', sandbox), 0);
+  handler({ target: null }); handler({ target: {} });                      // junk targets never throw
+});
+
+test('the row menu: opens inline, one at a time, toggles shut, and the button reports its state', () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  const menus = () => (host.innerHTML.match(/class="meal-menu"/g) || []).length;
+  assert.equal(menus(), 0);
+  tapMenuBtn(sandbox, fire, host, '2026-10-02');
+  assert.equal(menus(), 1);
+  assert.equal(vm.runInContext('mealsMenuOpen', sandbox), '2026-10-02');
+  tapMenuBtn(sandbox, fire, host, '2026-10-04');
+  assert.equal(menus(), 1, 'opening another closes the first');
+  assert.equal(vm.runInContext('mealsMenuOpen', sandbox), '2026-10-04');
+  assert.match(host.innerHTML, /Actions for Salmon/);
+  tapMenuBtn(sandbox, fire, host, '2026-10-04');
+  assert.equal(menus(), 0, 'the same button toggles it shut');
+  assert.equal(vm.runInContext('mealsMenuTimer', sandbox), null, 'no idle timer left running');
+});
+
+test('the row menu closes on Escape and on a tap anywhere else, but not on a tap inside it', () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  const open = () => vm.runInContext('mealsMenuOpen', sandbox);
+  tapMenuBtn(sandbox, fire, host, '2026-10-02');
+  assert.equal(vm.runInContext('mealsMenuTimer !== null', sandbox), true, 'an idle timer closes it by itself');
+  fire('keydown', { key: 'Enter' });
+  assert.equal(open(), '2026-10-02', 'other keys leave it');
+  fire('keydown', { key: 'Escape' });
+  assert.equal(open(), null, 'Escape closes it');
+  tapMenuBtn(sandbox, fire, host, '2026-10-02');
+  fire('click', { target: { closest: (s) => (s === '.meal-menu' ? {} : null) }, preventDefault() {} });
+  assert.equal(open(), '2026-10-02', 'a tap inside the menu does not close it');
+  fire('click', { target: { closest: () => null }, preventDefault() {} });
+  assert.equal(open(), null, 'a tap anywhere else does');
+});
+
+test('an open row menu survives a refresh of the card, and the menu button keeps keyboard focus', () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  sandbox.renderMeals();
+  const host = document.getElementById('meals-slot');
+  let focused = null;
+  const orig = host.querySelectorAll.bind(host);
+  host.querySelectorAll = (sel) => orig(sel).map((b) => { b.focus = () => { focused = b.dataset.mealsMenu; }; return b; });
+  tapMenuBtn(sandbox, fire, host, '2026-10-04');
+  assert.equal(focused, '2026-10-04', 'focus returns to the menu button after the repaint');
+  sandbox.renderMeals();                                         // the next fetch repaints
+  assert.match(host.innerHTML, /Actions for Salmon/, 'the menu a person is using is not closed by a refresh');
 });
 
 test('applyWallLayout + updateTabVisibility: empty list is a no-op (fail-open)', () => {

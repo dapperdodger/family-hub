@@ -964,6 +964,24 @@ def test_meals_card_is_wired_end_to_end():
         "the icon buttons in the rows must be 44px wide on a phone, not just 44px tall"
 
 
+def test_meals_following_days_scroll_on_the_wall_and_not_on_the_phone():
+    """A week of dinners (mealie.days up to 7) must not make the wall's dashboards
+    column taller than the screen: the wall caps the following-days list and lets
+    it scroll inside the card, with tonight's block outside it. The phone shell
+    lifts the cap (its Meals tab is a scrolling page of its own). The cap has to
+    stay a few rows tall: too small hides the week, too large defeats the point."""
+    rule = re.search(r"(?m)^\.meal-rows\s*\{([^}]*max-height[^}]*)\}", CSS)
+    assert rule, "the wall's .meal-rows rule needs a max-height"
+    body = rule.group(1)
+    px = int(re.search(r"max-height:\s*(\d+)px", body).group(1))
+    assert 150 <= px <= 280, f"max-height {px}px: about four rows (a row is ~44px) with the next one peeking"
+    assert re.search(r"overflow-y:\s*auto", body), "the list must scroll"
+    assert re.search(r"overscroll-behavior:\s*contain", body), "a scroll inside the list must not drag the wall page"
+    mobile = _phone_shell_css()
+    assert re.search(r'\.meal-rows\s*\{\s*max-height:\s*none;\s*overflow:\s*visible', mobile), \
+        "the phone must show the whole week, not a small scroller inside a scrolling page"
+
+
 def test_known_integration_ids_cover_every_registry_id():
     """renderIntegrations is the ONLY place the body.integ-off-<id> hide classes
     are set, and it loops KNOWN_INTEGRATION_IDS. An id the registry can emit but
