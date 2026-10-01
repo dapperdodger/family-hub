@@ -969,7 +969,12 @@ body {
 .meal-none { font-size: 15px; color: var(--dim); }
 .meal-more { flex: none; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--accent); }
 .meal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-.meal-rows { border-top: 1px solid var(--edge); }
+/* The following days scroll INSIDE the card on the wall (tonight's block stays put), so a
+   full week (mealie.days up to 7) does not make the column taller than the screen. The
+   cap shows four rows and the top of the fifth: that peek is the hint there is more. The
+   phone shell lifts the cap (the Meals tab is its own scrolling page). */
+.meal-rows { border-top: 1px solid var(--edge); max-height: 200px; overflow-y: auto;
+  overscroll-behavior: contain; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
 .meal-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-height: 44px; min-width: 0;
   border-bottom: 1px solid var(--edge); }
 .meal-row:last-child { border-bottom: 0; }
@@ -980,7 +985,6 @@ body {
    every ancestor's min-content and widened the whole phone page */
 .meal-rname { flex: 1 1 0; width: 0; min-width: 0; font-size: 14px; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.meal-row-actions { flex: none; display: flex; gap: 6px; }
 .meal-btn { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer;
   background: color-mix(in srgb, var(--ink) 7%, transparent); border: 1px solid var(--edge);
   border-radius: 10px; padding: 8px 12px; min-height: 40px; white-space: nowrap; }
@@ -990,6 +994,10 @@ body {
 .meal-btn-big { min-height: 48px; font-size: 15px; width: 100%; }
 .meal-row-empty .meal-btn-random { flex: 1; text-align: left; color: var(--dim); font-weight: 500; }
 .meal-row .meal-btn { padding: 6px 0; min-height: 40px; min-width: 40px; font-size: 16px; line-height: 1; text-align: center; }
+.meal-row .meal-btn-more { flex: none; font-size: 20px; font-weight: 700; }
+/* a row's action menu, open inline under the row (a floating popover would be clipped by the scrolling list) */
+.meal-menu { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 14px 10px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent); border-bottom: 1px solid var(--edge); }
 .meal-row .meal-row-empty .meal-btn, .meal-row-empty .meal-btn-random { font-size: 13px; }
 .fleet { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
 .fleet-sys { display: flex; align-items: center; gap: 8px; }
@@ -2585,8 +2593,10 @@ body.integ-off-todos .todo-slot { display: none; }
   :root:not([data-layout="desktop"]) body[data-tab="meals"] .todos-page { display: none; }
   :root:not([data-layout="desktop"]) body[data-tab="meals"] .panels > :not(.meals-slot) { display: none; }
   /* phone: every meal control is a full-size tap target */
+  :root:not([data-layout="desktop"]) .meal-rows { max-height: none; overflow: visible; }
   :root:not([data-layout="desktop"]) .meal-btn { min-height: 44px; padding: 10px 14px; font-size: 14px; }
   :root:not([data-layout="desktop"]) .meal-row .meal-btn { min-width: 44px; }
+  :root:not([data-layout="desktop"]) .meal-row .meal-btn-more { font-size: 20px; }
   :root:not([data-layout="desktop"]) .meal-row { min-height: 52px; }
   :root:not([data-layout="desktop"]) .meal-photo { height: 190px; }
   :root:not([data-layout="desktop"]) body[data-tab="todos"] .people-col,

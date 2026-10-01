@@ -111,11 +111,13 @@ at one URL.
   remaining-time timestamp works. Fails soft like weather/climate.
 - **Meals (Mealie):** an optional "Dinner" card for a [Mealie](https://mealie.io)
   server: tonight's dinner with its photo and description, then one row per
-  following day. An **empty day** is a big **🎲 Random dinner** button; a dinner
-  the hub itself picked also gets a **🎲** to re-roll it (it never replaces a
-  dinner somebody planned by hand, and a re-roll draws again if it lands on the
-  same recipe); every planned day has a **🛒** that adds that recipe's
-  ingredients to your shopping list. **⛶ Full screen** opens Mealie itself. It
+  following day (up to a full week with `days: 7`; on the wall the list scrolls inside
+  the card while tonight stays put). An **empty day** is a big **🎲 Random dinner** button. Each
+  planned following day has a **⋮** menu (so a long recipe name keeps its row)
+  with **🛒 Add to list**, which adds that recipe's ingredients to your shopping
+  list, and, for a dinner the hub itself picked, **🎲 Re-roll** (it never
+  replaces a dinner somebody planned by hand, and it draws again if it lands on
+  the same recipe). Tonight's block keeps both as plain buttons. **⛶ Full screen** opens Mealie itself. It
   rides the panels column on the wall and has its own **Meals** tab on the
   phone. Needs a `mealie` config block and a `MEALIE_API_TOKEN` env var (below);
   off entirely without the block.

@@ -10,6 +10,22 @@ rolls that section to a dated version via `python scripts/release.py`.
 
 ## [Unreleased]
 
+### Changed
+- Meals: the following days now scroll inside the card on the wall (tonight stays
+  pinned above), so a full week (`mealie.days` up to 7) no longer makes the
+  dashboards column taller than the screen. A list you are scrolling keeps its
+  place when the card refreshes, and returns to the top once left alone. The
+  phone's Meals tab still shows the whole week.
+- Meals: each following day's add-to-list and re-roll buttons now live behind a
+  ⋮ menu on the row (open inline under it; it closes on a tap elsewhere,
+  Escape, after an action, or by itself), so a long recipe name keeps the whole
+  row. Tonight's dinner keeps its buttons, and an empty day still has its big
+  Random dinner button.
+- Meals row menu polish: closing the menu (Escape, a tap, its idle timer) keeps
+  keyboard focus on that row's menu button, tapping in the list never snaps it
+  back to the top, the button no longer claims to be a popup menu to screen
+  readers, and the ⋮ is full size on the phone.
+
 ### Fixed
 - An embedded dashboard panel (for example Mealie) no longer overflows its
   column when you switch Columns to "Wells" (or flip the layout) while the
