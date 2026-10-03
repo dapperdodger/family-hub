@@ -5470,14 +5470,53 @@ function closeThemePop() {
   if (gear) gear.setAttribute('aria-expanded', 'false');
 }
 
+// The ↻ button. Asks the hub to pull fresh calendars (and drop its cached meal
+// plan) BEFORE the reload, so the page that comes back shows current data
+// instead of whatever the 5-minute background sync last fetched. The reload
+// happens whatever the sync does (a slow Google, a down hub, an error answer): the button
+// must never be dead. Taps while a sync is in flight are ignored.
+const WALL_SYNC_WAIT_MS = 10000;   // under j()'s 12 s: never leave the wall hanging
+let wallRefreshing = false;
+async function refreshWall(btn) {
+  if (wallRefreshing) return;
+  wallRefreshing = true;
+  if (btn) btn.classList.add('is-syncing');
+  let timer = null;
+  try {
+    const opts = { method: 'POST' };
+    if (typeof AbortController !== 'undefined') {
+      const ac = new AbortController();
+      timer = setTimeout(() => ac.abort(), WALL_SYNC_WAIT_MS);
+      opts.signal = ac.signal;
+    }
+    const r = await j('/api/calendar/sync', opts);
+    // The wall shows nothing about why; leave the reason where a person
+    // debugging a stale wall (remote inspector, kiosk console) can find it.
+    if (r && r.synced === false) console.warn('refresh: calendar sync did not run:', r);
+  } catch (e) {
+    console.warn('refresh: calendar sync failed; reloading anyway', e);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+  location.reload();
+  // A reload that goes nowhere (offline kiosk, a page restored from bfcache)
+  // would leave the button dim and dead. A real reload tears all this down.
+  setTimeout(() => {
+    wallRefreshing = false;
+    if (btn) btn.classList.remove('is-syncing');
+  }, 3000);
+}
+
 // Separate delegated listener (the big one above owns the dashboard surfaces):
 // the gear popover, the Settings overlay's Display + Integrations controls
 // (same data-* attributes, generalized below to match either surface), and
 // the iCloud CalDAV panel's actions.
 document.addEventListener('click', (e) => {
   const pop = document.getElementById('theme-pop');
-  // Refresh button: reload the wall (picks up a new deploy, unsticks a stale page).
-  if (e.target.closest('#wall-refresh')) { location.reload(); return; }
+  // Refresh button: sync the calendars, then reload the wall (also picks up a
+  // new deploy and unsticks a stale page).
+  const refreshBtn = e.target.closest('#wall-refresh');
+  if (refreshBtn) { refreshWall(refreshBtn); return; }
   const gear = e.target.closest('#wall-gear');
   if (gear && pop) {
     const open = pop.classList.toggle('open');

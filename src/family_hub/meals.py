@@ -64,6 +64,12 @@ def reset_caches() -> None:
     _image_cache.clear()
 
 
+def forget_plan() -> None:
+    """Drop the cached meal plan so the next read goes to Mealie (the wall's
+    refresh button). Recipe photos stay cached."""
+    _invalidate()
+
+
 def _invalidate() -> None:
     global _gen
     _gen += 1
