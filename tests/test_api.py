@@ -6588,3 +6588,232 @@ def test_oauth_google_callback_success_writes_a_real_token_json(
     # A GoogleCalendarClient built against this exact file must consider
     # itself configured — the whole point of this endpoint.
     assert app_mod_oauth.GoogleCalendarClient(app_mod_oauth.TOKEN_PATH).configured()
+
+
+# --- POST /api/calendar/sync: the wall's refresh button syncs before it reloads ---
+
+def _stub_syncs(app_mod, monkeypatch, google=None, caldav=None):
+    """Stand in for the two network syncs _sync_tick runs. `google` is what
+    sync_once returns (or raises); returns the calls each one saw."""
+    calls = {"google": [], "caldav": []}
+
+    def fake_google(client, conn, cfg, now):
+        calls["google"].append(now)
+        if isinstance(google, Exception):
+            raise google
+        return google if google is not None else {"ok": True}
+
+    def fake_caldav(client, conn, cfg, now):
+        # the iCloud leg must run OUTSIDE the Google lock, or a slow iCloud
+        # would hold up every Google sync behind it
+        calls["caldav"].append(app_mod._google_sync_lock.locked())
+        return caldav if caldav is not None else {"ok": True}
+    monkeypatch.setattr(app_mod, "sync_once", fake_google)
+    monkeypatch.setattr(app_mod.caldav_sync, "sync_once", fake_caldav)
+    monkeypatch.setattr(app_mod, "_get_caldav_client", lambda: object())
+    return calls
+
+
+def test_calendar_sync_now_runs_google_and_icloud_and_drops_the_meals_cache(client, app_mod, monkeypatch):
+    """The wall's refresh button used to only reload the page, so a calendar
+    edit or a new Mealie plan showed up when the 5-minute loop (or Mealie's 20 s
+    cache) got round to it. The endpoint runs the same tick the background loop
+    does (Google, then iCloud outside the Google lock) and forgets the cached
+    meal plan, leaving recipe photos cached."""
+    calls = _stub_syncs(app_mod, monkeypatch)
+    app_mod.meals._cache[("base", "2026-10-03", 5)] = (1e12, {"days": []})
+    app_mod.meals._image_cache["r1"] = (1e12, b"jpg", "image/jpeg")
+    r = client.post("/api/calendar/sync")
+    assert r.status_code == 200 and r.json() == {"synced": True}
+    assert len(calls["google"]) == 1
+    assert calls["caldav"] == [False], "iCloud ran once, outside the Google lock"
+    assert app_mod.meals._cache == {}
+    assert "r1" in app_mod.meals._image_cache
+
+
+def test_calendar_sync_now_cooldown_stops_button_mashing(client, app_mod, monkeypatch):
+    calls = _stub_syncs(app_mod, monkeypatch)
+    assert client.post("/api/calendar/sync").json()["synced"] is True
+    app_mod.meals._cache[("base", "2026-10-03", 5)] = (1e12, {"days": []})
+    again = client.post("/api/calendar/sync")
+    assert again.status_code == 200
+    assert again.json() == {"synced": False, "reason": "cooldown"}
+    assert len(calls["google"]) == 1
+    # the reload that follows a cooled-down tap must still see a fresh meal plan
+    assert app_mod.meals._cache == {}
+
+
+def test_calendar_sync_now_runs_again_once_the_cooldown_has_passed(client, app_mod, monkeypatch):
+    calls = _stub_syncs(app_mod, monkeypatch)
+    monkeypatch.setattr(app_mod, "SYNC_NOW_COOLDOWN_S", 0)
+    client.post("/api/calendar/sync")
+    assert client.post("/api/calendar/sync").json()["synced"] is True
+    assert len(calls["google"]) == 2
+
+
+def test_calendar_sync_now_is_a_noop_in_demo(client_demo, app_mod_demo, monkeypatch):
+    """DEMO's canned calendar must never be overwritten by a real sync."""
+    calls = _stub_syncs(app_mod_demo, monkeypatch)
+    r = client_demo.post("/api/calendar/sync")
+    assert r.status_code == 200
+    assert r.json() == {"synced": False, "reason": "demo"}
+    assert calls == {"google": [], "caldav": []}
+
+
+def test_calendar_sync_now_reports_a_failed_sync_not_a_false_success(client, app_mod, monkeypatch):
+    """sync_once never raises; it returns ok:False (expired sign-in, a source
+    down, nothing configured). The endpoint must say so, not claim success."""
+    _stub_syncs(app_mod, monkeypatch,
+                google={"ok": False, "error": "token expired", "needs_auth": True})
+    r = client.post("/api/calendar/sync")
+    assert r.status_code == 200
+    assert r.json() == {"synced": False, "reason": "error", "needs_auth": True}
+
+
+def test_calendar_sync_now_survives_a_sync_that_raises(client, app_mod, monkeypatch):
+    """The page reloads after this call whatever happens: an exception in the
+    sync is a clean answer, not a 500."""
+    _stub_syncs(app_mod, monkeypatch, google=RuntimeError("google is down"))
+    r = client.post("/api/calendar/sync")
+    assert r.status_code == 200
+    assert r.json() == {"synced": False, "reason": "error", "needs_auth": False}
+
+
+def test_calendar_sync_now_a_failed_sync_still_uses_the_cooldown(client, app_mod, monkeypatch):
+    """Pinned on purpose: retrying a failing Google inside 15 s is pointless."""
+    calls = _stub_syncs(app_mod, monkeypatch, google={"ok": False, "error": "x"})
+    client.post("/api/calendar/sync")
+    assert client.post("/api/calendar/sync").json() == {"synced": False, "reason": "cooldown"}
+    assert len(calls["google"]) == 1
+
+
+def test_calendar_sync_now_gives_up_on_a_busy_lock_instead_of_wedging(client, app_mod, monkeypatch):
+    """A Google sync that never lets go must not park a request thread per tap
+    forever (the threadpool is shared by every sync endpoint): wait a bounded
+    time, say busy, and don't spend the cooldown on a sync that never ran."""
+    calls = _stub_syncs(app_mod, monkeypatch)
+    monkeypatch.setattr(app_mod, "SYNC_NOW_LOCK_WAIT_S", 0.05)
+    with app_mod._google_sync_lock:
+        r = client.post("/api/calendar/sync")
+    assert r.json() == {"synced": False, "reason": "busy"}
+    assert calls == {"google": [], "caldav": []}
+    assert client.post("/api/calendar/sync").json() == {"synced": True}
+
+
+def _count_overlap(monkeypatch, appmod):
+    """Swap sync_once for a slow fake; returns (started event, max-active dict)."""
+    import threading
+    import time as _time
+    active = {"now": 0, "max": 0}
+    guard = threading.Lock()
+    started = threading.Event()
+
+    def fake_sync_once(client, conn, cfg, now):
+        with guard:
+            active["now"] += 1
+            active["max"] = max(active["max"], active["now"])
+        started.set()
+        _time.sleep(0.2)
+        with guard:
+            active["now"] -= 1
+        return {"ok": True}
+    monkeypatch.setattr(appmod, "sync_once", fake_sync_once)
+    monkeypatch.setattr(appmod, "_get_caldav_client", lambda: None)
+    return started, active
+
+
+def test_google_syncs_never_overlap(tmp_path, monkeypatch):
+    """The refresh button, the 5-minute loop and the post-add-event resync each
+    run sync_once on their own connection. Two at once would fetch and replace
+    the same rows twice, so a lock keeps the Google sync one at a time."""
+    import threading
+    appmod = _reload_with(tmp_path, monkeypatch, {})
+    started, active = _count_overlap(monkeypatch, appmod)
+    with TestClient(appmod.app) as tc:
+        bg = threading.Thread(
+            target=lambda: appmod._sync_tick(None, appmod._db(), appmod.cfg))
+        bg.start()
+        assert started.wait(5), "the background sync never started"
+        assert tc.post("/api/calendar/sync").json()["synced"] is True
+        bg.join()
+    assert active["max"] == 1, "two Google syncs ran at the same time"
+
+
+def test_the_post_add_event_resync_takes_the_google_lock_too(tmp_path, monkeypatch):
+    import threading
+    appmod = _reload_with(tmp_path, monkeypatch, {})
+    started, active = _count_overlap(monkeypatch, appmod)
+    with TestClient(appmod.app):
+        bg = threading.Thread(
+            target=lambda: appmod._sync_tick(None, appmod._db(), appmod.cfg))
+        bg.start()
+        assert started.wait(5), "the background sync never started"
+        appmod._background_resync(None, appmod._now_local())
+        bg.join()
+    assert active["max"] == 1, "the resync overlapped the background sync"
+
+
+def test_calendar_sync_now_skips_a_busy_icloud_lock_instead_of_wedging(client, app_mod, monkeypatch):
+    """The Google lock wait is bounded; the iCloud lock must be too, or a stuck
+    iCloud sync parks the button's request thread just the same."""
+    import threading
+    calls = _stub_syncs(app_mod, monkeypatch)
+    monkeypatch.setattr(app_mod, "SYNC_NOW_LOCK_WAIT_S", 0.05)
+    out = {}
+    with app_mod._caldav_sync_lock:
+        t = threading.Thread(target=lambda: out.update(r=client.post("/api/calendar/sync")))
+        t.start()
+        t.join(5)
+        stuck = t.is_alive()
+    t.join(5)           # unwedge for cleanup: the lock is free again
+    assert not stuck, "the request waited on the iCloud lock without a bound"
+    r = out["r"]
+    assert r.json() == {"synced": True}        # Google/ICS did sync
+    assert len(calls["google"]) == 1
+    assert calls["caldav"] == [], "iCloud was skipped, not waited for"
+
+
+def test_calendar_sync_now_busy_answer_cannot_hang_the_suite(client, app_mod, monkeypatch):
+    """If the bounded wait ever regressed to waiting forever, the busy test
+    would deadlock the whole run instead of failing. Prove it answers fast."""
+    import threading
+    _stub_syncs(app_mod, monkeypatch)
+    monkeypatch.setattr(app_mod, "SYNC_NOW_LOCK_WAIT_S", 0.05)
+    out = {}
+    with app_mod._google_sync_lock:
+        t = threading.Thread(target=lambda: out.update(r=client.post("/api/calendar/sync").json()))
+        t.start()
+        t.join(5)
+        assert not t.is_alive(), "the request is still waiting on the lock"
+    assert out["r"] == {"synced": False, "reason": "busy"}
+
+
+def test_calendar_sync_now_simultaneous_taps_sync_once(client, app_mod, monkeypatch):
+    """Two taps landing together on the thread pool must not both pass the
+    cooldown check."""
+    import threading
+    calls = _stub_syncs(app_mod, monkeypatch)
+    results = []
+    gate = threading.Barrier(6)
+
+    def tap():
+        gate.wait()
+        results.append(client.post("/api/calendar/sync").json())
+    threads = [threading.Thread(target=tap) for _ in range(6)]
+    [t.start() for t in threads]
+    [t.join(10) for t in threads]
+    assert len(calls["google"]) == 1
+    assert sorted(r.get("reason", "ok") for r in results) == ["cooldown"] * 5 + ["ok"]
+
+
+def test_the_post_add_event_resync_gives_up_on_a_stuck_lock(tmp_path, monkeypatch):
+    """_background_resync runs on the shared thread pool after an add-event. A
+    Google sync that never lets go must not park one worker per event added:
+    it waits a bounded time, logs, and leaves it to the next scheduled tick."""
+    appmod = _reload_with(tmp_path, monkeypatch, {})
+    ran = []
+    monkeypatch.setattr(appmod, "sync_once", lambda *a, **k: ran.append(1) or {"ok": True})
+    monkeypatch.setattr(appmod, "BACKGROUND_RESYNC_WAIT_S", 0.05)
+    with appmod._google_sync_lock:
+        assert appmod._background_resync(None, appmod._now_local()) is None
+    assert ran == []

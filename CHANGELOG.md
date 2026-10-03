@@ -32,6 +32,16 @@ rolls that section to a dated version via `python scripts/release.py`.
   wall is open: panels re-fit themselves when those settings change.
 
 ### Changed
+- The wall's ↻ refresh button now syncs before it reloads: it asks the hub
+  (`POST /api/calendar/sync`) to pull Google, ICS and iCloud calendars right
+  away and to drop its cached Mealie plan, so the page that comes back is
+  current instead of up to five minutes behind. It waits at most 10 seconds,
+  reloads whatever happens, ignores extra taps while it works, and comes back to
+  life if the reload goes nowhere. In DEMO the hub skips the sync. The hub answers
+  with what actually happened (synced, busy, cooldown, or an error including an
+  expired Google sign-in) and waits only a bounded time for a sync already in
+  progress. A calendar emptied in Google still takes up to a day to clear (the
+  empty-calendar safeguard is unchanged), and no two Google syncs run at once.
 - Wall layout: To-Do now sits under Chores in the left column, and the
   calendar column shows a 3-day agenda with the current month's grid always
   visible beneath it (tap a day to open it in the full calendar). Each of the

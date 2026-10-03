@@ -2543,6 +2543,54 @@ def calendar(days: int = CAL_FETCH_DAYS, past: int = CAL_FETCH_PAST):
         return _calendar_block(c, _today(), days, past_days=past)
 
 
+@app.post("/api/calendar/sync")
+def calendar_sync_now():
+    """The wall's refresh button calls this just before it reloads the page: one
+    pass of the same tick the background loop runs (Google, ICS and iCloud),
+    plus a forgotten Mealie plan cache, so the reload shows current data rather
+    than whatever the 5-minute loop last fetched. Always answers 200 (the page
+    reloads regardless): {"synced": true}, or {"synced": false, "reason": ...}
+    where reason is demo, cooldown, busy (a sync was already running and did not
+    finish in time) or error (with needs_auth if Google sign-in has expired).
+    `synced` speaks for Google and ICS; iCloud syncs in the same pass but
+    reports through its own status in Settings.
+    The meal cache is dropped before the cooldown check, so even a cooled-down
+    tap reloads onto a fresh plan. A failed sync still uses the cooldown; a busy
+    one does not. It deliberately does not bypass sync_once's empty-calendar
+    guard, so a calendar emptied in Google can take up to a day to clear."""
+    global _sync_now_last
+    if DEMO:
+        return {"synced": False, "reason": "demo"}
+    meals.forget_plan()
+    with _sync_now_gate:
+        now = time.monotonic()
+        if now - _sync_now_last < SYNC_NOW_COOLDOWN_S:
+            return {"synced": False, "reason": "cooldown"}
+        previous, _sync_now_last = _sync_now_last, now
+    conn = None
+    try:
+        conn = fdb.connect(DB_PATH)
+        conn, status = _sync_all(GoogleCalendarClient(TOKEN_PATH), conn, cfg,
+                                 lock_wait=SYNC_NOW_LOCK_WAIT_S)
+    except Exception:
+        log.exception("refresh-button sync failed")
+        return {"synced": False, "reason": "error", "needs_auth": False}
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    if status.get("busy"):
+        with _sync_now_gate:
+            _sync_now_last = previous  # nothing ran, so nothing to cool down from
+        return {"synced": False, "reason": "busy"}
+    if not status.get("ok"):
+        return {"synced": False, "reason": "error",
+                "needs_auth": bool(status.get("needs_auth"))}
+    return {"synced": True}
+
+
 class EventIn(BaseModel):
     calendar_id: str
     title: str
@@ -2684,7 +2732,14 @@ def _background_resync(client, now: dt.datetime) -> None:
     conn = None
     try:
         conn = fdb.connect(DB_PATH)
-        sync_once(client, conn, cfg, now)
+        if not _google_sync_lock.acquire(timeout=BACKGROUND_RESYNC_WAIT_S):
+            log.warning("post-add-event resync skipped: another Google sync has "
+                        "held the lock for over %ss", BACKGROUND_RESYNC_WAIT_S)
+            return
+        try:
+            sync_once(client, conn, cfg, now)
+        finally:
+            _google_sync_lock.release()
     except Exception:
         log.exception("post-add-event background resync failed")
     finally:
@@ -3947,6 +4002,30 @@ _caldav_sync_lock = threading.Lock()
 # Kept well under the wall's 12s request timeout (J_TIMEOUT_MS in common.js),
 # so a busy lock reads as "already running", not as a generic failed request.
 CALDAV_TEST_WAIT_S = 5
+# Every Google/ICS sync (the 5-minute loop, the wall's refresh button, the
+# post-add-event resync) runs under this lock, for the same reason as the
+# CalDAV one above: each uses its own connection, and two at once would fetch
+# and replace the same rows twice.
+_google_sync_lock = threading.Lock()
+# The wall's refresh button syncs before it reloads. A second tap inside this
+# window just reloads, so mashing it can't hammer Google.
+SYNC_NOW_COOLDOWN_S = 15
+# How long the button's request waits for each lock (Google, then iCloud) held
+# by a sync that is already mid-run before answering "busy" / skipping iCloud.
+# Bounded because the request holds one of the shared worker threads, and a
+# lock that is never released would otherwise park one per tap. This bounds the
+# wait for a lock only: once the request holds it, the sync itself is as long
+# as Google and the ICS feeds take. Under the wall's 10 s wait
+# (WALL_SYNC_WAIT_MS in hub.js).
+SYNC_NOW_LOCK_WAIT_S = 8
+# The same bound for the post-add-event resync, which runs on that shared pool
+# after the response is sent. Longer: nobody is watching it, and a real
+# multi-calendar sync can take a while.
+BACKGROUND_RESYNC_WAIT_S = 60
+# Makes the button's cooldown check-and-stamp one step, so two taps landing
+# together on the thread pool can't both pass it.
+_sync_now_gate = threading.Lock()
+_sync_now_last = float("-inf")     # time.monotonic() of the last button sync
 
 
 def _get_caldav_client():
@@ -3960,27 +4039,44 @@ def _get_caldav_client():
     return _caldav_client
 
 
-def _sync_tick(client, conn, cfg):
-    """One sync iteration: run sync_once; on failure log + self-heal the DB
-    connection. Returns the connection to use next tick (a fresh one after a
-    failure). Extracted from sync_loop so the reconnect path is unit-testable —
-    the old bare `pass` froze calendar sync forever on a dropped DB handle with
-    no log line (sync_once captures per-source errors itself, but its own final
-    kv_set can still raise if the DB went unwritable)."""
+def _sync_all(client, conn, cfg, lock_wait=None):
+    """One sync iteration over every source: Google/ICS (under the Google lock),
+    then iCloud CalDAV (its own lock). Returns (conn, status): the connection to
+    use next (a fresh one after a failure) and the Google/ICS status dict, or
+    {"ok": False, "busy": True} if `lock_wait` seconds passed without getting
+    the Google lock (None waits as long as it takes). The status is Google/ICS
+    only: iCloud keeps its own (caldav_status, shown in Settings), and a busy
+    iCloud lock just skips that leg. Never raises: on failure it logs
+    and self-heals the DB connection. Extracted so the reconnect path is
+    unit-testable — the old bare `pass` froze calendar sync forever on a dropped
+    DB handle with no log line (sync_once captures per-source errors itself, but
+    its own final kv_set can still raise if the DB went unwritable)."""
     try:
-        sync_once(client, conn, cfg, _now_local())
+        if not _google_sync_lock.acquire(
+                timeout=-1 if lock_wait is None else lock_wait):
+            return conn, {"ok": False, "busy": True}
+        try:
+            status = sync_once(client, conn, cfg, _now_local())
+        finally:
+            _google_sync_lock.release()
         # CalDAV runs in the same tick but is isolated: it never raises (records
         # its own caldav_status), and a defensive guard keeps any surprise from
         # disrupting the Google sync's reconnect logic. Inert without credentials.
         try:
             cdav = _get_caldav_client()
             if cdav is not None:
-                with _caldav_sync_lock:
-                    caldav_sync.sync_once(cdav, conn, cfg, _now_local())
+                if _caldav_sync_lock.acquire(
+                        timeout=-1 if lock_wait is None else lock_wait):
+                    try:
+                        caldav_sync.sync_once(cdav, conn, cfg, _now_local())
+                    finally:
+                        _caldav_sync_lock.release()
+                else:
+                    log.info("iCloud sync already running; skipped this pass")
         except Exception:
             log.exception("caldav sync tick error (non-fatal)")
-        return conn
-    except Exception:
+        return conn, status or {}
+    except Exception as e:
         log.exception("calendar sync tick error; reconnecting DB")
         try:
             conn.close()
@@ -3991,7 +4087,13 @@ def _sync_tick(client, conn, cfg):
             fdb.ensure_schema(conn)
         except Exception:
             log.exception("sync tick DB reconnect failed; will retry")
-        return conn
+        return conn, {"ok": False, "error": str(e)}
+
+
+def _sync_tick(client, conn, cfg):
+    """The background loop's iteration: _sync_all, waiting as long as it takes
+    for the lock. Returns the connection to use next tick."""
+    return _sync_all(client, conn, cfg)[0]
 
 
 def _open_sync_conn():
