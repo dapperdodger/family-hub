@@ -16,8 +16,10 @@ rolls that section to a dated version via `python scripts/release.py`.
   them, quick-add an item, delete one. The list scrolls inside the card like the meal
   plan. It follows the Meals (Mealie) switch; To-Dos can be switched off to give it the
   room. Backend: `GET /api/mealie/shopping`, `POST /api/mealie/shopping/items`,
-  `PUT`/`DELETE /api/mealie/shopping/items/{id}`; every write checks the item is on the
-  configured list first.
+  `PUT`/`DELETE /api/mealie/shopping/items/{id}`.
+- Shopping writes (add, check, delete) confirm the item is on the configured list
+  before touching it: checking or deleting an item Mealie no longer has, or one from
+  another list, is a clean 404 and never a blind write.
 
 ### Changed
 - Meals: the following days now scroll inside the card on the wall (tonight stays

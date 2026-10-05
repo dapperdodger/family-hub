@@ -1159,3 +1159,148 @@ def test_the_wall_refresh_drops_the_shopping_cache_too():
     assert meals._shop_cache
     meals.forget_plan()
     assert meals._shop_cache == {}
+
+
+# ----------------------------------------------------------- shopping writes
+
+def add(fake, text, cfg=None, env=ENV):
+    return run(fake, lambda c, cfg_: meals.add_shopping_item(c, cfg_, env, text), cfg)
+
+
+def check(fake, iid, checked, cfg=None, env=ENV):
+    return run(fake, lambda c, cfg_: meals.set_shopping_checked(c, cfg_, env, iid, checked), cfg)
+
+
+def delete(fake, iid, cfg=None, env=ENV):
+    return run(fake, lambda c, cfg_: meals.delete_shopping_item(c, cfg_, env, iid), cfg)
+
+
+def test_add_posts_a_free_text_item_to_the_configured_list():
+    fake = FakeMealie()
+    assert add(fake, "  Paper   towels ") == {"ok": True}
+    post = next(c for c in fake.calls if c["method"] == "POST" and c["path"].endswith("/shopping/items"))
+    assert post["body"] == {"shoppingListId": RID2, "note": "Paper towels", "quantity": 1, "checked": False}
+    assert [i["note"] for i in fake.items] == ["Paper towels"]
+
+
+@pytest.mark.parametrize("text", ["", "   ", "\n\t", None, 5, ["x"], {"a": 1}, "x" * (meals.ITEM_TEXT_MAX + 1)])
+def test_add_rejects_blank_non_text_and_over_long_before_any_request(text):
+    fake = FakeMealie()
+    out = add(fake, text)
+    assert out["ok"] is False and out["status"] == 422
+    assert fake.calls == []
+
+
+def test_add_accepts_emoji_and_the_exact_length_limit():
+    fake = FakeMealie()
+    assert add(fake, "🍌 bananas")["ok"] and add(fake, "x" * meals.ITEM_TEXT_MAX)["ok"]
+
+
+def test_check_sends_the_whole_item_with_only_checked_changed():
+    fake = FakeMealie(items=[item(IID1, "Milk", position=3, quantity=2, foodId="f1", unitId="u1", labelId="l1")])
+    assert check(fake, IID1, True) == {"ok": True}
+    put = next(c for c in fake.calls if c["method"] == "PUT")
+    assert put["path"] == f"/api/households/shopping/items/{IID1}"
+    assert put["body"] == {"note": "Milk", "quantity": 2, "position": 3, "foodId": "f1", "unitId": "u1",
+                           "labelId": "l1", "extras": {}, "shoppingListId": RID2, "checked": True}
+    assert fake.items[0]["checked"] is True
+    assert check(fake, IID1, False) == {"ok": True} and fake.items[0]["checked"] is False
+
+
+@pytest.mark.parametrize("iid", ["", "not-a-uuid", "../../x", IID1 + "\n", IID1.upper() + "x", None, 5])
+def test_check_and_delete_reject_a_bad_item_id_before_any_request(iid):
+    fake = FakeMealie(items=[item(IID1, "Milk")])
+    for out in (check(fake, iid, True), delete(fake, iid)):
+        assert out["ok"] is False and out["status"] == 422
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("checked", ["yes", 1, 0, None, "true", [True]])
+def test_check_rejects_a_non_boolean_before_any_request(checked):
+    fake = FakeMealie(items=[item(IID1, "Milk")])
+    out = check(fake, IID1, checked)
+    assert out["ok"] is False and out["status"] == 422 and fake.calls == []
+
+
+def test_check_and_delete_an_item_that_is_gone_are_a_404_and_write_nothing():
+    fake = FakeMealie(items=[])
+    for out in (check(fake, IID1, True), delete(fake, IID1)):
+        assert out == {"ok": False, "error": "that item is not on the list", "status": 404}
+    assert not [c for c in fake.calls if c["method"] in ("PUT", "DELETE")]
+
+
+def test_check_an_item_from_another_list_is_a_404_and_never_written():
+    fake = FakeMealie(items=[item(IID1, "Milk", list_id=OTHER_LIST)])
+    assert check(fake, IID1, True)["status"] == 404
+    assert delete(fake, IID1)["status"] == 404
+    assert not [c for c in fake.calls if c["method"] in ("PUT", "DELETE")]
+    assert fake.items[0]["checked"] is False
+
+
+def test_delete_removes_only_that_item():
+    fake = FakeMealie(items=[item(IID1, "Milk"), item(IID2, "Eggs")])
+    assert delete(fake, IID1) == {"ok": True}
+    assert [i["id"] for i in fake.items] == [IID2]
+
+
+def test_writes_without_a_token_or_config_are_refused_without_a_request():
+    fake = FakeMealie(items=[item(IID1, "Milk")])
+    for out in (add(fake, "x", env={}), check(fake, IID1, True, env={}), delete(fake, IID1, env={})):
+        assert out["ok"] is False and out["needs_auth"] is True and out["status"] == 503
+    for out in (add(fake, "x", cfg=Config()), check(fake, IID1, True, cfg=Config()),
+                delete(fake, IID1, cfg=Config())):
+        assert out["ok"] is False and out["status"] == 404
+    assert fake.calls == []
+
+
+def test_writes_with_no_shopping_list_are_a_409_with_a_reason():
+    fake = FakeMealie(lists=[], items=[item(IID1, "Milk")])
+    for out in (add(fake, "x"), check(fake, IID1, True), delete(fake, IID1)):
+        assert out["ok"] is False and out["status"] == 409 and out["error"]
+
+
+@pytest.mark.parametrize("method,path_start", [("POST", "/api/households/shopping/items"),
+                                               ("PUT", "/api/households/shopping/items/"),
+                                               ("DELETE", "/api/households/shopping/items/")])
+def test_write_upstream_failure_is_a_502_with_a_reason(method, path_start):
+    fake = FakeMealie(items=[item(IID1, "Milk")])
+    fake.fail[(method, path_start)] = 500
+    out = {"POST": lambda: add(fake, "x"), "PUT": lambda: check(fake, IID1, True),
+           "DELETE": lambda: delete(fake, IID1)}[method]()
+    assert out["ok"] is False and out["status"] == 502 and out["error"] == "Mealie answered 500"
+
+
+def test_write_rejected_token_is_flagged_for_the_wall():
+    fake = FakeMealie(items=[item(IID1, "Milk")])
+    fake.fail[("PUT", "/api/households/shopping/items/")] = 401
+    out = check(fake, IID1, True)
+    assert out["status"] == 502 and out["needs_auth"] is True
+    assert tiles.SOURCE_STATE["meals"]["auth_rejected"] is True
+
+
+def test_write_with_a_junk_reply_fails_cleanly():
+    def handler(req):
+        if req.url.path == "/api/households/shopping/lists":
+            return httpx.Response(200, content=b"<html>")
+        return httpx.Response(404)
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            return await meals.add_shopping_item(c, mcfg(), ENV, "x")
+    out = asyncio.run(go())
+    assert out["ok"] is False and out["status"] == 502
+
+
+def test_every_write_drops_the_cached_list_even_when_it_fails():
+    fake = FakeMealie(items=[item(IID1, "Milk")])
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)) as c:
+            a = await meals.shopping_tile(c, mcfg(), ENV)
+            await meals.add_shopping_item(c, mcfg(), ENV, "Eggs")
+            b = await meals.shopping_tile(c, mcfg(), ENV)
+            fake.fail[("PUT", "/api/households/shopping/items/")] = 500
+            await meals.set_shopping_checked(c, mcfg(), ENV, IID1, True)      # fails
+            assert meals._shop_cache == {}, "a failed write still drops the cache"
+            return a, b
+    a, b = asyncio.run(go())
+    assert [i["text"] for i in a["items"]] == ["Milk"]
+    assert [i["text"] for i in b["items"]] == ["Milk", "Eggs"]

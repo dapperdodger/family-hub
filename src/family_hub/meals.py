@@ -446,6 +446,116 @@ async def shopping_tile(client, cfg, env: dict) -> dict:
     return result
 
 
+# What a check/un-check sends back. Mealie's update replaces the item, so the fields
+# that define it ride along unchanged; read-only ones (ids, timestamps, the computed
+# display) are left out. PROVISIONAL until the live probe (plan Task 0) confirms
+# Mealie preserves food/unit/quantity through exactly this body.
+_ITEM_KEEP = ("note", "quantity", "position", "foodId", "unitId", "labelId", "extras")
+_NOT_ON_LIST = {"ok": False, "error": "that item is not on the list", "status": 404}
+
+
+def _clean_item_text(text: object) -> str | None:
+    """A quick-add as stored: whitespace collapsed, 1 to ITEM_TEXT_MAX characters,
+    else None (including anything that is not text)."""
+    if not isinstance(text, str):
+        return None
+    clean = " ".join(text.split())
+    return clean if 0 < len(clean) <= ITEM_TEXT_MAX else None
+
+
+async def _own_item(client, mc: dict, env: dict, list_id: str, item_id: str) -> dict | None:
+    """The item, only if it exists AND sits on the configured list. An id from
+    another list, another household or one Mealie has since deleted is None: the
+    hub never writes to something it did not just confirm is on its list."""
+    r = await client.get(f"{mc['base']}/api/households/shopping/items/{item_id}",
+                         headers=_headers(env), timeout=TIMEOUT)
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    found = r.json()
+    if not isinstance(found, dict) or str(found.get("shoppingListId", "")).lower() != list_id.lower():
+        return None
+    return found
+
+
+async def _shopping_write(client, cfg, env: dict, run) -> dict:
+    """The shared frame of the three writes: refuse what cannot be tried, resolve the
+    list, run ``run(mc, list_id)``, and turn every failure into the usual
+    ``{ok: False, error, status}`` (never raising). The cache is dropped whatever
+    happens: Mealie may have changed even when a call failed."""
+    mc = getattr(cfg, "mealie", None)
+    if not mc:
+        return {"ok": False, "error": "Meals is not configured", "status": 404}
+    if not mealie_token(env):
+        return {"ok": False, "error": "MEALIE_API_TOKEN is not set", "status": 503,
+                "needs_auth": True}
+    try:
+        list_id, _name = await _shopping_list(client, mc, env)
+        return await run(mc, list_id)
+    except json.JSONDecodeError as e:     # before ValueError (it is one): Mealie sent junk, not "no list"
+        log.warning("meals shopping write: non-JSON reply: %s", e)
+        return {**_fail(e), "status": 502}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)[:120], "status": 409}
+    except httpx.HTTPError as e:
+        log.warning("meals shopping write failed: %s", e)
+        return {**_fail(e), "status": 502}
+    finally:
+        _invalidate_shopping()
+
+
+async def add_shopping_item(client, cfg, env: dict, text: object) -> dict:
+    """Quick add: a free-text item on the configured list."""
+    clean = _clean_item_text(text)
+    if clean is None:
+        return {"ok": False, "error": f"an item is 1 to {ITEM_TEXT_MAX} characters", "status": 422}
+
+    async def run(mc, list_id):
+        r = await client.post(f"{mc['base']}/api/households/shopping/items",
+                              json={"shoppingListId": list_id, "note": clean, "quantity": 1,
+                                    "checked": False},
+                              headers=_headers(env), timeout=TIMEOUT)
+        r.raise_for_status()
+        return {"ok": True}
+    return await _shopping_write(client, cfg, env, run)
+
+
+async def set_shopping_checked(client, cfg, env: dict, item_id: object, checked: object) -> dict:
+    """Check or un-check an item. Mealie's update needs the whole item, so read it,
+    set ``checked``, write it back."""
+    if not valid_uuid(item_id):
+        return {"ok": False, "error": "not an item id", "status": 422}
+    if not isinstance(checked, bool):
+        return {"ok": False, "error": "checked must be true or false", "status": 422}
+
+    async def run(mc, list_id):
+        found = await _own_item(client, mc, env, list_id, item_id)
+        if found is None:
+            return dict(_NOT_ON_LIST)
+        body = {k: found[k] for k in _ITEM_KEEP if k in found}
+        body.update({"shoppingListId": list_id, "checked": checked})
+        r = await client.put(f"{mc['base']}/api/households/shopping/items/{item_id}",
+                             json=body, headers=_headers(env), timeout=TIMEOUT)
+        r.raise_for_status()
+        return {"ok": True}
+    return await _shopping_write(client, cfg, env, run)
+
+
+async def delete_shopping_item(client, cfg, env: dict, item_id: object) -> dict:
+    """Delete an item from the configured list."""
+    if not valid_uuid(item_id):
+        return {"ok": False, "error": "not an item id", "status": 422}
+
+    async def run(mc, list_id):
+        if await _own_item(client, mc, env, list_id, item_id) is None:
+            return dict(_NOT_ON_LIST)
+        r = await client.delete(f"{mc['base']}/api/households/shopping/items/{item_id}",
+                                headers=_headers(env), timeout=TIMEOUT)
+        r.raise_for_status()
+        return {"ok": True}
+    return await _shopping_write(client, cfg, env, run)
+
+
 async def fetch_image(client, cfg, env: dict, recipe_id: object) -> tuple[bytes, str] | None:
     """A recipe photo as (bytes, content type), or None. Cached for an hour."""
     mc = getattr(cfg, "mealie", None)
