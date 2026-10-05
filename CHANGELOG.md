@@ -10,6 +10,15 @@ rolls that section to a dated version via `python scripts/release.py`.
 
 ## [Unreleased]
 
+### Added
+- Shopping: the Mealie shopping list as a native wall card (left column, beside the
+  To-Do card) and a section on the phone's Meals tab. Check items off and un-check
+  them, quick-add an item, delete one. The list scrolls inside the card like the meal
+  plan. It follows the Meals (Mealie) switch; To-Dos can be switched off to give it the
+  room. Backend: `GET /api/mealie/shopping`, `POST /api/mealie/shopping/items`,
+  `PUT`/`DELETE /api/mealie/shopping/items/{id}`; every write checks the item is on the
+  configured list first.
+
 ### Changed
 - Meals: the following days now scroll inside the card on the wall (tonight stays
   pinned above), so a full week (`mealie.days` up to 7) no longer makes the
