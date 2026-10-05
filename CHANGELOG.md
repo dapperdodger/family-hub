@@ -17,6 +17,9 @@ rolls that section to a dated version via `python scripts/release.py`.
   plan. It follows the Meals (Mealie) switch; To-Dos can be switched off to give it the
   room. Backend: `GET /api/mealie/shopping`, `POST /api/mealie/shopping/items`,
   `PUT`/`DELETE /api/mealie/shopping/items/{id}`.
+- Shopping: in demo mode the card serves a canned list and its writes are no-ops (they
+  never reach Mealie and never change what the demo shows); real writes are
+  serialized behind one lock so two phones tapping at once cannot interleave.
 - Shopping writes (add, check, delete) confirm the item is on the configured list
   before touching it: checking or deleting an item Mealie no longer has, or one from
   another list, is a clean 404 and never a blind write.

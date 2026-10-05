@@ -1304,3 +1304,51 @@ def test_every_write_drops_the_cached_list_even_when_it_fails():
     a, b = asyncio.run(go())
     assert [i["text"] for i in a["items"]] == ["Milk"]
     assert [i["text"] for i in b["items"]] == ["Milk", "Eggs"]
+
+
+# ------------------------------------------------------------ shopping routes
+
+def test_route_shopping_read_and_writes_round_trip(app_env):
+    appmod, c, fake = app_env
+    fake.items.append(item(IID1, "Milk"))
+    got = c.get("/api/mealie/shopping").json()
+    assert got["available"] is True and got["items"] == [{"id": IID1, "text": "Milk", "checked": False}]
+    assert c.post("/api/mealie/shopping/items", json={"text": "Eggs"}).json() == {"ok": True}
+    assert c.put(f"/api/mealie/shopping/items/{IID1}", json={"checked": True}).json() == {"ok": True}
+    after = c.get("/api/mealie/shopping").json()
+    assert [(i["text"], i["checked"]) for i in after["items"]] == [("Eggs", False), ("Milk", True)]
+    assert c.delete(f"/api/mealie/shopping/items/{IID1}").json() == {"ok": True}
+    assert [i["text"] for i in c.get("/api/mealie/shopping").json()["items"]] == ["Eggs"]
+
+
+def test_route_shopping_rejections_are_real_http_statuses_with_a_reason(app_env):
+    appmod, c, fake = app_env
+    fake.items.append(item(IID1, "Milk"))
+    r = c.post("/api/mealie/shopping/items", json={"text": "   "})
+    assert r.status_code == 422 and "1 to" in r.json()["detail"]
+    assert c.post("/api/mealie/shopping/items", json={}).status_code == 422
+    assert c.put("/api/mealie/shopping/items/not-a-uuid", json={"checked": True}).status_code == 422
+    assert c.put(f"/api/mealie/shopping/items/{IID1}", json={}).status_code == 422
+    assert c.put(f"/api/mealie/shopping/items/{IID2}", json={"checked": True}).status_code == 404
+    assert c.delete("/api/mealie/shopping/items/..%2F..%2Fx").status_code in (404, 405, 422)
+    assert c.delete(f"/api/mealie/shopping/items/{IID2}").status_code == 404
+    assert not [x for x in fake.calls if x["method"] in ("PUT", "DELETE")]
+
+
+def test_route_shopping_upstream_down_is_a_502_with_a_reason(app_env):
+    appmod, c, fake = app_env
+    fake.fail[("POST", "/api/households/shopping/items")] = 500
+    r = c.post("/api/mealie/shopping/items", json={"text": "Eggs"})
+    assert r.status_code == 502 and r.json()["detail"] == "Mealie answered 500"
+    fake.fail.clear()
+    fake.fail[("GET", "/api/households/shopping/lists/")] = 500
+    assert c.get("/api/mealie/shopping").json() == {"available": False, "needs_auth": False}
+
+
+def test_every_shopping_write_route_holds_the_write_lock(app_env):
+    """A check is read-modify-write against Mealie: two phones tapping at once must not
+    interleave, so each write route runs inside the one lock."""
+    import inspect
+    appmod, c, fake = app_env
+    for fn in (appmod.mealie_shopping_add, appmod.mealie_shopping_check, appmod.mealie_shopping_delete):
+        assert "async with _shopping_write_lock" in inspect.getsource(fn), fn.__name__

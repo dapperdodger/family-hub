@@ -404,6 +404,21 @@ def demo_meals(today) -> dict:
     ]}
 
 
+def demo_shopping() -> dict:
+    """A live-shaped shopping list (matches meals.shopping_tile): enough open items that
+    the card's list scrolls, a couple already checked off below them. The ids are made
+    up; the demo's shopping writes are no-ops, so nothing here ever changes."""
+    names = ["Milk", "Eggs", "Sourdough bread", "Bananas", "Chicken thighs", "Lemons",
+             "Paper towels", "Cheddar", "Salad kit"]
+    checked = ["Greek yogurt", "Butter"]
+    items = [{"id": f"00000000-0000-4000-8000-{n:012d}", "text": t, "checked": False}
+             for n, t in enumerate(names, start=1)]
+    items += [{"id": f"00000000-0000-4000-8000-{n:012d}", "text": t, "checked": True}
+              for n, t in enumerate(checked, start=len(names) + 1)]
+    return {"available": True, "list": {"id": "00000000-0000-4000-8000-0000000000ff", "name": "Groceries"},
+            "items": items, "open": len(names)}
+
+
 def demo_fleet() -> dict:
     """A live-shaped fleet tile (matches tiles.fleet_tile's trimmed contract):
     a fully healthy fleet with real-looking vitals (CPU/RAM/storage/hottest
