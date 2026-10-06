@@ -121,6 +121,17 @@ at one URL.
   rides the panels column on the wall and has its own **Meals** tab on the
   phone. Needs a `mealie` config block and a `MEALIE_API_TOKEN` env var (below);
   off entirely without the block.
+- **Shopping (Mealie):** the same Mealie server's shopping list as a native card in the
+  wall's left column, under Chores beside the To-Do card (switch To-Dos off in Settings to
+  give it the room), and a section on the phone's Meals tab. Tap an item's circle to
+  check it off (tap again to un-check), type in the field at the top to **add** an item
+  (on the wall the on-screen keyboard's Done adds it), and tap an item's name for an
+  inline **Delete**. Unchecked items come first and the list scrolls inside the card
+  (the add field stays put), so a long list never makes the column taller than the
+  screen. It uses the `mealie` block's `shopping_list` (default: Mealie's first list) and
+  the same `MEALIE_API_TOKEN`, rides the Meals (Mealie) switch, and every write first
+  confirms the item is on that list. Quick add and delete are one tap on the wall, like
+  the rest of it: the hub has no login.
 - **Fleet Console:** an optional card proxying a separate home-lab dashboard's
   compact status rollup — a system-health line ("N of M hosts up", the worst
   problem in words when something's down) over a 3D printer's state, job,
@@ -282,7 +293,7 @@ once with **`?kiosk=1`** to turn it on (the setting is then remembered;
 | `weather_base` | Base URL of a weather JSON feed for the native weather card (the card shows for a configured `weather` panel; empty base = "unavailable" note) |
 | `climate_base` | Base URL of a per-room climate JSON feed for the native climate card (shows for a configured `climate` panel; empty base = "unavailable" note) |
 | `laundry` | Washer/dryer status via Home Assistant: `{"ha_base", "machines": [{"id","label","kind","status_entity","remaining_entity"}]}` — `kind` is `washer` or `dryer` (sets the drum tint), the entities are HA sensor ids (LG ThinQ's *Current status* enum + *Remaining time* timestamp, or equivalents). Optional per machine: `total_entity` (cycle length in minutes; LG *Total time*), `start_entity` (LG *Delayed start* timestamp) and `error_entity` (LG *Error* event). Each only adds detail; leave any out. The HA long-lived token comes from the `HA_TOKEN` env var, never this file. Omit to skip the card. |
-| `mealie` | Meals card: `{"base": "http://192.168.1.50:9000", "days": 5, "shopping_list": "Groceries", "open_url": "http://192.168.1.50:9000"}`. Only `base` is required (http/https; what the hub itself calls). `days` is how many days the card shows, today first (3-7, default 5). `shopping_list` is the list the 🛒 button adds to, by name or id (default: Mealie's first list). `open_url` is what **Full screen** opens in the browser (default: `base`), for when the hub reaches Mealie by a different address than your screens do. The API token comes from the `MEALIE_API_TOKEN` env var, never this file. A malformed block is dropped with a warning in the log. Old configs may still carry a `panels` entry with id `mealie`: it is no longer embedded (the card replaces it) and is ignored. |
+| `mealie` | Meals card: `{"base": "http://192.168.1.50:9000", "days": 5, "shopping_list": "Groceries", "open_url": "http://192.168.1.50:9000"}`. Only `base` is required (http/https; what the hub itself calls). `days` is how many days the card shows, today first (3-7, default 5). `shopping_list` is the list the 🛒 button adds to and the Shopping card shows, by name or id (default: Mealie's first list). `open_url` is what **Full screen** opens in the browser (default: `base`), for when the hub reaches Mealie by a different address than your screens do. The API token comes from the `MEALIE_API_TOKEN` env var, never this file. A malformed block is dropped with a warning in the log. Old configs may still carry a `panels` entry with id `mealie`: it is no longer embedded (the card replaces it) and is ignored. |
 | `fleet` | Fleet Console card: `{"base": "http://192.168.1.50:3000"}` — the base URL of a separate home-lab dashboard app exposing a compact `/api/rollup` status endpoint (host + 3D-printer status). Optional `"label"`. Omit to skip the card. Pair with a `"fleet"` entry in `panels` (below) to get the **⛶ Console** full-screen button. |
 | `theme` | House default display theme — `{"mode","accent","columns","layout","idleReturn","season"}` (`mode`: light/soft/dark/grey/black, `accent`: cyan/violet/amber/green, `columns`: none/wells/lines, `layout`: auto/desktop, `idleReturn`: on/off, `season`: on/off for seasonal looks). Applied on a fresh device with no saved override |
 

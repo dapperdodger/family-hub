@@ -29,6 +29,8 @@ rolls that section to a dated version via `python scripts/release.py`.
   column stays on screen for Shopping alone, the card gets the same tinted panel in the
   "wells" look, and on the phone it is a section of the Meals tab (after the Dinner
   card) with the full list shown and full-size tap targets.
+- Shopping card text is 16px, level with the To-Do rows, so it reads from across the
+  kitchen; the README documents the card and `docs/hub.png` shows it.
 - Shopping: in demo mode the card serves a canned list and its writes are no-ops (they
   never reach Mealie and never change what the demo shows); real writes are
   serialized behind one lock so two phones tapping at once cannot interleave.

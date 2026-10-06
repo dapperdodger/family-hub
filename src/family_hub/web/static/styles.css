@@ -1017,7 +1017,7 @@ body {
 .shop-row.done .todo-check { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 /* long names shrink to nothing and ellipsize (the same zero-basis trick as .meal-rname) */
 .shop-text { flex: 1 1 0; width: 0; min-width: 0; text-align: left; background: none; border: 0; font: inherit;
-  font-size: 14px; color: var(--ink); cursor: pointer; padding: 10px 4px;
+  font-size: 16px; color: var(--ink); cursor: pointer; padding: 10px 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shop-row.done .shop-text { color: var(--dim); text-decoration: line-through; }
 .shop-check:focus-visible, .shop-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
@@ -2638,7 +2638,6 @@ body.integ-off-todos .todo-slot { display: none; }
   :root:not([data-layout="desktop"]) .shop-rows { max-height: none; overflow: visible; }
   :root:not([data-layout="desktop"]) .shop-row { min-height: 52px; }
   :root:not([data-layout="desktop"]) .shop-check { width: 48px; min-height: 44px; }
-  :root:not([data-layout="desktop"]) .shop-text { font-size: 15px; }
   :root:not([data-layout="desktop"]) .shop-menu .meal-btn { min-height: 44px; }
   :root:not([data-layout="desktop"]) body[data-tab="todos"] .people-col,
   :root:not([data-layout="desktop"]) body[data-tab="todos"] .cal,
