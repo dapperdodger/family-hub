@@ -57,8 +57,15 @@ Out of scope (deliberately):
   (items with a computed `display`, a `note`, and an optional section `title`),
   `recipeInstructions` (steps with `title`, `summary`, `text`) and `notes` (`title`, `text`).
 - Photos: `GET /api/media/recipes/{recipe_id}/images/{file_name}`; the hub already proxies
-  `min-original.webp`. The plan must confirm `tiny-original.webp` exists on this server and
-  fall back to `min-original.webp` if it does not.
+  `min-original.webp`. **Verified on the operator's server (2026-10-06, one recipe):**
+  `tiny-original.webp` exists (HTTP 200, 600x600 square crop, 88 KB), `min-original.webp`
+  is 683x1024 (145 KB) and `original.webp` is 1024x1536 (290 KB). "Tiny" is therefore not
+  small: a grid card is about 250 px wide and a screenful (about 24 cards) is roughly 2 MB.
+  Fine over the LAN; the Pi 3's decode cost is the thing to measure. Mealie has no smaller
+  size. If the Pi 3 struggles, the follow-up is for the hub to downscale thumbnails itself,
+  which needs an image library the hub does not have (not part of this feature unless the
+  measurement says so). Grid cards use `tiny`, the detail view uses `min`; if a recipe has
+  no `tiny` the proxy falls back to `min`.
 
 ## Backend (`meals.py`, `app.py`)
 
@@ -140,8 +147,8 @@ Per `docs/adding-a-feature.md`, every gate, in order. For this feature specifica
 
 ## Open items for the plan
 
-- Confirm `tiny-original.webp` on the live Mealie, and what `image` holds (a hash string) so
-  `has_image` is computed correctly.
+- Confirm what `image` holds on the live Mealie (a hash string) so `has_image` is computed
+  correctly. (`tiny-original.webp` is confirmed: see the photos note above.)
 - Confirm how Mealie writes `totalTime` (free text) so the card shows it as given.
 - Decide the card grid breakpoints (six across on the 1920 wall, two on a phone) and the
   detail text sizes on the real wall.
