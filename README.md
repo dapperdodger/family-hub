@@ -57,7 +57,10 @@ at one URL.
   app with no browser toolbar (and no browser quirks); a normal browser tab
   also self-heals the occasional stuck-height reload on its own.
 - **Calendar:** on the wall, a 3-day agenda with the current month's grid
-  always showing under it (tap a day to open it in the full calendar); on the
+  always showing under it (tap a day to open it in the full calendar). The
+  agenda keeps the height it needs and the month grid grows into whatever
+  screen height is left (the week rows get taller, never shorter than before,
+  and never past about 140px a week); on the
   phone, the next-5-days home feed. Full-screen month grid + week agenda +
   day drill-in, tap-any-event detail cards, your own Google sidebar colors,
   multi-day events drawn as one bar across their span (Google-style), ended

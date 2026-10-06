@@ -1987,6 +1987,19 @@ body.overlay-open { overflow: hidden; }
 .month-slot .mg-day { min-height: 0; padding: 2px 6px; }
 .month-slot .mg-num { height: 20px; min-width: 20px; font-size: 12px; }
 .month-slot .mg-bar, .month-slot .mg-ev { font-size: 11.5px; }
+/* The wall fills the screen height (hub.js fitWall sets --wall-h and .wall-fill on the wrap, never on
+   the phone): the calendar column stretches to the grid row, the agenda keeps its natural height, and
+   the month card's weeks share what is left. The card is never shorter than its natural size (the
+   fixed rows above are its floor). The spare height goes into each week's LAST row, below the event
+   lanes, so the "+N more" chip stays right under the events. */
+.wrap.wall-fill { display: flex; flex-direction: column; min-height: var(--wall-h); box-sizing: border-box; }
+.wrap.wall-fill > .hub-grid { flex: 1 0 auto; }
+.wrap.wall-fill .col-mid { align-self: stretch; margin-bottom: 24px; }
+.wrap.wall-fill .month-slot { flex: 1 1 auto; }
+/* ...but never past ~140px a week: a column taller than the screen must not balloon the card */
+.wrap.wall-fill .month-slot .mgrid { flex: 1 1 auto; display: flex; flex-direction: column;
+  max-height: calc(34px + var(--mg-weeks, 6) * 140px); }
+.wrap.wall-fill .month-slot .mg-week { flex: 1 1 auto; grid-template-rows: 22px repeat(2, var(--mg-lane)) minmax(14px, 1fr); }
 /* A day past the calendar sync window (issue #37): the month view can page
    further than the backend actually caches, so mark those cells "not synced"
    rather than let them read as confident-empty. A faint hatch (not a flat

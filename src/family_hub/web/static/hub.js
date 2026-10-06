@@ -443,7 +443,7 @@ function monthHtml(y, m, events, todayStr, win, maxLanes = MONTH_MAX_LANES, trim
   for (let w = 0; w < weekCount; w++) {
     weeks += monthWeekHtml(grid.slice(w * 7, w * 7 + 7), events, todayStr, win, maxLanes);
   }
-  return `<div class="mgrid"><div class="mg-heads">${heads}</div>${weeks}</div>`;
+  return `<div class="mgrid" style="--mg-weeks:${weekCount}"><div class="mg-heads">${heads}</div>${weeks}</div>`;
 }
 
 function calNavHtml(title, hasWritableCalendars) {
@@ -4391,7 +4391,18 @@ let fitDebounce = null;
 function fitWall() {
   const wrap = document.querySelector('.wrap');
   if (!wrap) { console.warn('fitWall: .wrap not found; wall will not fit-scale'); return; }
-  wrap.style.zoom = wallZoom(window.innerWidth);
+  const zoom = wallZoom(window.innerWidth);
+  wrap.style.zoom = zoom;
+  // the wall fills the screen height, so the calendar column can grow into the room the cards
+  // above it leave (styles.css .wall-fill); the phone gets neither the class nor the variable
+  const fill = wallFillHeight(window.innerWidth, window.innerHeight, zoom);
+  if (fill === '') {
+    wrap.classList.remove('wall-fill');
+    wrap.style.removeProperty('--wall-h');
+  } else {
+    wrap.style.setProperty('--wall-h', `${fill}px`);
+    wrap.classList.add('wall-fill');
+  }
 }
 fitWall();
 
