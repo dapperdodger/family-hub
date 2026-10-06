@@ -83,6 +83,7 @@ class FakeMealie:
         self.fail = {}          # (METHOD, path-prefix) -> status
         self.next_id = 100
         self.calls = []         # {"method", "path", "params", "body"} for every request
+        self.create_reply = None   # when set, POST /mealplans answers this instead of creating
 
     def handler(self, req):
         self.log.append((req.method, req.url.path))
@@ -100,6 +101,14 @@ class FakeMealie:
             return httpx.Response(200, json={"items": [
                 e for e in self.plan
                 if not isinstance(e.get("date"), str) or lo <= e["date"] <= hi]})
+        if req.method == "POST" and p == "/api/households/mealplans":
+            body = json.loads(req.content)
+            if self.create_reply is not None:
+                return httpx.Response(200, json=self.create_reply)
+            self.next_id += 1
+            new = entry(self.next_id, body["date"], name=f"Planned {self.next_id}", rid=body["recipeId"])
+            self.plan.append(new)
+            return httpx.Response(200, json=new)
         if req.method == "POST" and p == "/api/households/mealplans/random":
             body = json.loads(req.content)
             self.next_id += 1
@@ -447,6 +456,123 @@ def test_writes_without_a_token_or_config_are_refused_without_a_request():
     r = run(fake, lambda c, cf: meals.random_dinner(c, Config(), ENV, d(1), TODAY, {}))
     assert r["ok"] is False and r["status"] == 404
     assert fake.log == []
+
+
+# ------------------------------------------------------------- plan a recipe on a day
+
+_DEFAULT = object()
+
+
+def plan_it(fake, date=_DEFAULT, rid=RID2, cfg=None):
+    day = d(2) if date is _DEFAULT else date          # None is a real (bad) date the tests pass on purpose
+    return run(fake, lambda c, cf: meals.plan_recipe(c, cf, ENV, rid, day, TODAY), cfg)
+
+
+def dinners_on(fake, day):
+    return [e for e in fake.plan if e["date"] == day and e["entryType"] == "dinner"]
+
+
+def test_plan_an_empty_day_creates_the_dinner_with_exactly_the_documented_body():
+    fake = FakeMealie([entry(1, d(0))])
+    r = plan_it(fake)
+    assert r["ok"] is True and r["same"] is False and r["removed"] == [] and r["recipe_id"] == RID2
+    post = [c for c in fake.calls if c["method"] == "POST" and c["path"] == "/api/households/mealplans"]
+    assert [c["body"] for c in post] == [{"date": d(2), "entryType": "dinner", "recipeId": RID2}]
+    assert [e["recipeId"] for e in dinners_on(fake, d(2))] == [RID2]
+
+
+def test_plan_replaces_a_hand_planned_dinner_creating_first_then_deleting():
+    fake = FakeMealie([entry(7, d(2), name="Hand Planned")])
+    r = plan_it(fake)
+    assert r["ok"] is True and r["removed"] == [7]
+    assert [e["recipeId"] for e in dinners_on(fake, d(2))] == [RID2], "only the new dinner is left"
+    methods = [m for m, p in fake.log if p.startswith("/api/households/mealplans") and m in ("POST", "DELETE")]
+    assert methods == ["POST", "DELETE"], "created first, removed after"
+
+
+def test_plan_replaces_every_dinner_on_the_day_but_never_a_lunch_or_another_day():
+    fake = FakeMealie([entry(7, d(2)), entry(8, d(2), name="Second"),
+                       entry(9, d(2), name="Lunch", entryType="lunch"), entry(10, d(3), name="Other day")])
+    r = plan_it(fake)
+    assert r["ok"] is True and sorted(r["removed"]) == [7, 8]
+    assert [e["id"] for e in fake.plan if e["id"] in (9, 10)] == [9, 10]
+    assert [e["recipeId"] for e in dinners_on(fake, d(2))] == [RID2]
+
+
+def test_plan_the_same_recipe_again_changes_nothing():
+    fake = FakeMealie([entry(7, d(2), rid=RID2)])
+    r = plan_it(fake)
+    assert r == {"ok": True, "entry_id": 7, "recipe_id": RID2, "same": True, "removed": []}
+    assert not [1 for m, p in fake.log if m in ("POST", "DELETE")], "no write at all"
+
+
+def test_plan_the_same_recipe_among_several_dinners_still_leaves_exactly_one():
+    fake = FakeMealie([entry(7, d(2), rid=RID2), entry(8, d(2), name="Second")])
+    r = plan_it(fake)
+    assert r["ok"] is True and r["same"] is False and sorted(r["removed"]) == [7, 8]
+    assert len(dinners_on(fake, d(2))) == 1
+
+
+@pytest.mark.parametrize("date", [d(-1), d(5), d(40), "2026-13-01", "nope", "", None, 5])
+def test_plan_rejects_dates_outside_the_planned_days_before_touching_mealie(date):
+    fake = FakeMealie([])
+    r = plan_it(fake, date=date)
+    assert r["ok"] is False and r["status"] == 422 and fake.log == []
+
+
+@pytest.mark.parametrize("rid", ["nope", "", None, 5, RID2 + "\n", "../../x"])
+def test_plan_rejects_a_bad_recipe_id_before_touching_mealie(rid):
+    fake = FakeMealie([])
+    r = plan_it(fake, rid=rid)
+    assert r["ok"] is False and r["status"] == 422 and fake.log == []
+
+
+def test_plan_needs_meals_configured_and_a_token():
+    fake = FakeMealie([])
+    off = run(fake, lambda c, cf: meals.plan_recipe(c, Config(), ENV, RID2, d(1), TODAY))
+    assert off["ok"] is False and off["status"] == 404
+    no_tok = run(fake, lambda c, cf: meals.plan_recipe(c, cf, {}, RID2, d(1), TODAY))
+    assert no_tok["ok"] is False and no_tok["status"] == 503 and no_tok["needs_auth"] is True
+    assert fake.log == []
+
+
+def test_plan_a_failed_create_leaves_the_day_untouched():
+    fake = FakeMealie([entry(7, d(2))])
+    fake.fail[("POST", "/api/households/mealplans")] = 500
+    r = plan_it(fake)
+    assert r["ok"] is False and r["status"] == 502 and r["removed"] == []
+    assert [e["id"] for e in dinners_on(fake, d(2))] == [7]
+    assert not [1 for m, p in fake.log if m == "DELETE"]
+
+
+def test_plan_a_create_reply_without_an_entry_id_deletes_nothing():
+    fake = FakeMealie([entry(7, d(2))])
+    fake.create_reply = {"recipeId": RID2}
+    r = plan_it(fake)
+    assert r["ok"] is False and r["status"] == 502
+    assert not [1 for m, p in fake.log if m == "DELETE"]
+
+
+def test_plan_a_failed_delete_keeps_the_new_dinner_and_says_what_to_do():
+    fake = FakeMealie([entry(7, d(2)), entry(8, d(2), name="Second")])
+    fake.fail[("DELETE", "/api/households/mealplans/7")] = 500
+    r = plan_it(fake)
+    assert r["ok"] is False and r["status"] == 502 and r["removed"] == [8], "the other one still went"
+    assert "remove" in r["error"].lower() and "Mealie" in r["error"]
+    assert RID2 in [e["recipeId"] for e in dinners_on(fake, d(2))], "the new dinner stays"
+
+
+def test_plan_invalidates_the_cached_card_even_when_it_fails():
+    fake = FakeMealie([entry(1, d(2), name="Old")])
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)) as c:
+            cf = mcfg()
+            a = await meals.meals_tile(c, cf, ENV, TODAY, {})
+            await meals.plan_recipe(c, cf, ENV, RID2, d(2), TODAY)
+            b = await meals.meals_tile(c, cf, ENV, TODAY, {})
+            return a, b
+    a, b = asyncio.run(go())
+    assert a["days"][2]["dinner"]["name"] == "Old" and b["days"][2]["dinner"]["name"].startswith("Planned")
 
 
 # --------------------------------------------------------------------- shopping
