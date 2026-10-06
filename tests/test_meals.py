@@ -1755,3 +1755,56 @@ def test_detail_is_cached_per_slug_and_the_cache_is_bounded():
             return n
     assert asyncio.run(go()) == 1
     assert len(meals._recipe_cache) <= meals.RECIPE_DETAIL_CACHE_MAX
+
+
+
+# ----------------------------------------------------------------- photo sizes
+
+def photo(fake, size, rid=RID, cfg=None):
+    return run(fake, lambda c, cfg_: meals.fetch_image(c, cfg_, ENV, rid, size), cfg)
+
+
+def test_the_default_photo_size_is_still_the_medium_one():
+    fake = FakeMealie()
+    got = run(fake, lambda c, cfg: meals.fetch_image(c, cfg, ENV, RID))
+    assert got == (b"IMG", "image/webp")
+    assert fake.log[-1] == ("GET", f"/api/media/recipes/{RID}/images/min-original.webp")
+
+
+def test_tiny_asks_for_the_tiny_file_and_caches_it_apart_from_the_medium_one():
+    fake = FakeMealie()
+    assert photo(fake, "tiny") == (b"IMG", "image/webp")
+    assert fake.log[-1] == ("GET", f"/api/media/recipes/{RID}/images/tiny-original.webp")
+    n = len(fake.log)
+    assert photo(fake, "tiny") == (b"IMG", "image/webp") and len(fake.log) == n, "second call is cached"
+    assert RID in meals._thumb_cache and RID not in meals._image_cache
+
+
+def test_tiny_falls_back_to_the_medium_file_when_the_recipe_has_no_tiny_one():
+    fake = FakeMealie()
+    fake.missing_files = {"tiny-original.webp"}
+    assert photo(fake, "tiny") == (b"IMG", "image/webp")
+    assert [p.rsplit("/", 1)[1] for m, p in fake.log if "/images/" in p] == ["tiny-original.webp", "min-original.webp"]
+
+
+def test_tiny_with_neither_file_is_none_and_never_cached():
+    fake = FakeMealie()
+    fake.missing_files = {"tiny-original.webp", "min-original.webp"}
+    assert photo(fake, "tiny") is None and meals._thumb_cache == {}
+
+
+@pytest.mark.parametrize("size", ["huge", "", "TINY", None, "../x", "original"])
+def test_an_unknown_photo_size_is_none_with_no_request(size):
+    fake = FakeMealie()
+    assert photo(fake, size) is None and fake.calls == []
+
+
+def test_the_thumbnail_cache_holds_a_whole_library_but_is_still_bounded():
+    fake = FakeMealie()
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)) as c:
+            for n in range(meals.THUMB_CACHE_MAX + 10):
+                # a real UUID shape: f"{n:036d}" is not one and would cache nothing
+                await meals.fetch_image(c, mcfg(), ENV, f"{n:08d}-0000-4000-8000-000000000000", "tiny")
+    asyncio.run(go())
+    assert meals.IMAGE_CACHE_MAX < len(meals._thumb_cache) <= meals.THUMB_CACHE_MAX

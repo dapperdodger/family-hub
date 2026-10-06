@@ -41,6 +41,8 @@ TIMEOUT = tiles.TIMEOUT
 MEALS_TTL = 20.0                # a plan changes when someone edits it, not by the second
 IMAGE_TTL = 3600.0
 IMAGE_CACHE_MAX = 16
+IMAGE_FILES = {"min": ("min-original.webp",), "tiny": ("tiny-original.webp", "min-original.webp")}
+THUMB_CACHE_MAX = 160           # a grid of thumbnails: the whole library, about 90 KB each
 IMAGE_MAX_BYTES = 3_000_000
 IMAGE_TYPES = {"image/webp", "image/png", "image/jpeg", "image/gif", "image/avif"}   # never svg
 DESCRIPTION_MAX = 200
@@ -73,6 +75,7 @@ _cache: dict[tuple, tuple[float, dict]] = {}
 _gen = 0
 # recipe id -> (expiry monotonic, bytes, content type)
 _image_cache: dict[str, tuple[float, bytes, str]] = {}
+_thumb_cache: dict[str, tuple[float, bytes, str]] = {}   # size "tiny", a larger bound
 # Mealie base -> (expiry monotonic, result). Only good reads are cached.
 _shop_cache: dict[str, tuple[float, dict]] = {}
 # Bumped by every shopping write (even a failed one) and by the wall's refresh; a read
@@ -86,6 +89,7 @@ _recipe_cache: dict[tuple[str, str], tuple[float, dict]] = {}
 def reset_caches() -> None:
     _cache.clear()
     _image_cache.clear()
+    _thumb_cache.clear()
     _shop_cache.clear()
     _recipes_cache.clear()
     _recipe_cache.clear()
@@ -779,26 +783,32 @@ async def recipe_detail(client, cfg, env: dict, slug: object) -> dict:
     return result
 
 
-async def fetch_image(client, cfg, env: dict, recipe_id: object) -> tuple[bytes, str] | None:
-    """A recipe photo as (bytes, content type), or None. Cached for an hour."""
+async def fetch_image(client, cfg, env: dict, recipe_id: object, size: object = "min") -> tuple[bytes, str] | None:
+    """A recipe photo as (bytes, content type), or None. ``size`` is "min" (the detail view and the
+    Dinner card) or "tiny" (the grid's thumbnails; falls back to "min" for a recipe with no tiny
+    file). Cached for an hour, the thumbnails in their own larger cache (a grid shows the whole
+    library, and the 16-entry cache would thrash)."""
     mc = getattr(cfg, "mealie", None)
-    if not mc or not valid_uuid(recipe_id):
+    if not mc or not valid_uuid(recipe_id) or size not in IMAGE_FILES:
         return None
-    hit = _image_cache.get(recipe_id)
+    cache, cap = (_thumb_cache, THUMB_CACHE_MAX) if size == "tiny" else (_image_cache, IMAGE_CACHE_MAX)
+    hit = cache.get(recipe_id)
     if hit is not None and hit[0] > time.monotonic():
         return hit[1], hit[2]
-    try:
-        r = await client.get(
-            f"{mc['base']}/api/media/recipes/{recipe_id}/images/min-original.webp",
-            headers=_headers(env) if mealie_token(env) else {}, timeout=TIMEOUT)
-        r.raise_for_status()
-    except httpx.HTTPError as e:
-        log.warning("meals image %s unavailable: %s", recipe_id, e)
-        return None
-    ctype = r.headers.get("content-type", "").split(";")[0].strip().lower()
-    if ctype not in IMAGE_TYPES or len(r.content) > IMAGE_MAX_BYTES:
-        return None
-    if len(_image_cache) >= IMAGE_CACHE_MAX:
-        _image_cache.pop(next(iter(_image_cache)))
-    _image_cache[recipe_id] = (time.monotonic() + IMAGE_TTL, r.content, ctype)
-    return r.content, ctype
+    for file_name in IMAGE_FILES[size]:
+        try:
+            r = await client.get(
+                f"{mc['base']}/api/media/recipes/{recipe_id}/images/{file_name}",
+                headers=_headers(env) if mealie_token(env) else {}, timeout=TIMEOUT)
+            r.raise_for_status()
+        except httpx.HTTPError as e:
+            log.warning("meals image %s (%s) unavailable: %s", recipe_id, file_name, e)
+            continue
+        ctype = r.headers.get("content-type", "").split(";")[0].strip().lower()
+        if ctype not in IMAGE_TYPES or len(r.content) > IMAGE_MAX_BYTES:
+            return None
+        if len(cache) >= cap:
+            cache.pop(next(iter(cache)))
+        cache[recipe_id] = (time.monotonic() + IMAGE_TTL, r.content, ctype)
+        return r.content, ctype
+    return None
