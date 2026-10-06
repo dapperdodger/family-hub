@@ -14,6 +14,10 @@
      data-season       on | off             (seasonal looks follow the calendar)
      data-look         none | <look id>     (DERIVED from data-season + today's
                                               date; see SEASONS below)
+     data-lite         on | off             (Lite: a slower screen keeps the seasonal
+                                              photo, drops the glass blur and the moving
+                                              leaves/bats/spiders; per device, no house
+                                              default; ?lite=1 / ?lite=0 in the URL latches it)
 
    data-layout is the ONLY layout attribute. In "auto" the phone/wall split
    is decided by a pure-CSS width media query (max-width:1000px) — no JS
@@ -54,12 +58,14 @@
   var COLUMNS = ["none", "wells", "lines"];
   var LAYOUTS = ["auto", "desktop"];
   var IDLE_RETURNS = ["on", "off"];
+  var LITES = ["on", "off"];
 
   var DEFAULT_THEME = "grey";
   var DEFAULT_ACCENT = "green";
   var DEFAULT_COLUMNS = "none";
   var DEFAULT_LAYOUT = "auto";
   var DEFAULT_IDLE_RETURN = "on";
+  var DEFAULT_LITE = "off";
 
   // localStorage can throw (private mode / disabled storage); never let that
   // break first paint.
@@ -159,6 +165,21 @@
     root.setAttribute("data-idle-return", v);
   }
 
+  // ---- Lite: data-lite (on | off) ----
+  // A property of THIS screen (a Raspberry Pi 3 wall cannot afford the seasonal blur and
+  // animation), so there is no house default. The CSS in styles.css keys off the attribute.
+  function stampLite(v) {
+    root.setAttribute("data-lite", v);
+  }
+  // ?lite=1 / ?lite=0 in the page URL latches the device choice, like osk.js's ?kiosk=1, so a
+  // kiosk's start URL keeps it even if the browser profile is wiped. Anything else is ignored.
+  function liteFromUrl() {
+    var q = "";
+    try { q = (window.location && window.location.search) || ""; } catch (e) { q = ""; }
+    var m = /[?&]lite=([01])(?:&|$)/.exec(q);
+    return m ? (m[1] === "1" ? "on" : "off") : null;
+  }
+
   // ---- public setters: validate, persist, re-stamp live ----
   function setTheme(mode) {
     if (THEMES.indexOf(mode) === -1) return;
@@ -185,12 +206,18 @@
     writeStored("fh.idleReturn", v);
     stampIdleReturn(v);
   }
+  function setLite(v) {
+    if (LITES.indexOf(v) === -1) return;
+    writeStored("fh.lite", v);
+    stampLite(v);
+  }
 
   window.setTheme = setTheme;
   window.setAccent = setAccent;
   window.setColumns = setColumns;
   window.setLayout = setLayout;
   window.setIdleReturn = setIdleReturn;
+  window.setLite = setLite;
 
   // ---- stamp-only appliers: validate + re-stamp live, WITHOUT persisting ----
   // The house default from server config (window.FH_THEME / /api/hub) is applied
@@ -389,6 +416,10 @@
   stampColumns(resolve(COLUMNS, "fh.cols", "columns", DEFAULT_COLUMNS));
   stampLayout(resolve(LAYOUTS, "fh.layout", "layout", DEFAULT_LAYOUT));
   stampIdleReturn(resolve(IDLE_RETURNS, "fh.idleReturn", "idleReturn", DEFAULT_IDLE_RETURN));
+  var urlLite = liteFromUrl();
+  if (urlLite) writeStored("fh.lite", urlLite);
+  var storedLite = readStored("fh.lite");
+  stampLite(urlLite || (LITES.indexOf(storedLite) !== -1 ? storedLite : DEFAULT_LITE));
   stampSeason(resolve(SEASON_PREFS, "fh.season", "season", DEFAULT_SEASON));
   refreshLook();
 })();

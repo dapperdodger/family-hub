@@ -38,6 +38,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Seasonal Lite: a per-device switch (stamped as data-lite, also latched by ?lite=1 in the page URL) for slower screens; the styles that use it follow.
 - Planning: Plan it keeps your place on the recipe page, re-reads the Dinner card even after a failure, shows "+N" on a day with several dinners, takes Re-roll away from a dinner you pick, and is hidden for a recipe with no usable id.
 - Docs: the README describes Plan it.
 - Recipes: the Plan it day chips are two across on a phone with 44px tap targets.
