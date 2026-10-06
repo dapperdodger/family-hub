@@ -21,6 +21,10 @@ rolls that section to a dated version via `python scripts/release.py`.
   items first. The quick-add field stays pinned above a list that scrolls inside the
   card (four rows and a peek, like the meal plan), and a refresh keeps what you were
   typing, the keyboard and your scroll position.
+- Shopping card controls: tap an item's circle to check or un-check it (shown at once,
+  rolled back with the reason if Mealie refuses), type in the quick-add field (the
+  on-screen keyboard's Done adds it), and tap an item's text for an inline Delete.
+  A second tap while one is in flight does nothing, so nothing is added or toggled twice.
 - Shopping: in demo mode the card serves a canned list and its writes are no-ops (they
   never reach Mealie and never change what the demo shows); real writes are
   serialized behind one lock so two phones tapping at once cannot interleave.

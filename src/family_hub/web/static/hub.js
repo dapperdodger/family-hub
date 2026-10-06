@@ -4014,6 +4014,92 @@ async function fetchShopping() {
   renderShopping();
 }
 
+const JSON_PUT = (body) => ({ method: 'PUT', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body) });
+
+function shopItemById(id) {
+  return shopData && Array.isArray(shopData.items) ? shopData.items.find((i) => i && i.id === id) : null;
+}
+
+/* Open/close a row's menu. One at a time; it closes by itself, on Escape, on a tap
+   anywhere else (see the click handler) and after an action. */
+function closeShopMenu(render = true) {
+  clearTimeout(shopMenuTimer);
+  shopMenuTimer = null;
+  if (shopMenuOpen === null) return;
+  shopMenuOpen = null;
+  if (render) renderShopping();
+}
+
+function toggleShopMenu(id) {
+  shopScrollAt = Date.now();      // any use of the list counts, not just a scroll: keep its place
+  clearTimeout(shopMenuTimer);
+  shopMenuTimer = null;
+  shopMenuOpen = shopMenuOpen === id ? null : id;
+  renderShopping();
+  if (shopMenuOpen !== null) shopMenuTimer = setTimeout(closeShopMenu, SHOP_MENU_IDLE_MS);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e && e.key === 'Escape' && shopMenuOpen !== null) closeShopMenu();
+});
+
+/* Check or un-check: shown at once (the list is a tap-and-go surface), PUT to the hub,
+   rolled back with the server's reason if it refuses, and re-read either way so the card
+   shows what Mealie actually has. A busy id ignores a second tap (no double toggle). */
+async function shopCheck(id) {
+  const it = shopItemById(id);
+  if (!it || shopBusy.has(id)) return;
+  const next = !it.checked;
+  shopScrollAt = Date.now();
+  shopBusy.add(id);
+  it.checked = next;
+  renderShopping();
+  try {
+    await j(`/api/mealie/shopping/items/${encodeURIComponent(id)}`, JSON_PUT({ checked: next }));
+  } catch (e) {
+    it.checked = !next;
+    showToast((e && e.message) ? e.message : 'That did not work');
+  } finally {
+    shopBusy.delete(id);
+    try { renderShopping(); } catch (e) { /* the re-read below repaints */ }
+  }
+  await fetchShopping();
+}
+
+async function shopAdd() {
+  const input = document.getElementById('shop-add-input');
+  const text = ((input && input.value) || '').trim();
+  if (!text || shopAddBusy) return;
+  shopAddBusy = true;
+  try {
+    await j('/api/mealie/shopping/items', JSON_POST({ text }));
+    const now = document.getElementById('shop-add-input');
+    if (now && now.value.trim() === text) now.value = '';   // never clear newer typing
+  } catch (e) {
+    showToast((e && e.message) ? e.message : 'That did not work');
+  } finally {
+    shopAddBusy = false;
+  }
+  await fetchShopping();
+}
+
+async function shopDelete(id) {
+  if (shopBusy.has(id)) return;
+  shopScrollAt = Date.now();
+  shopBusy.add(id);
+  closeShopMenu(false);
+  try {
+    renderShopping();
+    await j(`/api/mealie/shopping/items/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  } catch (e) {
+    showToast((e && e.message) ? e.message : 'That did not work');
+  } finally {
+    shopBusy.delete(id);
+  }
+  await fetchShopping();
+}
+
 let fitDebounce = null;
 /* Fit-to-screen. The wall is authored at a fixed 1920x1080 canvas. On the
    target Pi kiosk that IS the viewport, so nothing scales (1:1). On any other
@@ -4628,6 +4714,8 @@ async function confirmDelete() {
 document.addEventListener('click', (e) => {
   // a tap anywhere outside an open meal menu closes it (and still does whatever it was aimed at)
   if (mealsMenuOpen !== null && !e.target.closest('.meal-menu') && !e.target.closest('[data-meals-menu]')) closeMealsMenu();
+  // a tap anywhere outside an open shopping row menu closes it (and still does what it was aimed at)
+  if (shopMenuOpen !== null && !e.target.closest('.shop-menu') && !e.target.closest('[data-shop-open]')) closeShopMenu();
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn) { setTab(tabBtn.dataset.tab); return; }
   // delete confirm (above everything): Cancel or a backdrop tap dismisses it
@@ -4657,6 +4745,12 @@ document.addEventListener('click', (e) => {
   if (mealMenuBtn) { toggleMealsMenu(mealMenuBtn.dataset.mealsMenu); return; }
   const mealBtnEl = e.target.closest('[data-meals-act]');
   if (mealBtnEl) { mealsAct(mealBtnEl); return; }
+  const shopCheckBtn = e.target.closest('[data-shop-check]');
+  if (shopCheckBtn) { shopCheck(shopCheckBtn.dataset.shopCheck); return; }
+  const shopOpenBtn = e.target.closest('[data-shop-open]');
+  if (shopOpenBtn) { toggleShopMenu(shopOpenBtn.dataset.shopOpen); return; }
+  const shopDelBtn = e.target.closest('[data-shop-del]');
+  if (shopDelBtn) { shopDelete(shopDelBtn.dataset.shopDel); return; }
   const evRow = e.target.closest('[data-eid]');
   if (evRow) { openEventDetail(evRow.dataset.eid); return; }
   // full-calendar controls
@@ -4840,6 +4934,10 @@ document.addEventListener('submit', (e) => {
     e.preventDefault();
     // One add form id, two backends: dispatch by the source the view is showing.
     if (todoState.source === 'icloud') addReminder(); else addTodo();
+  }
+  if (e.target && e.target.id === 'shop-add-form') {
+    e.preventDefault();
+    shopAdd();
   }
 });
 

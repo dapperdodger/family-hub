@@ -10603,3 +10603,129 @@ test('fetchShopping: a hub whose registry lacks Mealie never asks', async () => 
   await sandbox.fetchShopping();
   assert.equal(calls.length, 0);
 });
+
+const tapShop = (fire, host, sel) => {
+  const btn = host.querySelector(sel);
+  assert.ok(btn, `${sel} rendered`);
+  const attr = sel.match(/\[(data-shop-[a-z]+)/)[1];
+  btn.closest = (s) => (s === `[${attr}]` ? btn : null);
+  fire('click', { target: btn, preventDefault() {} });
+  return btn;
+};
+
+function shopSetup(list = SHOP_LIST(), opts = {}) {
+  const hub = newHub();
+  vm.runInContext(LISTED + `shopData = ${JSON.stringify(list)};`, hub.sandbox);
+  const calls = shopFetchLog(hub.sandbox, { list, ...opts });
+  hub.sandbox.renderShopping();
+  return { ...hub, calls, host: hub.document.getElementById('shopping-slot') };
+}
+
+test('shopCheck: checks optimistically, PUTs checked:true, disables its own row meanwhile, re-reads', async () => {
+  const { fire, host, calls } = shopSetup();
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  assert.match(host.innerHTML, new RegExp(`shop-row done"><button[^>]*data-shop-check="${IID_A}"[^>]* disabled`), 'optimistic + busy');
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);            // a second tap while in flight is ignored
+  await flush(); await flush();
+  const puts = calls.filter((c) => c.method === 'PUT');
+  assert.equal(puts.length, 1, 'one request, not two');
+  assert.deepEqual(puts[0], { url: `/api/mealie/shopping/items/${IID_A}`, method: 'PUT', body: { checked: true } });
+  assert.ok(calls.some((c) => c.url === '/api/mealie/shopping' && c.method === 'GET'), 'the list is re-read afterwards');
+  assert.doesNotMatch(host.innerHTML, / disabled/, 'busy cleared');
+});
+
+test('shopCheck: a checked item un-checks (PUT checked:false)', async () => {
+  const { fire, host, calls } = shopSetup();
+  tapShop(fire, host, `[data-shop-check="${IID_C}"]`);
+  await flush(); await flush();
+  assert.deepEqual(calls.find((c) => c.method === 'PUT').body, { checked: false });
+});
+
+test('shopCheck: a refused write rolls the row back and shows the server reason', async () => {
+  const { document, sandbox, fire, host } = shopSetup();
+  sandbox.fetch = async (url, opts = {}) => (opts.method === 'PUT'
+    ? { ok: false, status: 404, json: async () => ({ detail: 'that item is not on the list' }) }
+    : { ok: true, status: 200, json: async () => ({ ...SHOP_LIST(), items: [shopItem(IID_B, 'Eggs')], open: 1 }) });
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  await flush(); await flush(); await flush();
+  assert.equal(document.getElementById('toast').textContent, 'that item is not on the list');
+  assert.doesNotMatch(host.innerHTML, new RegExp(IID_A), 'the re-read dropped the item Mealie no longer has');
+});
+
+test('shopAdd: posts the trimmed text once, clears the field, re-reads; blank text posts nothing', async () => {
+  const { document, sandbox, calls } = shopSetup();
+  const realInput = { value: '  Paper towels  ' };
+  const orig = document.getElementById.bind(document);
+  document.getElementById = (id) => (id === 'shop-add-input' ? realInput : orig(id));
+  const first = sandbox.shopAdd();
+  const second = sandbox.shopAdd();                      // an add while one is in flight is dropped
+  await first; await second;
+  assert.deepEqual(calls.filter((c) => c.method === 'POST').map((c) => c.body), [{ text: 'Paper towels' }]);
+  assert.equal(realInput.value, '', 'the field is cleared');
+  realInput.value = '   ';
+  calls.length = 0;
+  await sandbox.shopAdd();
+  assert.equal(calls.filter((c) => c.method === 'POST').length, 0, 'blank text never posts');
+});
+
+test('shopAdd: a failed add keeps the text in the field and says why', async () => {
+  const { document, sandbox } = shopSetup();
+  const realInput = { value: 'Eggs' };
+  const orig = document.getElementById.bind(document);
+  document.getElementById = (id) => (id === 'shop-add-input' ? realInput : orig(id));
+  sandbox.fetch = async (url, opts = {}) => (opts.method === 'POST'
+    ? { ok: false, status: 502, json: async () => ({ detail: 'Mealie is unreachable' }) }
+    : { ok: true, status: 200, json: async () => SHOP_LIST() });
+  await sandbox.shopAdd();
+  assert.equal(realInput.value, 'Eggs', 'nothing typed is lost');
+  assert.equal(document.getElementById('toast').textContent, 'Mealie is unreachable');
+});
+
+test('the add form submits through the document submit handler (the on-screen keyboard Done path)', async () => {
+  const { fire, calls, document } = shopSetup();
+  const realInput = { value: 'Milk' };
+  const orig = document.getElementById.bind(document);
+  document.getElementById = (id) => (id === 'shop-add-input' ? realInput : orig(id));
+  let prevented = false;
+  fire('submit', { target: { id: 'shop-add-form' }, preventDefault() { prevented = true; } });
+  await flush(); await flush();
+  assert.ok(prevented);
+  assert.deepEqual(calls.find((c) => c.method === 'POST').body, { text: 'Milk' });
+});
+
+test('row menu: tapping the text opens an inline Delete; one menu at a time; closes on Escape and after an action', async () => {
+  const { sandbox, fire, host, calls } = shopSetup();
+  tapShop(fire, host, `[data-shop-open="${IID_A}"]`);
+  assert.match(host.innerHTML, new RegExp(`class="shop-menu" id="shop-menu" role="group" aria-label="Actions for Milk"><button[^>]*data-shop-del="${IID_A}"`));
+  assert.match(host.innerHTML, /aria-expanded="true" aria-controls="shop-menu"/);
+  tapShop(fire, host, `[data-shop-open="${IID_B}"]`);                  // another row: the first closes
+  assert.equal((host.innerHTML.match(/class="shop-menu"/g) || []).length, 1);
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), IID_B);
+  fire('keydown', { key: 'Escape' });
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), null);
+  assert.doesNotMatch(host.innerHTML, /class="shop-menu"/);
+  tapShop(fire, host, `[data-shop-open="${IID_A}"]`);
+  tapShop(fire, host, `[data-shop-del="${IID_A}"]`);
+  await flush(); await flush();
+  assert.deepEqual(calls.find((c) => c.method === 'DELETE'), { url: `/api/mealie/shopping/items/${IID_A}`, method: 'DELETE', body: null });
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), null, 'the menu closes after the delete');
+});
+
+test('row menu: a tap anywhere else closes it (and still does what it was aimed at)', () => {
+  const { sandbox, fire, host } = shopSetup();
+  tapShop(fire, host, `[data-shop-open="${IID_A}"]`);
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), IID_A, 'the menu really opened first');
+  fire('click', { target: { closest: () => null }, preventDefault() {} });
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), null);
+});
+
+test('a write that fails keeps the last list instead of blanking the card', async () => {
+  const { document, sandbox, fire, host } = shopSetup();
+  sandbox.fetch = async (url, opts = {}) => (opts.method
+    ? { ok: false, status: 502, json: async () => ({ detail: 'Mealie answered 500' }) }
+    : { ok: false, status: 502, json: async () => ({ detail: 'down' }) });
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  await flush(); await flush(); await flush();
+  assert.match(host.innerHTML, /data-shop-check/, 'one failed re-read does not blank the card');
+  assert.equal(document.getElementById('toast').textContent, 'Mealie answered 500');
+});
