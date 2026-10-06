@@ -6824,3 +6824,52 @@ def test_the_post_add_event_resync_gives_up_on_a_stuck_lock(tmp_path, monkeypatc
     with appmod._google_sync_lock:
         assert appmod._background_resync(None, appmod._now_local()) is None
     assert ran == []
+
+
+_PLAN_RID = "9cc3dd7f-6004-48f8-b70a-188022e816b9"
+_OLD_RID = "08481e68-b32a-45db-9f99-f036126dba27"
+
+
+def test_plan_route_forgets_removed_entries_and_never_remembers_the_new_one(client, app_mod, monkeypatch):
+    # 9 is in the memory already: Mealie can reuse the id of an entry deleted elsewhere
+    app_mod._meals_rolled_save({5: (_OLD_RID, "2026-10-07"), 6: (_OLD_RID, "2026-10-08"), 9: (_PLAN_RID, "2026-10-07")})
+    async def fake_plan(*a, **k):
+        return {"ok": True, "entry_id": 9, "recipe_id": _PLAN_RID, "same": False, "removed": [5]}
+    monkeypatch.setattr(app_mod.meals, "plan_recipe", fake_plan)
+    r = client.post("/api/mealie/plan", json={"recipe_id": _PLAN_RID, "date": "2026-10-07"})
+    assert r.status_code == 200 and r.json()["entry_id"] == 9
+    assert set(app_mod._meals_rolled()) == {6}, "5 removed, 9 (the new dinner) forgotten, 6 untouched"
+
+
+def test_plan_route_forgets_entries_even_when_the_write_half_failed(client, app_mod, monkeypatch):
+    app_mod._meals_rolled_save({5: (_OLD_RID, "2026-10-07")})
+    async def fake_plan(*a, **k):
+        return {"ok": False, "error": "x", "status": 502, "removed": [5]}
+    monkeypatch.setattr(app_mod.meals, "plan_recipe", fake_plan)
+    r = client.post("/api/mealie/plan", json={"recipe_id": _PLAN_RID, "date": "2026-10-07"})
+    assert r.status_code == 502 and r.json()["detail"] == "x"
+    assert app_mod._meals_rolled() == {}
+
+
+def test_plan_route_passes_validation_failures_through_and_leaves_the_memory_alone(client, app_mod, monkeypatch):
+    app_mod._meals_rolled_save({5: (_OLD_RID, "2026-10-07")})
+    async def fake_plan(*a, **k):
+        return {"ok": False, "error": "date is outside the planned days", "status": 422, "removed": []}
+    monkeypatch.setattr(app_mod.meals, "plan_recipe", fake_plan)
+    r = client.post("/api/mealie/plan", json={"recipe_id": _PLAN_RID, "date": "2030-01-01"})
+    assert r.status_code == 422
+    assert set(app_mod._meals_rolled()) == {5}
+
+
+def test_plan_route_rejects_a_body_without_both_fields(client):
+    assert client.post("/api/mealie/plan", json={"date": "2026-10-07"}).status_code == 422
+    assert client.post("/api/mealie/plan", json={"recipe_id": "x"}).status_code == 422
+
+
+def test_plan_route_planning_the_hub_rolled_dinner_itself_takes_its_reroll_away(client, app_mod, monkeypatch):
+    app_mod._meals_rolled_save({7: (_PLAN_RID, "2026-10-07")})
+    async def fake_plan(*a, **k):
+        return {"ok": True, "entry_id": 7, "recipe_id": _PLAN_RID, "same": True, "removed": []}
+    monkeypatch.setattr(app_mod.meals, "plan_recipe", fake_plan)
+    assert client.post("/api/mealie/plan", json={"recipe_id": _PLAN_RID, "date": "2026-10-07"}).status_code == 200
+    assert app_mod._meals_rolled() == {}, "an explicit pick is the dinner: no Re-roll for it"

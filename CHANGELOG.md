@@ -35,6 +35,12 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Planning: Plan it keeps your place on the recipe page, re-reads the Dinner card even after a failure, shows "+N" on a day with several dinners, takes Re-roll away from a dinner you pick, and is hidden for a recipe with no usable id.
+- Docs: the README describes Plan it.
+- Recipes: the Plan it day chips are two across on a phone with 44px tap targets.
+- Recipes: a recipe page has a Plan it button; pick a day and the recipe becomes that day's dinner, replacing what was planned, with no Re-roll.
+- Planning: POST /api/mealie/plan forgets the dinners it removes from the re-roll memory, and the demo hub answers it with a harmless ok.
+- Planning: a recipe can be made a day's dinner (replacing whatever was planned for that day) through a new plan write; the new dinner is not offered for Re-roll.
 - Recipes: a Mealie that answers with nothing usable now reads as unavailable instead of an empty library, the hub's own failures say "Couldn't load recipes", a failed recipe load shows one fixed message, Try again shows Loading, a missing photo falls back to the plate icon, and long category names wrap.
 - Recipes: a step's or note's title sits on its own line above its text.
 - Recipes: a native Recipes view (photo grid, search, category chips, four sorts, and a recipe

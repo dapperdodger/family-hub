@@ -362,6 +362,69 @@ async def random_dinner(client, cfg, env: dict, date_str: object, today: dt.date
         _invalidate()           # Mealie may have changed, even on a failure: never serve the old plan
 
 
+async def plan_recipe(client, cfg, env: dict, recipe_id: object, date_str: object,
+                      today: dt.date) -> dict:
+    """Make ``recipe_id`` the dinner on ``date_str``: it REPLACES every dinner already on that day
+    (hand-planned or hub-picked: an explicit pick here is the dinner). The new entry is created
+    FIRST so a failure never leaves the day empty; old dinners are removed after. Other meal types
+    on the day are never touched. Re-planning the day's only dinner as the same recipe writes
+    nothing. Returns ``{ok, entry_id, recipe_id, same, removed}``; ``removed`` lists the dinner ids
+    actually deleted (also on failure, so the caller can forget them)."""
+    removed: list[int] = []
+    mc = getattr(cfg, "mealie", None)
+    if not mc:
+        return {"ok": False, "error": "Meals is not configured", "status": 404, "removed": removed}
+    if not mealie_token(env):
+        return {"ok": False, "error": "MEALIE_API_TOKEN is not set", "status": 503,
+                "needs_auth": True, "removed": removed}
+    day = parse_date(date_str)
+    if day is None or not (today <= day < today + dt.timedelta(days=mc["days"])):
+        return {"ok": False, "error": "date is outside the planned days", "status": 422, "removed": removed}
+    if not valid_uuid(recipe_id):
+        return {"ok": False, "error": "not a recipe id", "status": 422, "removed": removed}
+    mealplans = f"{mc['base']}/api/households/mealplans"
+    try:
+        try:
+            plan = await _plan(client, mc, env, day, day)
+            existing = [e for e in plan if e.get("entryType") == "dinner"]
+            if len(existing) == 1:
+                only = _dinner(existing[0])
+                if only and only["recipe_id"] == recipe_id:
+                    return {"ok": True, "entry_id": only["id"], "recipe_id": recipe_id,
+                            "same": True, "removed": removed}
+            r = await client.post(mealplans, json={"date": day.isoformat(), "entryType": "dinner",
+                                                   "recipeId": recipe_id},
+                                  headers=_headers(env), timeout=TIMEOUT)
+            r.raise_for_status()
+            body = r.json()
+            new_id = body.get("id") if isinstance(body, dict) else None
+            if not _is_int(new_id):
+                raise ValueError("plan reply has no entry id")
+        except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
+            log.warning("meals plan failed: %s", e)
+            return {**_fail(e), "status": 502, "removed": removed}
+        failure: BaseException | None = None
+        for old in existing:
+            old_id = old.get("id")
+            if not _is_int(old_id):
+                continue
+            try:
+                gone = await client.delete(f"{mealplans}/{old_id}", headers=_headers(env), timeout=TIMEOUT)
+                if gone.status_code != 404:       # already gone is exactly what we wanted
+                    gone.raise_for_status()
+                removed.append(old_id)
+            except httpx.HTTPError as e:
+                log.warning("meals plan: removing dinner %s failed: %s", old_id, e)
+                failure = failure or e
+        if failure is not None:
+            err = _fail(failure)
+            err["error"] += " -- the new dinner is planned, but an old one could not be removed; remove it in Mealie"
+            return {**err, "status": 502, "entry_id": new_id, "removed": removed}
+        return {"ok": True, "entry_id": new_id, "recipe_id": recipe_id, "same": False, "removed": removed}
+    finally:
+        _invalidate()
+
+
 async def _shopping_list(client, mc: dict, env: dict) -> tuple[str, str]:
     """(list id, list name): the configured list (an id, or a name matched
     case-insensitively), else the first list Mealie has. Raises ValueError when

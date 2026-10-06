@@ -130,7 +130,10 @@ at one URL.
   filtered on the screen, so typing is instant even on a Raspberry Pi 3 (a small library of up to
   200 recipes; a note says so if there are more). It replaces the old Full screen embed of Mealie
   itself, which took 15-25 seconds to paint on a Pi 3, and stays open 15 minutes without a touch
-  so you can cook from it. Recipes are read from Mealie, never written.
+  so you can cook from it. A recipe's **Plan it** button lists the days the Dinner card shows (with
+  what is planned on each); tap one and the recipe becomes that day's dinner, replacing whatever was
+  planned there, and the new dinner is not offered for Re-roll. Apart from that, recipes are read
+  from Mealie, never written.
 - **Shopping (Mealie):** the same Mealie server's shopping list as a native card in the
   wall's left column, under Chores beside the To-Do card (switch To-Dos off in Settings to
   give it the room), and a section on the phone's Meals tab. Tap an item's circle to
