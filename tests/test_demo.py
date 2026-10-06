@@ -497,6 +497,11 @@ def test_demo_meals_tile_shows_the_card_best_states(demo_client):
     assert "mealie" in ids and ids["mealie"]["enabled"] is True
 
 
+def test_demo_plan_is_a_no_op_that_says_ok(demo_client):
+    r = demo_client.post("/api/mealie/plan", json={"recipe_id": "anything", "date": "2026-10-03"})
+    assert r.status_code == 200 and r.json() == {"ok": True, "demo": True}
+
+
 def test_demo_meals_writes_change_nothing_and_never_reach_mealie(demo_client):
     assert demo_client.post("/api/mealie/random", json={"date": "2026-10-03"}).json() == {"ok": True, "demo": True}
     r = demo_client.post("/api/mealie/shopping", json={"recipe_id": "anything"})

@@ -3067,6 +3067,11 @@ class MealsRandomIn(BaseModel):
     replace_id: int | None = None
 
 
+class MealsPlanIn(BaseModel):
+    recipe_id: str
+    date: str
+
+
 class MealsShoppingIn(BaseModel):
     recipe_id: str
 
@@ -3127,6 +3132,27 @@ async def mealie_random(body: MealsRandomIn):
         except Exception:
             log.exception("meals: could not save the re-roll memory (the pick itself succeeded)")
     return res
+
+
+@app.post("/api/mealie/plan")
+async def mealie_plan(body: MealsPlanIn):
+    if DEMO:
+        return {"ok": True, "demo": True}
+    async with _meals_write_lock:
+        res = await meals.plan_recipe(_http, cfg, os.environ, body.recipe_id, body.date, _today())
+        # dinners removed here are gone whether or not the whole write succeeded: forget them. The new
+        # dinner is deliberately NOT remembered as hub-picked, so the card offers no Re-roll for it.
+        # Mealie has already changed, so a failed save only leaves a stale entry the card ignores.
+        rolled = _meals_rolled()
+        gone = [i for i in res.get("removed", []) if i in rolled]
+        if gone:
+            for i in gone:
+                rolled.pop(i, None)
+            try:
+                _meals_rolled_save(rolled)
+            except Exception:
+                log.exception("meals: could not save the re-roll memory (the plan itself went through)")
+    return _meals_reply(res)
 
 
 @app.post("/api/mealie/shopping")
