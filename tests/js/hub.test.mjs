@@ -19,7 +19,7 @@ vm.runInContext(readFileSync(join(staticDir, 'common.js'), 'utf8'), sandbox);
 const {
   escapeHtml, fmtTime, dayLabel,
   idleReturnMs, nightClass,
-  fmtTimeRange, monthName, eventColor, wallZoom,
+  fmtTimeRange, monthName, eventColor, wallZoom, wallFillHeight,
   isDayOutsideWindow,
   caldavTestMessage, caldavPanelHtml, caldavCollectionsHtml,
   backupBadge,
@@ -190,6 +190,24 @@ test('wallZoom never collapses to zoom:0 on a zero/undefined viewport', () => {
   // a background/just-created tab measures 0; a raw ratio would set zoom:"0"
   assert.equal(wallZoom(0), '');
   assert.equal(wallZoom(undefined), '');
+});
+
+test('wallFillHeight: the wall fills the screen height it is zoomed to (layout px)', () => {
+  assert.equal(wallFillHeight(1920, 1080, ''), 1080);        // the Pi kiosk, 1:1
+  assert.equal(wallFillHeight(1440, 810, '0.75'), 1080);     // a smaller screen: zoomed out, same 1080 layout
+  assert.equal(wallFillHeight(1440, 900, '0.75'), 1200);     // a taller one gets the extra rows
+  assert.equal(wallFillHeight(2560, 1440, ''), 1440);        // never upscaled, so the page is just taller
+});
+
+test('wallFillHeight: floors a fractional height so it can never cause a scrollbar', () => {
+  assert.equal(wallFillHeight(1920, 1079.6, ''), 1079);
+  assert.equal(wallFillHeight(1536, 863.7, '0.8'), 1079);
+});
+
+test('wallFillHeight: nothing on the phone layout or a zero/unknown viewport', () => {
+  for (const args of [[1000, 800, ''], [390, 844, ''], [0, 0, ''], [undefined, undefined, ''], [1920, 0, ''], [1920, undefined, '']]) {
+    assert.equal(wallFillHeight(...args), '', JSON.stringify(args));
+  }
 });
 
 test('escapeHtml neutralizes markup', () => {

@@ -2586,3 +2586,22 @@ def test_recipes_css_is_light_enough_for_a_pi_3_and_adapts_to_the_phone():
     assert re.search(r"\.recipe-plan,[^{]*\.recipe-day\s*\{[^}]*min-height:\s*44px", mobile), "44px plan buttons on the phone"
     assert re.search(r"\.recipe-days\s*\{[^}]*repeat\(2,", mobile), "two day chips across on the phone"
     assert "recipe-noimg" not in CSS
+
+
+def test_wall_calendar_column_grows_into_the_screen_height_that_is_left():
+    """The month card's week rows absorb the leftover height (TODO item 5); today/tomorrow keep
+    their natural height, the card never gets shorter than before, and the phone is untouched."""
+    fill = re.findall(r"(?m)^\.wrap\.wall-fill[^{}\n]*\{[^}]*\}", CSS)
+    joined = "\n".join(fill)
+    assert re.search(r"\.wrap\.wall-fill\s*\{[^}]*min-height:\s*var\(--wall-h\)", joined), "the page fills the screen"
+    assert re.search(r"\.wall-fill\s+\.col-mid\s*\{[^}]*align-self:\s*stretch", joined), "the column stretches to the row"
+    assert re.search(r"\.wall-fill\s+\.month-slot\s*\{[^}]*flex:\s*1", joined), "the card takes what the agenda leaves"
+    assert re.search(r"\.wall-fill\s+\.month-slot\s+\.mg-week\s*\{[^}]*minmax\(14px,\s*1fr\)", joined), \
+        "the spare height goes below the events, so the +N more chip stays under them"
+    assert re.search(r"\.wall-fill\s+\.month-slot\s+\.mgrid\s*\{[^}]*max-height:\s*calc\([^}]*--mg-weeks", joined), \
+        "the card never balloons past a sane height when another column is taller than the screen"
+    for rule in fill:
+        assert "transition" not in rule and "animation" not in rule and "backdrop-filter" not in rule, rule
+    assert "wall-fill" not in _phone_shell_css(), "the phone shell never sees it"
+    hub = (STATIC / "hub.js").read_text(encoding="utf-8")
+    assert "wallFillHeight(" in hub and "'wall-fill'" in hub, "fitWall drives it"

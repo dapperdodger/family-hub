@@ -271,7 +271,7 @@ class FakeEl {
     this.children = [];
     this.dataset = {};
     this.value = '';
-    this.style = { setProperty() {} };
+    this.style = { setProperty() {}, removeProperty() {} };
     this.classList = makeClassList();
     this.offsetParent = null;   // hidden by default; guards camera/panel wiring
     this.parentNode = null;
@@ -11418,4 +11418,40 @@ test('Recipes: an ordinary failure does not schedule delayed re-reads', async ()
   tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
   await flush(); await flush();
   assert.equal(timers.filter((t) => t.ms === 5000 || t.ms === 15000).length, 0);
+});
+
+// ---- the wall's calendar column grows into the screen height that is left
+
+test('fitWall: on the wall it sets the layout height the page fills and flags the wrap', () => {
+  const { sandbox, document } = newHub({ innerWidth: 1920, innerHeight: 1080 });
+  const wrap = document.querySelector('.wrap');
+  wrap.style = { _p: {}, setProperty(k, v) { this._p[k] = v; }, removeProperty(k) { delete this._p[k]; } };
+  sandbox.fitWall();
+  assert.equal(wrap.style._p['--wall-h'], '1080px');
+  assert.ok(wrap.classList.contains('wall-fill'));
+  sandbox.window.innerWidth = 1440; sandbox.window.innerHeight = 900;
+  sandbox.fitWall();
+  assert.equal(wrap.style._p['--wall-h'], '1200px', 'zoomed to 0.75: 900 / 0.75 layout px');
+});
+
+test('fitWall: on the phone layout it leaves nothing behind', () => {
+  const { sandbox, document } = newHub({ innerWidth: 390, innerHeight: 844 });
+  const wrap = document.querySelector('.wrap');
+  wrap.style = { _p: { '--wall-h': '1080px' }, setProperty(k, v) { this._p[k] = v; }, removeProperty(k) { delete this._p[k]; } };
+  wrap.classList.add('wall-fill');
+  sandbox.fitWall();
+  assert.equal(wrap.style._p['--wall-h'], undefined);
+  assert.ok(!wrap.classList.contains('wall-fill'));
+});
+
+test('monthHtml: the grid says how many weeks it drew, so the wall card can cap its height', () => {
+  const { sandbox } = newHub();
+  const win = sandbox.emptyWindow('2026-10-06');
+  // October 2026 spans 5 rows; November 2026 spans 5 too: pick one that needs 6 (August 2026) and one that trims
+  const six = sandbox.monthHtml(2026, 8, [], '2026-08-10', win, 2, true);
+  assert.match(six, /class="mgrid" style="--mg-weeks:6"/);
+  assert.equal((six.match(/class="mg-week"/g) || []).length, 6);
+  const five = sandbox.monthHtml(2026, 10, [], '2026-10-06', win, 2, true);
+  const rows = (five.match(/class="mg-week"/g) || []).length;
+  assert.match(five, new RegExp(`class="mgrid" style="--mg-weeks:${rows}"`));
 });

@@ -595,6 +595,16 @@ function wallZoom(w) {
   return scale >= 1 ? '' : String(scale);
 }
 
+// The page height, in the wall's own (zoomed) layout pixels, that the wall fills: the screen height
+// divided by the zoom. The calendar column stretches into whatever this leaves below the other
+// cards (TODO item 5). Floored so a fractional viewport can never add a scrollbar. '' on the
+// phone layout (same <= 1000px rule as wallZoom) and on an unknown height.
+function wallFillHeight(w, h, zoom) {
+  if (!w || w <= 1000 || !(h > 0)) return '';
+  const z = parseFloat(zoom) || 1;
+  return Math.floor(h / z);
+}
+
 /* How many UTF-16 code units the grapheme ending at index `a` occupies, so a
    single Backspace removes a whole user-perceived character - critical for
    emoji, which are 2+ code units (a plain emoji is a surrogate pair; ❤️ carries
