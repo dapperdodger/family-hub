@@ -419,6 +419,54 @@ def demo_shopping() -> dict:
             "items": items, "open": len(names)}
 
 
+# (slug, name, time, categories, tags, days since added, days since made or None, rating or None)
+_DEMO_RECIPES = [
+    ("baked-ziti", "Baked Ziti", "1 Hour", ["Dinner", "Pasta"], ["Family favourite"], 120, 6, 5),
+    ("banana-bread", "Banana Bread", "1 Hour 10 Minutes", ["Dessert", "Breakfast"], ["Baking"], 200, 40, 4),
+    ("blueberry-pancakes", "Blueberry Pancakes", "25 Minutes", ["Breakfast"], ["Weekend"], 90, 20, 4),
+    ("chicken-tortilla-soup", "Chicken Tortilla Soup", "45 Minutes", ["Dinner", "Soup"], ["Freezer friendly"], 60, 12, 4),
+    ("chocolate-chip-cookies", "Chocolate Chip Cookies", "30 Minutes", ["Dessert"], ["Baking", "Kids"], 300, 70, 5),
+    ("crock-pot-chicken-dumplings", "Crock Pot Chicken & Dumplings", "6 Hours", ["Dinner"], ["Slow cooker"], 30, 2, 5),
+    ("homemade-pizza-night", "Homemade Pizza Night", "1 Hour 15 Minutes", ["Dinner"], ["Kids", "Weekend"], 150, 9, 4),
+    ("lemon-herb-salmon", "Lemon Herb Salmon", "25 Minutes", ["Dinner", "Seafood"], ["Quick"], 45, 3, 4),
+    ("overnight-oats", "Overnight Oats", "5 Minutes", ["Breakfast"], ["Quick"], 5, None, None),
+    ("sheet-pan-sausage-veggies", "Sheet Pan Sausage & Veggies", "35 Minutes", ["Dinner"], ["Quick", "One pan"], 75, 1, 3),
+    ("taco-tuesday-beef-tacos", "Taco Tuesday Beef Tacos", "30 Minutes", ["Dinner"], ["Kids"], 100, 15, 4),
+    ("veggie-stir-fry", "Veggie Stir Fry", "20 Minutes", ["Dinner", "Vegetarian"], ["Quick"], 10, None, None),
+]
+
+
+def demo_recipes() -> dict:
+    """A live-shaped recipe library (matches meals.recipes_tile): twelve recipes across several
+    categories, A to Z, some never made or unrated so every sort shows its ordering. No photos
+    (the demo has no Mealie to serve them), so every card shows its placeholder."""
+    import datetime as _dt
+    today = _dt.date.today()
+    day = lambda n: None if n is None else (today - _dt.timedelta(days=n)).isoformat() + "T12:00:00+00:00"   # noqa: E731
+    recipes = [{"slug": s, "id": None, "name": n, "time": t, "has_image": False, "categories": list(c),
+                "tags": list(g), "added": day(a), "made": day(m), "rating": r}
+               for s, n, t, c, g, a, m, r in _DEMO_RECIPES]
+    return {"available": True, "truncated": False, "total": len(recipes), "recipes": recipes}
+
+
+def demo_recipe(slug) -> dict | None:
+    """A canned recipe detail for a demo library slug (matches meals.recipe_detail), else None."""
+    row = next((x for x in _DEMO_RECIPES if x[0] == slug), None)
+    if row is None:
+        return None
+    s, name, total, *_ = row
+    return {"available": True, "recipe": {
+        "slug": s, "id": None, "name": name, "has_image": False, "servings": 4,
+        "prep": "10 Minutes", "cook": total, "total": total,
+        "description": f"A family staple: {name.lower()} with simple ingredients.",
+        "ingredients": [{"heading": "Main"}, {"text": "1 pound the main ingredient"}, {"text": "2 cups something hearty"},
+                        {"text": "1 teaspoon salt"}, {"heading": "To finish"}, {"text": "Fresh herbs, chopped"}],
+        "steps": [{"title": None, "text": "Prepare everything before you start."},
+                  {"title": "Cook", "text": "Combine the ingredients and cook until done.\nStir now and then."},
+                  {"title": None, "text": "Season to taste and serve hot."}],
+        "notes": [{"title": "Tip", "text": "It reheats well, so make extra."}]}}
+
+
 def demo_fleet() -> dict:
     """A live-shaped fleet tile (matches tiles.fleet_tile's trimmed contract):
     a fully healthy fleet with real-looking vitals (CPU/RAM/storage/hottest

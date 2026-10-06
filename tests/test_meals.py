@@ -1808,3 +1808,42 @@ def test_the_thumbnail_cache_holds_a_whole_library_but_is_still_bounded():
                 await meals.fetch_image(c, mcfg(), ENV, f"{n:08d}-0000-4000-8000-000000000000", "tiny")
     asyncio.run(go())
     assert meals.IMAGE_CACHE_MAX < len(meals._thumb_cache) <= meals.THUMB_CACHE_MAX
+
+
+
+# ----------------------------------------------------------------- recipe routes
+
+def test_route_recipes_list_and_detail_round_trip(app_env):
+    appmod, c, fake = app_env
+    fake.recipes.append(recipe("baked-ziti", "Baked Ziti"))
+    fake.details["baked-ziti"] = detail_body()
+    got = c.get("/api/mealie/recipes").json()
+    assert got["available"] is True and [r["slug"] for r in got["recipes"]] == ["baked-ziti"]
+    one = c.get("/api/mealie/recipes/baked-ziti").json()
+    assert one["available"] is True and one["recipe"]["name"] == "Baked Ziti"
+
+
+def test_route_recipe_detail_statuses(app_env):
+    appmod, c, fake = app_env
+    assert c.get("/api/mealie/recipes/gone-recipe").status_code == 404
+    assert c.get("/api/mealie/recipes/Bad%20Slug").status_code == 422
+    assert c.get("/api/mealie/recipes/..%2F..%2Fx").status_code in (404, 405, 422)
+    assert not [x for x in fake.calls if "/api/recipes/" in x["path"] and "gone" not in x["path"]]
+    fake.details["a-recipe"] = detail_body(slug="a-recipe")
+    fake.fail[("GET", "/api/recipes/")] = 500
+    assert c.get("/api/mealie/recipes/a-recipe").json() == {"available": False, "needs_auth": False}
+
+
+def test_route_recipes_unavailable_is_a_200_with_a_reason_flag(app_env):
+    appmod, c, fake = app_env
+    fake.fail[("GET", "/api/recipes")] = 401
+    assert c.get("/api/mealie/recipes").json() == {"available": False, "needs_auth": True}
+
+
+def test_route_image_size_option(app_env):
+    appmod, c, fake = app_env
+    assert c.get(f"/api/mealie/image/{RID}?size=tiny").status_code == 200
+    assert fake.log[-1][1].endswith("/tiny-original.webp")
+    assert c.get(f"/api/mealie/image/{RID}").status_code == 200
+    assert fake.log[-1][1].endswith("/min-original.webp")
+    assert c.get(f"/api/mealie/image/{RID}?size=huge").status_code == 422

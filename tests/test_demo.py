@@ -523,3 +523,25 @@ def test_demo_shopping_writes_change_nothing_and_never_reach_mealie(demo_client)
     assert demo_client.put(f"/api/mealie/shopping/items/{iid}", json={"checked": True}).json() == {"ok": True, "demo": True}
     assert demo_client.delete(f"/api/mealie/shopping/items/{iid}").json() == {"ok": True, "demo": True}
     assert demo_client.get("/api/mealie/shopping").json() == before
+
+
+
+def test_demo_recipes_library_shows_every_state(demo_client):
+    t = demo_client.get("/api/mealie/recipes").json()
+    assert t["available"] is True and t["truncated"] is False and t["total"] == len(t["recipes"]) >= 10
+    rs = t["recipes"]
+    assert [r["name"] for r in rs] == sorted((r["name"] for r in rs), key=str.casefold), "A to Z"
+    assert len({c for r in rs for c in r["categories"]}) >= 4, "enough categories for the chips"
+    assert any(r["made"] for r in rs) and any(not r["made"] for r in rs)
+    assert any(r["rating"] for r in rs) and any(not r["rating"] for r in rs)
+    assert all(set(r) == {"slug", "id", "name", "time", "has_image", "categories", "tags", "added", "made", "rating"}
+               for r in rs)
+
+
+def test_demo_recipe_detail_and_unknown_slug(demo_client):
+    slug = demo_client.get("/api/mealie/recipes").json()["recipes"][0]["slug"]
+    d = demo_client.get(f"/api/mealie/recipes/{slug}").json()
+    assert d["available"] is True and d["recipe"]["ingredients"] and d["recipe"]["steps"]
+    assert any("heading" in i for i in d["recipe"]["ingredients"]), "a section heading shows"
+    assert d["recipe"]["notes"]
+    assert demo_client.get("/api/mealie/recipes/not-in-the-demo").status_code == 404

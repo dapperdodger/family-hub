@@ -35,6 +35,8 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Recipes: demo mode serves a canned twelve-recipe library with detail pages, so the Recipes
+  view shows every state (categories, never-made and unrated recipes, section headings, notes).
 - Recipes: the photo proxy takes `?size=tiny` (the grid's thumbnails, with their own cache big
   enough for a whole library) next to the existing medium size.
 - Recipes: `GET /api/mealie/recipes/{slug}` returns one recipe's photo flag, times, servings,
