@@ -397,10 +397,15 @@ def _shopping_item(raw: dict) -> dict | None:
     iid = raw.get("id")
     if not valid_uuid(iid):
         return None
-    text = raw.get("display")
-    if not isinstance(text, str) or not text.strip():
-        text = raw.get("note")
-    if not isinstance(text, str) or not text.strip():
+    display, note = raw.get("display"), raw.get("note")
+    usable = lambda v: isinstance(v, str) and bool(v.strip())   # noqa: E731
+    has_food = bool(raw.get("foodId")) or isinstance(raw.get("food"), dict)
+    # A food item shows Mealie's display ("2 cups flour"). A free-text one (no food) shows
+    # its note: Mealie prefixes the quantity to its display ("1 Milk" for a quick-add of
+    # "Milk"), which is wrong for something typed by hand.
+    first, second = (display, note) if has_food else (note, display)
+    text = first if usable(first) else second
+    if not usable(text):
         return None
     return {"id": iid, "text": " ".join(text.split())[:ITEM_TEXT_MAX],
             "checked": raw.get("checked") is True}

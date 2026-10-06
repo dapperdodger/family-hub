@@ -10,6 +10,11 @@ rolls that section to a dated version via `python scripts/release.py`.
 
 ## [Unreleased]
 
+### Fixed
+- Shopping: an item added from the wall showed as "1 Milk" instead of "Milk" (Mealie
+  prefixes the quantity to its display text). Items you type now show exactly what you
+  typed; items that came from a recipe still show Mealie's "2 cups flour".
+
 ### Added
 - Shopping: the Mealie shopping list as a native wall card (left column, beside the
   To-Do card) and a section on the phone's Meals tab. Check items off and un-check
