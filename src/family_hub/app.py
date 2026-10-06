@@ -3079,12 +3079,34 @@ async def tile_mealie():
 
 
 @app.get("/api/mealie/image/{recipe_id}")
-async def mealie_image(recipe_id: str):
-    got = None if DEMO else await meals.fetch_image(_http, cfg, os.environ, recipe_id)
+async def mealie_image(recipe_id: str, size: str = "min"):
+    if size not in ("min", "tiny"):
+        raise HTTPException(422, "size must be min or tiny")
+    got = None if DEMO else await meals.fetch_image(_http, cfg, os.environ, recipe_id, size)
     if got is None:
         raise HTTPException(404, "no photo")
     body, ctype = got
     return Response(body, media_type=ctype, headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/api/mealie/recipes")
+async def mealie_recipes():
+    if DEMO:
+        return fdemo.demo_recipes()      # canned library; no Mealie hit
+    return await meals.recipes_tile(_http, cfg, os.environ)
+
+
+@app.get("/api/mealie/recipes/{slug}")
+async def mealie_recipe(slug: str):
+    if DEMO:
+        got = fdemo.demo_recipe(slug)
+        if got is None:
+            raise HTTPException(404, "no such recipe")
+        return got
+    res = await meals.recipe_detail(_http, cfg, os.environ, slug)
+    if res.get("status"):
+        raise HTTPException(res["status"], res.get("error") or "recipe request failed")
+    return res
 
 
 @app.post("/api/mealie/random")

@@ -35,6 +35,24 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Recipes: a Mealie that answers with nothing usable now reads as unavailable instead of an empty library, the hub's own failures say "Couldn't load recipes", a failed recipe load shows one fixed message, Try again shows Loading, a missing photo falls back to the plate icon, and long category names wrap.
+- Recipes: a step's or note's title sits on its own line above its text.
+- Recipes: a native Recipes view (photo grid, search, category chips, four sorts, and a recipe
+  page with ingredients, steps and notes) that opens full screen on the wall and the phone.
+  Typing never repaints the search box, Back restores your place, and a thumbnail that fails to
+  load becomes a placeholder.
+- Recipes: search, category filter and four sorts (A to Z, recently added, recently made, top
+  rated) run on the loaded library, so typing never waits on the network; the Recipes view
+  stays open 15 minutes without a touch (the wall's default is 90 seconds).
+- Recipes: demo mode serves a canned twelve-recipe library with detail pages, so the Recipes
+  view shows every state (categories, never-made and unrated recipes, section headings, notes).
+- Recipes: the photo proxy takes `?size=tiny` (the grid's thumbnails, with their own cache big
+  enough for a whole library) next to the existing medium size.
+- Recipes: `GET /api/mealie/recipes/{slug}` returns one recipe's photo flag, times, servings,
+  description, ingredients (with section headings), steps and notes as plain trimmed text.
+- Recipes: the hub can read the Mealie recipe library for a native Recipes view
+  (`GET /api/mealie/recipes`): every recipe's name, photo flag, time, categories, tags and
+  dates in one cached request, capped at 200, read-only and fail-soft.
 - Shopping: the Mealie shopping list as a native wall card (left column, beside the
   To-Do card) and a section on the phone's Meals tab. Check items off and un-check
   them, quick-add an item, delete one. The list scrolls inside the card like the meal
@@ -71,6 +89,9 @@ rolls that section to a dated version via `python scripts/release.py`.
   another list, is a clean 404 and never a blind write.
 
 ### Changed
+- Recipes: the Dinner card's **Full screen** button is now **Recipes** and opens the native
+  view instead of embedding Mealie (a 15-25 second blank page on a Pi 3). The `open_url`
+  setting is still accepted but no longer used.
 - Meals: the following days now scroll inside the card on the wall (tonight stays
   pinned above), so a full week (`mealie.days` up to 7) no longer makes the
   dashboards column taller than the screen. A list you are scrolling keeps its

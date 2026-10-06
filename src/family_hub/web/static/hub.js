@@ -1975,12 +1975,11 @@ function openOverlay(view) {
     const cam = [...(links.cameras || []), ...(links.camera_page || [])]
       .find((c) => c.src === view.slice(7));
     if (cam) openCameraFull(content, cam, view);
-  } else if (view === 'meals-full') {
-    // Mealie itself, full screen (recipes, the meal plan, the shopping lists).
-    // The URL comes from the tile (config mealie.open_url, else mealie.base),
-    // never from the page, so there is nothing for a click to inject.
-    const url = mealsData && typeof mealsData.open_url === 'string' ? mealsData.open_url : '';
-    if (/^https?:\/\//.test(url)) content.appendChild(makeIframe(url));
+  } else if (view === 'recipes') {
+    content.innerHTML = `<div class="overlay-panel"><div id="recipes-full"></div></div>`;
+    recipesReset();
+    renderRecipes();
+    fetchRecipes();
   } else if (view === 'cameras-page') {
     // Full-screen 2x2 live grid — the "camera page" reachable from the wall's
     // Cameras header (the wall has no tab bar). Same tiles as the mobile
@@ -3661,8 +3660,8 @@ async function fetchFleet() {
    unreadable scaled into a 340px column). An empty day offers a random pick;
    a day the hub itself picked offers a re-roll; a planned day offers "add the
    ingredients to the shopping list". Every control is a real <button> (>=44px
-   on the phone) and goes through mealsAct. Mealie's own UI stays one tap away
-   under "Full screen". */
+   on the phone) and goes through mealsAct. The recipe library is one tap away
+   under "Recipes" in the header. */
 
 function mealsDayLabel(dateStr, todayStr, short = false) {
   if (dateStr === todayStr) return 'Tonight';
@@ -3810,8 +3809,7 @@ function mealsSlotHtml() {
 }
 
 /* Paint the Meals card. The header sits OUTSIDE the card like every section
-   and offers "Full screen" only when the tile carries a URL to open (the demo
-   has none: no dead button). Never blanks the column: an unconfigured token or
+   and offers "Recipes" whenever Meals is available. Never blanks the column: an unconfigured token or
    a dead Mealie gets a slim note, header intact. */
 function renderMeals(m = mealsData) {
   const host = document.getElementById('meals-slot');
@@ -3822,8 +3820,8 @@ function renderMeals(m = mealsData) {
   // the tile still reports available (a partial /api/hub payload) keeps the card.
   const listed = ((hubData && hubData.integrations) || []).some((i) => i.id === 'mealie');
   if (!listed && (m == null || !m.available)) { host.innerHTML = ''; return; }
-  const hasUrl = !!(m && m.available && typeof m.open_url === 'string' && /^https?:\/\//.test(m.open_url));
-  const head = sectionHead('Dinner', hasUrl ? { overlay: 'meals-full', expandLabel: 'Full screen' } : {});
+  // the Recipes view (native, fast on a Pi 3) replaced the old Full screen iframe of Mealie itself
+  const head = sectionHead('Dinner', m && m.available ? { overlay: 'recipes', expandLabel: 'Recipes' } : {});
   const body = m == null
     ? `<div class="card wx-loading" aria-hidden="true"></div>`
     : m.available
@@ -4117,6 +4115,203 @@ async function shopDelete(id) {
   }
   await fetchShopping();
 }
+
+/* ------------------------------------------------------------ Recipes view */
+
+/* The native Mealie recipes view (operator, 2026-10-06): a full-screen overlay opened from the
+   Dinner card's Recipes button, replacing the slow Mealie iframe. It loads every recipe summary
+   in one request and filters/sorts on the screen (common.js: recipeFilter/recipeSort), so typing
+   never waits on the network. Typing and chips redraw only the card area (#recipes-controls and
+   #recipes-grid), never the search box, so the on-screen keyboard keeps focus. */
+
+const recipesState = {
+  data: null,        // last /api/mealie/recipes payload
+  seq: 0,            // numbers list fetches so a late older reply never overwrites a newer one
+  q: '', sort: 'name', cat: '',
+  slug: null,        // the recipe open in the detail screen, or null for the grid
+  detail: null,      // that recipe's detail, once it has loaded
+  detailSeq: 0,
+  scroll: 0,         // the grid's scroll position, restored on Back
+};
+
+function recipesReset() {
+  Object.assign(recipesState, { data: null, q: '', sort: 'name', cat: '', slug: null, detail: null, scroll: 0 });
+  recipesState.seq += 1;
+  recipesState.detailSeq += 1;
+}
+
+function recipesHost() { return document.getElementById('recipes-full'); }
+
+function recipeCardHtml(r) {
+  // the glyph is always there; a photo sits over it, and a photo that 404s hides itself to reveal it
+  const photo = r.has_image && r.id
+    ? `<img class="recipe-img" src="/api/mealie/image/${escapeHtml(r.id)}?size=tiny" alt="" loading="lazy" decoding="async">` : '';
+  const thumb = `<span class="recipe-thumb" aria-hidden="true">🍽${photo}</span>`;
+  return `<button type="button" class="recipe-card" data-recipe-open="${escapeHtml(r.slug)}">${thumb}`
+    + `<span class="recipe-name">${escapeHtml(r.name)}</span>`
+    + (r.time ? `<span class="recipe-time">${escapeHtml(r.time)}</span>` : '') + `</button>`;
+}
+
+function recipesControlsHtml(all) {
+  // the comparisons live in helpers, not inside class="..." (the static class guard reads a
+  // template's bare words there as class names)
+  const sortOn = (key) => recipesState.sort === key;
+  const catOn = (name) => recipesState.cat === name;
+  const sorts = RECIPE_SORTS.map(([key, label]) =>
+    `<button type="button" class="recipe-sort${sortOn(key) ? ' on' : ''}" data-recipe-sort="${key}"`
+    + ` aria-pressed="${sortOn(key)}">${escapeHtml(label)}</button>`).join('');
+  const chip = (name, label) => `<button type="button" class="recipe-chip${catOn(name) ? ' on' : ''}"`
+    + ` data-recipe-cat="${escapeHtml(name)}" aria-pressed="${catOn(name)}">${escapeHtml(label)}</button>`;
+  const cats = recipeCategories(all);
+  return `<div class="recipes-sorts">${sorts}</div>`
+    + (cats.length ? `<div class="recipes-chips">${chip('', 'All')}${cats.map((c) => chip(c, c)).join('')}</div>` : '');
+}
+
+function recipesGridNote(d) {
+  const retry = `<button type="button" class="recipe-sort" data-recipe-retry>Try again</button>`;
+  if (d == null) return `<div class="recipes-note">Loading…</div>`;
+  if (d.failed) return `<div class="recipes-note">Couldn’t load recipes ${retry}</div>`;
+  if (!d.available) {
+    return `<div class="recipes-note">${d.needs_auth ? 'Needs a Mealie token' : 'Mealie isn’t reachable'} ${retry}</div>`;
+  }
+  return '';
+}
+
+/* Redraw the sort buttons, chips and cards from the loaded list. Never touches the search box. */
+function updateRecipesGrid() {
+  const host = recipesHost();
+  if (!host || typeof host.querySelector !== 'function') return;
+  const controls = host.querySelector('#recipes-controls');
+  const grid = host.querySelector('#recipes-grid');
+  if (!controls || !grid) return;
+  const d = recipesState.data;
+  const note = recipesGridNote(d);
+  if (note) { controls.innerHTML = ''; grid.innerHTML = note; return; }
+  const all = Array.isArray(d.recipes) ? d.recipes : [];
+  controls.innerHTML = recipesControlsHtml(all);
+  const shown = recipeSort(recipeFilter(all, recipesState.q, recipesState.cat), recipesState.sort);
+  grid.innerHTML = (all.length === 0 ? `<div class="recipes-note">No recipes yet</div>`
+    : shown.length === 0 ? `<div class="recipes-note">No recipes match</div>`
+    : `<div class="recipe-grid">${shown.map(recipeCardHtml).join('')}</div>`)
+    + (d.truncated ? `<div class="recipes-note">Showing the first ${all.length} of ${Number(d.total) || all.length}</div>` : '');
+}
+
+function recipeParasHtml(text) {
+  return escapeHtml(String(text || '')).replace(/\n/g, '<br>');
+}
+
+function recipeDetailHtml() {
+  const d = recipesState.detail;
+  const back = `<button type="button" class="recipe-back" data-recipe-back>← Recipes</button>`;
+  if (!d) return `<div class="recipes">${back}<div class="recipes-note">Loading…</div></div>`;
+  const photo = d.has_image && d.id
+    ? `<img class="recipe-photo" src="/api/mealie/image/${escapeHtml(d.id)}" alt="">` : '';
+  const meta = [['Prep', d.prep], ['Cook', d.cook], ['Total', d.total], ['Serves', d.servings]]
+    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHtml(String(v))}</dd></div>`).join('');
+  const ings = (d.ingredients || []).map((i) => (i.heading
+    ? `<li class="recipe-ing-head">${escapeHtml(i.heading)}</li>` : `<li>${escapeHtml(i.text)}</li>`)).join('');
+  const steps = (d.steps || []).map((s) => `<li>${s.title ? `<strong>${escapeHtml(s.title)}</strong><br>` : ''}`
+    + `${recipeParasHtml(s.text)}</li>`).join('');
+  const notes = (d.notes || []).map((n) => `<div class="recipe-note-item">`
+    + `${n.title ? `<strong>${escapeHtml(n.title)}</strong><br>` : ''}${recipeParasHtml(n.text)}</div>`).join('');
+  return `<div class="recipes">${back}<article class="recipe-detail">`
+    + `<div class="recipe-side">${photo}${meta ? `<dl class="recipe-meta">${meta}</dl>` : ''}</div>`
+    + `<div class="recipe-main"><h2>${escapeHtml(d.name)}</h2>`
+    + (d.description ? `<p class="recipe-desc">${escapeHtml(d.description)}</p>` : '')
+    + (ings ? `<h3>Ingredients</h3><ul class="recipe-ings">${ings}</ul>` : '')
+    + (steps ? `<h3>Steps</h3><ol class="recipe-steps">${steps}</ol>` : '')
+    + (notes ? `<h3>Notes</h3><div class="recipe-notes">${notes}</div>` : '')
+    + `</div></article></div>`;
+}
+
+function recipesGridShellHtml() {
+  return `<div class="recipes"><div class="overlay-title">Recipes</div>`
+    + `<div class="recipes-bar"><input id="recipe-search" class="txt-input recipes-search" type="text" maxlength="60"`
+    + ` placeholder="Search recipes…" autocomplete="off" aria-label="Search recipes" value="${escapeHtml(recipesState.q)}"></div>`
+    + `<div id="recipes-controls"></div><div id="recipes-grid"></div></div>`;
+}
+
+function renderRecipes() {
+  const host = recipesHost();
+  if (!host) return;
+  const panel = host.parentNode;
+  if (recipesState.slug) {
+    host.innerHTML = recipeDetailHtml();
+    if (panel) panel.scrollTop = 0;
+    return;
+  }
+  host.innerHTML = recipesGridShellHtml();
+  updateRecipesGrid();
+  if (panel && recipesState.scroll) panel.scrollTop = recipesState.scroll;
+}
+
+async function fetchRecipes() {
+  const seq = ++recipesState.seq;
+  let res;
+  try {
+    res = await j('/api/mealie/recipes');
+  } catch (e) {
+    console.warn('recipes: the hub did not answer', e);
+    res = { available: false, failed: true };      // our own hub failed: not Mealie's fault
+  }
+  if (seq !== recipesState.seq) return;            // a newer read (or a reopen) owns the screen
+  recipesState.data = res && typeof res === 'object' ? res : { available: false };
+  if (recipesState.slug) return;                    // reading a recipe: the list is there on Back
+  const host = recipesHost();
+  if (host && typeof host.querySelector === 'function' && host.querySelector('#recipes-grid')) updateRecipesGrid();
+  else renderRecipes();
+}
+
+async function openRecipe(slug) {
+  const host = recipesHost();
+  const panel = host && host.parentNode;
+  if (!recipesState.slug) recipesState.scroll = panel ? panel.scrollTop || 0 : 0;
+  const seq = ++recipesState.detailSeq;
+  recipesState.slug = slug;
+  recipesState.detail = null;
+  renderRecipes();
+  let res;
+  try {
+    res = await j(`/api/mealie/recipes/${encodeURIComponent(slug)}`);
+  } catch (e) {
+    // only the hub's own 404 text is shown; anything else (network, a proxy page) is one fixed line
+    res = { available: false, gone: !!(e && e.message === 'no such recipe') };
+  }
+  if (seq !== recipesState.detailSeq || recipesState.slug !== slug) return;   // Back, or another card
+  if (!res || !res.available || !res.recipe) {
+    showToast(res && res.needs_auth ? 'Needs a Mealie token'
+      : res && res.gone ? 'no such recipe' : 'Could not load that recipe');
+    recipesState.slug = null;
+    renderRecipes();
+    return;
+  }
+  recipesState.detail = res.recipe;
+  renderRecipes();
+}
+
+function recipesBack() {
+  recipesState.detailSeq += 1;                      // abandon a detail still loading
+  recipesState.slug = null;
+  recipesState.detail = null;
+  renderRecipes();
+}
+
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'recipe-search') {
+    recipesState.q = e.target.value;
+    updateRecipesGrid();
+  }
+});
+
+// a thumbnail that fails to load becomes the placeholder tile, not a broken-image icon;
+// error does not bubble, so listen in the capture phase
+document.addEventListener('error', (e) => {
+  const t = e.target;
+  if (t && t.tagName === 'IMG' && t.classList && (t.classList.contains('recipe-img') || t.classList.contains('recipe-photo'))) {
+    t.classList.add('is-broken');
+  }
+}, true);
 
 let fitDebounce = null;
 /* Fit-to-screen. The wall is authored at a fixed 1920x1080 canvas. On the
@@ -4769,6 +4964,16 @@ document.addEventListener('click', (e) => {
   if (shopOpenBtn) { toggleShopMenu(shopOpenBtn.dataset.shopOpen); return; }
   const shopDelBtn = e.target.closest('[data-shop-del]');
   if (shopDelBtn) { shopDelete(shopDelBtn.dataset.shopDel); return; }
+  const rcOpen = e.target.closest('[data-recipe-open]');
+  if (rcOpen) { openRecipe(rcOpen.dataset.recipeOpen); return; }
+  const rcBack = e.target.closest('[data-recipe-back]');
+  if (rcBack) { recipesBack(); return; }
+  const rcSort = e.target.closest('[data-recipe-sort]');
+  if (rcSort) { recipesState.sort = rcSort.dataset.recipeSort; updateRecipesGrid(); return; }
+  const rcCat = e.target.closest('[data-recipe-cat]');
+  if (rcCat) { recipesState.cat = rcCat.dataset.recipeCat; updateRecipesGrid(); return; }
+  const rcRetry = e.target.closest('[data-recipe-retry]');
+  if (rcRetry) { recipesState.data = null; updateRecipesGrid(); fetchRecipes(); return; }
   const evRow = e.target.closest('[data-eid]');
   if (evRow) { openEventDetail(evRow.dataset.eid); return; }
   // full-calendar controls

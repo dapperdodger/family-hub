@@ -23,6 +23,7 @@ const {
   isDayOutsideWindow,
   caldavTestMessage, caldavPanelHtml, caldavCollectionsHtml,
   backupBadge,
+  recipeFilter, recipeSort, recipeCategories,
 } = sandbox;
 const panelFit = (...a) => ({ ...sandbox.panelFit(...a) });
 const monthGrid = (...a) => JSON.parse(JSON.stringify(sandbox.monthGrid(...a)));
@@ -1307,4 +1308,82 @@ test('buildEventPayload: an all-day event sends the NEXT day as the exclusive en
   assert.equal(body.start, '2026-10-01');
   assert.equal(body.end, '2026-10-02');
   assert.equal(body.all_day, true);
+});
+
+// ---- the Recipes view: filter, sort, categories, idle ----
+
+const R = (name, o = {}) => ({ slug: name.toLowerCase().replace(/ /g, '-'), name, categories: [], tags: [],
+  added: null, made: null, rating: null, ...o });
+// main-realm array: deepEqual compares prototypes, and common.js runs in a vm
+const names = (list) => Array.from(list, (r) => r.name);
+
+test('recipeFilter: matches name, categories and tags, case-insensitively and trimmed', () => {
+  const list = [R('Baked Ziti', { categories: ['Dinner'], tags: ['Family favourite'] }),
+    R('Pancakes', { categories: ['Breakfast'] }), R('Cookies', { tags: ['Kids'] })];
+  assert.deepEqual(names(recipeFilter(list, '  ZITI ', '')), ['Baked Ziti']);
+  assert.deepEqual(names(recipeFilter(list, 'breakfast', '')), ['Pancakes']);
+  assert.deepEqual(names(recipeFilter(list, 'kid', '')), ['Cookies']);
+  assert.deepEqual(names(recipeFilter(list, '', '')), ['Baked Ziti', 'Pancakes', 'Cookies']);
+  assert.deepEqual(names(recipeFilter(list, 'zzz', '')), []);
+});
+
+test('recipeFilter: a category and a search combine; All (empty) is no category', () => {
+  const list = [R('Soup', { categories: ['Dinner'] }), R('Salad', { categories: ['Lunch'] }), R('Stew', { categories: ['Dinner'] })];
+  assert.deepEqual(names(recipeFilter(list, '', 'Dinner')), ['Soup', 'Stew']);
+  assert.deepEqual(names(recipeFilter(list, 'st', 'Dinner')), ['Stew']);
+  assert.deepEqual(names(recipeFilter(list, 'salad', 'Dinner')), []);
+});
+
+test('recipeFilter: never throws on odd recipes or input', () => {
+  assert.deepEqual(names(recipeFilter([], 'x', 'y')), []);
+  assert.deepEqual(names(recipeFilter([R('A')], null, undefined)), ['A']);
+  assert.deepEqual(names(recipeFilter([{ name: 'No lists' }], 'no', '')), ['No lists']);
+  assert.deepEqual(names(recipeFilter(null, 'x', '')), []);
+});
+
+test('recipeSort: A to Z ignores case and is the default', () => {
+  const list = [R('banana'), R('Apple'), R('cherry')];
+  assert.deepEqual(names(recipeSort(list, 'name')), ['Apple', 'banana', 'cherry']);
+  assert.deepEqual(names(recipeSort(list, 'whatever')), ['Apple', 'banana', 'cherry']);
+});
+
+test('recipeSort: recently added puts the newest first, undated last, ties by name', () => {
+  const list = [R('Old', { added: '2026-01-01T00:00:00+00:00' }), R('None'), R('New', { added: '2026-09-01T00:00:00+00:00' }),
+    R('Also New', { added: '2026-09-01T00:00:00+00:00' })];
+  assert.deepEqual(names(recipeSort(list, 'added')), ['Also New', 'New', 'Old', 'None']);
+});
+
+test('recipeSort: recently made puts never-made recipes last, A to Z', () => {
+  const list = [R('Never B'), R('Long ago', { made: '2026-01-01' }), R('Never A'), R('Yesterday', { made: '2026-10-04' })];
+  assert.deepEqual(names(recipeSort(list, 'made')), ['Yesterday', 'Long ago', 'Never A', 'Never B']);
+});
+
+test('recipeSort: top rated is high to low, unrated (and zero) last, ties by name', () => {
+  const list = [R('Three', { rating: 3 }), R('Zero', { rating: 0 }), R('Five B', { rating: 5 }), R('Unrated'), R('Five A', { rating: 5 }), R('Half', { rating: 4.5 })];
+  assert.deepEqual(names(recipeSort(list, 'rated')), ['Five A', 'Five B', 'Half', 'Three', 'Unrated', 'Zero']);
+});
+
+test('recipeSort: does not modify its input and survives unparseable dates', () => {
+  const list = [R('B', { added: 'garbage' }), R('A', { added: '2026-01-01' })];
+  const copy = names(list);
+  assert.deepEqual(names(recipeSort(list, 'added')), ['A', 'B']);
+  assert.deepEqual(names(list), copy);
+});
+
+test('recipeCategories: unique names, A to Z, from every recipe', () => {
+  const list = [R('a', { categories: ['Dinner', 'Soup'] }), R('b', { categories: ['dessert', 'Dinner'] }), R('c')];
+  assert.deepEqual(Array.from(recipeCategories(list)), ['dessert', 'Dinner', 'Soup']);
+  assert.deepEqual(Array.from(recipeCategories([])), []);
+});
+
+test('RECIPE_SORTS lists the four sorts with A to Z first', () => {
+  // a top-level const is not a property of the vm sandbox object (functions are): read it in the context
+  const sorts = vm.runInContext('RECIPE_SORTS', sandbox);
+  assert.deepEqual(Array.from(sorts, (s) => s[0]), ['name', 'added', 'made', 'rated']);
+  assert.equal(sorts[0][1], 'A to Z');
+});
+
+test('idleReturnMs: the Recipes view gets 15 minutes (someone is cooking from it)', () => {
+  assert.equal(idleReturnMs('recipes'), 900000);
+  assert.ok(idleReturnMs('recipes') > idleReturnMs('camera'));
 });
