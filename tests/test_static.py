@@ -2605,3 +2605,141 @@ def test_wall_calendar_column_grows_into_the_screen_height_that_is_left():
     assert "wall-fill" not in _phone_shell_css(), "the phone shell never sees it"
     hub = (STATIC / "hub.js").read_text(encoding="utf-8")
     assert "wallFillHeight(" in hub and "'wall-fill'" in hub, "fitWall drives it"
+
+
+# ---------------------------------------------------------------- seasonal Lite
+
+LITE_ATTR = r'\[data-lite="on"\]'
+LITE_SCENE = ':root[data-lite="on"][data-look]:not([data-look="none"]) '
+
+
+def _strip_comments(css):
+    return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+
+def _flatten_css(css):
+    """The rules of `css` with @media/@supports/@layer/@container wrappers dropped (their rules kept), so
+    a rule inside a wrapper is scanned like any other. @keyframes and plain rules are left as they are."""
+    out, buf, stack = [], "", []
+    for ch in _strip_comments(css):
+        if ch == "{":
+            head = buf.strip()
+            if head.startswith(("@media", "@supports", "@layer", "@container")):
+                stack.append(True)
+                buf = ""
+            else:
+                stack.append(False)
+                out.append(buf + "{")
+                buf = ""
+        elif ch == "}":
+            if stack and stack.pop():
+                buf = ""
+            else:
+                out.append(buf + "}")
+                buf = ""
+        else:
+            buf += ch
+    return "".join(out)
+
+
+def _animated_season_things(css):
+    """(the .sn-* classes, the other season-layer selectors) that some rule animates. A rule that merely
+    switches an animation off does not count."""
+    classes, layers = set(), set()
+    for sel, body in re.findall(r"([^{}]+)\{([^}]*)\}", _flatten_css(css)):
+        if "@keyframes" in sel or not re.search(r"animation(-name)?:\s*(?!\s*none)", body):
+            continue
+        found = re.findall(r"\.(sn-[a-z-]+)", sel)
+        classes.update(found)
+        if not found and re.search(r"\.season(-fx)?\b", sel) and ".look-swatch" not in sel:
+            layers.add(" ".join(sel.split()))
+    return classes, layers
+
+
+def _lite_blocks():
+    """Every CSS rule whose selector mentions data-lite (wherever in the selector), comments stripped."""
+    return [(m.group(1).strip(), m.group(2)) for m in re.finditer(
+        r"([^{}]*" + LITE_ATTR + r"[^{}]*)\{([^}]*)\}", _flatten_css(CSS))]
+
+
+def test_the_lite_guard_sees_rules_inside_media_and_supports_blocks():
+    css = ("@media (min-width: 1001px) {\n.sn-snow { animation: sn-x 3s infinite; }\n}\n"
+           "@supports (rotate: 1deg) { .sn-flake i { animation: sn-y 3s infinite; } }\n"
+           ".sn-still { animation: none; }\n")
+    classes, _ = _animated_season_things(css)
+    assert classes == {"sn-snow", "sn-flake"}, classes
+
+
+def test_the_lite_guard_flags_a_moving_rule_in_a_season_layer_whatever_its_class_is_called():
+    css = "body > .season .flake { animation: sn-x 3s infinite; }\nbody > .season-fx > i { animation: sn-y 2s infinite; }\n.look-swatch .season .flake { animation: none; }\n"
+    _, layers = _animated_season_things(css)
+    assert layers == {"body > .season .flake", "body > .season-fx > i"}, layers
+
+
+def test_lite_only_ever_applies_while_a_look_is_painting():
+    """With seasons off (or no season today) Lite must change nothing: every selector carries the
+    "a look is painting" condition, so a wall with no look is pixel-for-pixel the same either way."""
+    blocks = _lite_blocks()
+    assert blocks
+    for sel, _ in blocks:
+        for part in sel.split(","):
+            assert ':not([data-look="none"])' in part, f"Lite selector paints without a look: {part.strip()}"
+
+
+def test_lite_swaps_the_wall_glass_for_a_plain_fill_and_drops_the_blur():
+    blocks = _lite_blocks()
+    assert blocks, "a Lite block exists"
+    fill = [b for sel, b in blocks if re.search(r"body:not\(\.is-night\)\s+\.wrap\b", sel) and "--glass" in b]
+    assert fill and re.search(r"--glass:\s*color-mix\(in srgb,\s*var\(--surface\)\s*86%", fill[0]), \
+        "the glass is 86% of the theme's own surface, set on .wrap and never at night"
+    blur_sel = " ".join(sel for sel, b in blocks if re.search(r"backdrop-filter:\s*none", b))
+    for target in (r"\.wrap \.card", r"\.wrap \.expand", r"\.wrap \.shead h2", r"\.topbar"):
+        assert re.search(target, blur_sel), f"{target} loses its blur under Lite"
+    assert not re.search(r"\.look-(swatch|card)", " ".join(sel for sel, _ in blocks)), \
+        "the Settings preview tiles are not selected by Lite"
+    # ...and nothing reaches them by inheritance: the Settings page (and its tiles) is mounted in #overlay,
+    # OUTSIDE .wrap where Lite sets --glass, so a tile's glass card keeps the theme's own fill and blur
+    html = (STATIC / "index.html").read_text()
+    start = html.index('<div class="wrap">')
+    depth, end = 0, None
+    for m in re.finditer(r"<(/?)div\b", html[start:]):
+        depth += -1 if m.group(1) else 1
+        if depth == 0:
+            end = start + m.end()
+            break
+    assert end is not None and html.index('id="overlay"') > end, "#overlay must sit outside .wrap"
+
+
+def test_lite_hides_every_moving_layer_except_the_webs_and_drops_the_arrival_fade():
+    """The far scene's motion is hidden STRUCTURALLY (every layer inside it except the haunt group, and
+    every child of the haunt group except the webs), so a season's new far layer is hidden without
+    anyone remembering to list it. Only the still webs stay. The near layer is hidden wholesale."""
+    blocks = _lite_blocks()
+    hidden = " ".join(sel for sel, b in blocks if re.search(r"display:\s*none", b))
+    for layer in (r"body > \.season-fx", r"body > \.season > :not\(\.sn-haunt\)",
+                  r"body > \.season \.sn-haunt > :not\(\.sn-web\)"):
+        assert re.search(layer, hidden), f"{layer} never displays under Lite"
+    still = [sel for sel, b in blocks if re.search(r"animation:\s*none", b)]
+    assert any(re.search(r"body > \.season$", part.strip()) for sel in still for part in sel.split(",")), \
+        "the photo's arrival fade is off under Lite"
+    assert "sn-web)" in hidden and not re.search(r"\.sn-web\s*[,{]", hidden), "the webs never move and stay"
+
+
+# Every .sn-* class a season ANIMATES is listed here, so adding moving parts means reading the Lite rules
+# above. The far scene hides structurally; the near layer is hidden wholesale; keep both true when you
+# add a layer. (The webs never move, so they are not listed, and are asserted never to animate.)
+LITE_COVERS = {"sn-leaves", "sn-leaf", "sn-bat", "sn-dangle", "sn-crawl"}
+# classes that only group their children: they appear as the parent in selectors like `.sn-haunt .sn-bat`
+LITE_STRUCTURAL = {"sn-haunt"}
+# the one season-layer rule that animates the layer itself: the photo's arrival fade (Lite turns it off)
+LITE_LAYER_ANIMATIONS = {"body > .season"}
+
+
+def test_every_moving_season_part_is_known_to_lite_and_nothing_else_moves_in_a_layer():
+    classes, layers = _animated_season_things(CSS)
+    unknown = sorted(classes - LITE_COVERS - LITE_STRUCTURAL)
+    assert not unknown, ("these animated season classes are unknown to Lite: add each to LITE_COVERS and make sure "
+                         f"Lite hides it (read the Lite rules in styles.css): {unknown}")
+    stray = sorted(layers - {l for l in layers if any(l.endswith(x) for x in LITE_LAYER_ANIMATIONS)})
+    assert not stray, f"moving rules inside a season layer that name no .sn-* class: {stray}"
+    assert "sn-web" not in classes, "the webs are the one thing Lite keeps: they must never move"

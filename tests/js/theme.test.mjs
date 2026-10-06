@@ -43,10 +43,13 @@ function makeStorage(seed = {}) {
 // and optional window.FH_THEME config default.
 // `now` pins "today" for theme.js's own new Date() calls (the seasonal look is
 // date-derived), so no assertion depends on the day the suite runs.
-function loadTheme({ storage = {}, fhTheme, now } = {}) {
+function loadTheme({ storage = {}, fhTheme, now, search, brokenStorage } = {}) {
   const root = makeRoot();
-  const localStorage = makeStorage(storage);
+  const localStorage = brokenStorage
+    ? { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } }
+    : makeStorage(storage);
   const win = { localStorage };
+  if (search !== undefined) win.location = { search };
   if (fhTheme !== undefined) win.FH_THEME = fhTheme;
   const sandbox = { window: win, document: { documentElement: root } };
   if (now) {
@@ -619,4 +622,70 @@ test('storage that throws never breaks first paint or rememberHouseTheme', () =>
   vm.runInContext(themeSrc, sandbox);
   assert.equal(root.getAttribute('data-theme'), 'grey');
   assert.doesNotThrow(() => win.rememberHouseTheme({ mode: 'dark' }));
+});
+
+
+// ---- Lite: data-lite (on | off), a per-device choice; ?lite=1 / ?lite=0 latches it
+
+test('fresh device defaults to lite=off and persists nothing', () => {
+  const { root, localStorage } = loadTheme();
+  assert.equal(root.getAttribute('data-lite'), 'off');
+  assert.equal(localStorage.getItem('fh.lite'), null);
+});
+
+test('setLite(on) stamps data-lite=on and persists; setLite(off) takes it back', () => {
+  const { root, localStorage, win } = loadTheme();
+  win.setLite('on');
+  assert.equal(root.getAttribute('data-lite'), 'on');
+  assert.equal(localStorage.getItem('fh.lite'), 'on');
+  win.setLite('off');
+  assert.equal(root.getAttribute('data-lite'), 'off');
+  assert.equal(localStorage.getItem('fh.lite'), 'off');
+});
+
+test('an invalid lite value is rejected: no stamp change, no persist', () => {
+  const { root, localStorage, win } = loadTheme();
+  win.setLite('maybe');
+  win.setLite(undefined);
+  assert.equal(root.getAttribute('data-lite'), 'off');
+  assert.equal(localStorage.getItem('fh.lite'), null);
+});
+
+test('a stored fh.lite=on survives a reload; a garbage stored value reads as off', () => {
+  assert.equal(loadTheme({ storage: { 'fh.lite': 'on' } }).root.getAttribute('data-lite'), 'on');
+  assert.equal(loadTheme({ storage: { 'fh.lite': 'banana' } }).root.getAttribute('data-lite'), 'off');
+});
+
+test('?lite=1 latches Lite on (and persists it), the way ?kiosk=1 latches the kiosk', () => {
+  const first = loadTheme({ search: '?lite=1' });
+  assert.equal(first.root.getAttribute('data-lite'), 'on');
+  assert.equal(first.localStorage.getItem('fh.lite'), 'on');
+  const again = loadTheme({ storage: { 'fh.lite': 'on' }, search: '' });
+  assert.equal(again.root.getAttribute('data-lite'), 'on');
+});
+
+test('?lite=0 clears a latched Lite; the query may carry other parameters', () => {
+  const off = loadTheme({ storage: { 'fh.lite': 'on' }, search: '?kiosk=1&lite=0' });
+  assert.equal(off.root.getAttribute('data-lite'), 'off');
+  assert.equal(off.localStorage.getItem('fh.lite'), 'off');
+  assert.equal(loadTheme({ search: '?x=1&lite=1&y=2' }).root.getAttribute('data-lite'), 'on');
+});
+
+test('a junk ?lite value or a look-alike parameter is ignored', () => {
+  for (const search of ['?lite=2', '?lite=', '?xlite=1', '?lite=on', '?litex=1', '?lite=1x', '?lite=10']) {
+    const { root, localStorage } = loadTheme({ search });
+    assert.equal(root.getAttribute('data-lite'), 'off', search);
+    assert.equal(localStorage.getItem('fh.lite'), null, search);
+  }
+});
+
+test('with storage blocked, ?lite=1 still stamps this session and never throws', () => {
+  const { root } = loadTheme({ brokenStorage: true, search: '?lite=1' });
+  assert.equal(root.getAttribute('data-lite'), 'on');
+  assert.equal(loadTheme({ brokenStorage: true }).root.getAttribute('data-lite'), 'off');
+});
+
+test('Lite is independent of the season choice and the house default', () => {
+  const { root } = loadTheme({ storage: { 'fh.season': 'on' }, fhTheme: { season: 'on', lite: 'on' } });
+  assert.equal(root.getAttribute('data-lite'), 'off', 'a house config never turns a device\'s Lite on');
 });
