@@ -2605,3 +2605,77 @@ def test_wall_calendar_column_grows_into_the_screen_height_that_is_left():
     assert "wall-fill" not in _phone_shell_css(), "the phone shell never sees it"
     hub = (STATIC / "hub.js").read_text(encoding="utf-8")
     assert "wallFillHeight(" in hub and "'wall-fill'" in hub, "fitWall drives it"
+
+
+# ---------------------------------------------------------------- seasonal Lite
+
+LITE_ON = r':root\[data-lite="on"\]\[data-look\]'
+
+
+def _lite_blocks():
+    """Every CSS rule whose selector carries the Lite attribute pair, comments stripped."""
+    css = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
+    return [(m.group(1).strip(), m.group(2)) for m in re.finditer(r"([^{}]*" + LITE_ON + r"[^{}]*)\{([^}]*)\}", css)]
+
+
+def test_lite_only_ever_applies_while_a_look_is_painting():
+    """With seasons off (or no season today) Lite must change nothing: every selector carries the
+    "a look is painting" condition, so a wall with no look is pixel-for-pixel the same either way."""
+    blocks = _lite_blocks()
+    assert blocks
+    for sel, _ in blocks:
+        for part in sel.split(","):
+            assert ':not([data-look="none"])' in part, f"Lite selector paints without a look: {part.strip()}"
+
+
+def test_lite_swaps_the_wall_glass_for_a_plain_fill_and_drops_the_blur():
+    blocks = _lite_blocks()
+    assert blocks, "a Lite block exists"
+    fill = [b for sel, b in blocks if re.search(r"body:not\(\.is-night\)\s+\.wrap\b", sel) and "--glass" in b]
+    assert fill and re.search(r"--glass:\s*color-mix\(in srgb,\s*var\(--surface\)\s*86%", fill[0]), \
+        "the glass is 86% of the theme's own surface, set on .wrap and never at night"
+    blur_sel = " ".join(sel for sel, b in blocks if re.search(r"backdrop-filter:\s*none", b))
+    for target in (r"\.wrap \.card", r"\.wrap \.expand", r"\.wrap \.shead h2", r"\.topbar"):
+        assert re.search(target, blur_sel), f"{target} loses its blur under Lite"
+    assert not re.search(r"\.look-(swatch|card)", " ".join(sel for sel, _ in blocks)), \
+        "the Settings preview tiles are not touched by Lite"
+
+
+def test_lite_hides_every_moving_layer_and_the_arrival_fade():
+    blocks = _lite_blocks()
+    hidden = " ".join(sel for sel, b in blocks if re.search(r"display:\s*none", b))
+    for layer in (r"body > \.season-fx", r"body > \.season \.sn-leaves", r"body > \.season \.sn-bat"):
+        assert re.search(layer, hidden), f"{layer} never displays under Lite"
+    still = " ".join(sel for sel, b in blocks if re.search(r"animation:\s*none", b))
+    assert re.search(r"body > \.season$", still), "the photo's arrival fade is off under Lite"
+    assert "sn-web" not in hidden, "the webs never move and stay"
+
+
+# Every class a season ANIMATES must say how Lite covers it. When a season brings moving parts,
+# add the class here AND to Lite's hide rule in styles.css. (The webs never move, so they are not listed.)
+LITE_COVERS = {
+    "sn-leaves": r"body > \.season \.sn-leaves",   # the far/near leaf layers
+    "sn-leaf": r"body > \.season \.sn-leaves",
+    "sn-bat": r"body > \.season \.sn-bat",
+    "sn-dangle": r"body > \.season-fx",            # the creatures walked from hub.js live in the near layer
+    "sn-crawl": r"body > \.season-fx",
+}
+# classes that only group their children: they appear as the parent in selectors like `.sn-haunt .sn-bat`,
+# and what moves inside them is one of the classes above
+LITE_STRUCTURAL = {"sn-haunt"}
+
+
+def test_every_class_a_season_animates_is_covered_by_lite():
+    css = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
+    animated = set()
+    for sel, body in re.findall(r"([^{}]+)\{([^}]*)\}", css):
+        if "@keyframes" in sel:
+            continue
+        if re.search(r"animation(-name)?:\s*(?!\s*none)", body):
+            animated.update(re.findall(r"\.(sn-[a-z-]+)", sel))
+    unknown = sorted(animated - set(LITE_COVERS) - LITE_STRUCTURAL)
+    assert not unknown, ("these animated season classes are not covered by Lite: add each to LITE_COVERS "
+                         f"(and to Lite's hide rule in styles.css): {unknown}")
+    hidden = " ".join(sel for sel, b in _lite_blocks() if re.search(r"display:\s*none", b))
+    for cls, layer in LITE_COVERS.items():
+        assert re.search(layer, hidden), f"{cls}: Lite's hide rule {layer} is missing"

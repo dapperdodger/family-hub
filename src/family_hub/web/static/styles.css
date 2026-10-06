@@ -3408,6 +3408,28 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 :root:not([data-season="on"]) .look-tile.on { box-shadow: none; }
 /* the gear popover: a hairline between "how the hub looks" and "how this screen behaves" */
 .theme-pop .theme-pop-sep { align-self: stretch; height: 1px; background: var(--edge-soft); margin: 16px 0 14px; }
+/* ---- seasonal Lite: a slower screen (the wall's Raspberry Pi 3) keeps the photo ----
+   data-lite="on" (theme.js, per device). What the Pi cannot afford while a look paints: the glass
+   blur (the browser re-samples the photo under every card whenever anything behind it repaints),
+   the leaves and bats moving behind and over that glass, the JS-walked spiders. Lite keeps the
+   photo, the season's colour and the still decorations (the webs, the season mark): the glass is
+   86% of the theme's own card colour with no blur, the motion layers never display, and the photo
+   no longer fades in. Night keeps its own near-solid glass (hence body:not(.is-night)). The
+   Settings preview tiles are not selected here, so they still show the look in miniature. */
+:root[data-lite="on"][data-look]:not([data-look="none"]) body:not(.is-night) .wrap {
+  --glass: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+:root[data-lite="on"][data-look]:not([data-look="none"]) .wrap .card,
+:root[data-lite="on"][data-look]:not([data-look="none"]) .wrap .expand,
+:root[data-lite="on"][data-look]:not([data-look="none"]) .wrap .shead h2,
+:root[data-lite="on"][data-look]:not([data-look="none"]) .topbar {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+:root[data-lite="on"][data-look]:not([data-look="none"]) body > .season { animation: none; }
+:root[data-lite="on"][data-look]:not([data-look="none"]) body > .season-fx,
+:root[data-lite="on"][data-look]:not([data-look="none"]) body > .season .sn-leaves,
+:root[data-lite="on"][data-look]:not([data-look="none"]) body > .season .sn-bat { display: none; }
+
 /* ---- seasonal looks, reduced motion ----
    Last in the file on purpose: these must beat the animated leaf rules above
    at equal specificity. The photo still shows, just without the arrival
