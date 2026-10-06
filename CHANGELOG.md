@@ -14,6 +14,10 @@ rolls that section to a dated version via `python scripts/release.py`.
 - Shopping: an item added from the wall showed as "1 Milk" instead of "Milk" (Mealie
   prefixes the quantity to its display text). Items you type now show exactly what you
   typed; items that came from a recipe still show Mealie's "2 cups flour".
+- Kiosk: the wall no longer shows a mouse pointer parked in the middle of the screen. Its
+  touchscreen reaches the browser as a mouse, so the compositor kept one; a browser that
+  has latched `?kiosk=1` now hides the pointer (`body.is-kiosk`). Phones and laptops are
+  unaffected, and `?kiosk=0` brings the pointer back.
 
 ### Known limits
 - Shopping: checking or un-checking an item that came from a recipe ("Add to list")

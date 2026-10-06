@@ -15,6 +15,10 @@ this one there just stacks under theirs — so it does **not** activate on touch
 `?kiosk=1` at least once. The flag is latched into `localStorage` (`oskKiosk=1`)
 so it survives every later navigation on that browser; `?kiosk=0` clears it.
 
+The latched flag also **hides the mouse pointer** (`body.is-kiosk { cursor: none }`): the
+wall's touchscreen reaches the browser as a mouse, so the compositor otherwise leaves a
+pointer parked mid-screen. `?kiosk=0` clears the flag and brings the pointer back.
+
 ### Why an explicit flag, not touch detection
 
 The wall doesn't report touch to the browser at all. It's an HP all-in-one
