@@ -52,6 +52,7 @@ at one URL.
   `?lite=1` to that screen's URL to latch it; `?lite=0` or the same Settings
   row turns it off again): the photo stays, but the glass becomes a plain card
   fill instead of a blur and the leaves, bats and spiders never move.
+  The Settings picker groups the seasons (in season now, coming up, more seasons).
   Adding a season or holiday follows [`docs/seasonal-looks.md`](docs/seasonal-looks.md).
 
   ![Seasonal looks: fall and Halloween](docs/seasons.jpg)

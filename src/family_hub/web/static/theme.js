@@ -14,6 +14,9 @@
      data-season       on | off             (seasonal looks follow the calendar)
      data-look         none | <look id>     (DERIVED from data-season + today's
                                               date; see SEASONS below)
+     data-drift        none | snow | petal | clover | firefly | sparkle
+                                             (DERIVED, like data-look: the painting season's
+                                              registry `drift`, its one gentle kind of motion)
      data-lite         on | off             (Lite: a slower screen keeps the seasonal
                                               photo, drops the glass blur and the moving
                                               leaves/bats/spiders; per device, no house
@@ -247,6 +250,38 @@
   window.stampLayout = stampLayoutIf;
   window.stampIdleReturn = stampIdleReturnIf;
 
+  // ---- dates for moving holidays: pure, year-based ----
+  // nthWeekday: the day of month of the nth `weekday` (0 = Sunday) of `month` (1-12) in `year`.
+  function nthWeekday(year, month, weekday, n) {
+    var first = new Date(year, month - 1, 1).getDay();
+    return 1 + ((weekday - first + 7) % 7) + (n - 1) * 7;
+  }
+  // Easter Sunday (the Gregorian computus, Meeus/Jones/Butcher): [month, day].
+  function easterSunday(year) {
+    var a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    var d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    var g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    var i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    var m = Math.floor((a + 11 * h + 22 * l) / 451);
+    return [Math.floor((h + l - 7 * m + 114) / 31), ((h + l - 7 * m + 114) % 31) + 1];
+  }
+  // [month, day] of (year, month, day) shifted by n days
+  function shiftDay(year, month, day, n) {
+    var t = new Date(year, month - 1, day + n);
+    return [t.getMonth() + 1, t.getDate()];
+  }
+  // The named windows a season can use as `window: WINDOWS.easter`. Each takes the year.
+  var WINDOWS = {
+    easter: function (y) { var e = easterSunday(y); return { from: shiftDay(y, e[0], e[1], -14), to: shiftDay(y, e[0], e[1], 1) }; },
+    mothersDay: function (y) { var s = nthWeekday(y, 5, 0, 2); return { from: shiftDay(y, 5, s, -6), to: [5, s] }; },
+    fathersDay: function (y) { var s = nthWeekday(y, 6, 0, 3); return { from: shiftDay(y, 6, s, -3), to: [6, s] }; },
+    mlkDay: function (y) { var m = nthWeekday(y, 1, 1, 3); return { from: shiftDay(y, 1, m, -3), to: [1, m] }; },
+    thanksgiving: function (y) { var t = nthWeekday(y, 11, 4, 4); return { from: shiftDay(y, 11, t, -10), to: shiftDay(y, 11, t, 3) }; }
+  };
+  // A season's window for a year: a moving one computes it, a fixed one is its from/to.
+  function windowOf(season, year) {
+    return typeof season.window === "function" ? season.window(year) : { from: season.from, to: season.to };
+  }
   // ---- seasonal looks: data-season (the choice) + data-look (what paints) ----
   // A seasonal look is a real photograph (or public-domain artwork) filling
   // the screen behind glass cards, with a matching accent, leaves drifting
@@ -268,6 +303,10 @@
   // window may wrap the new year (from Dec 1 to Feb 28 works). Dates are
   // [month, day], both 1-based.
   var SEASONS = [
+    // A season has a fixed window (`from`/`to`, month/day, inclusive, may wrap the year) OR a moving one
+    // (`window: WINDOWS.easter`, a function of the year: see WINDOWS above), plus an optional `when` text
+    // for Settings when it has no fixed dates ("About two weeks before Easter Sunday"). The first season
+    // whose window holds today wins, so list a holiday BEFORE the broad season it sits in.
     // `default: true` marks the look a device gets before it picks one.
     // `credit` is shown on the Settings tile (full attribution lives in
     // static/seasons/CREDITS.md). Ids are storage keys and image file names:
@@ -286,6 +325,8 @@
     ] },
   ];
   var SEASON_PREFS = ["on", "off"];
+  // The gentle kinds of motion a season may name with `drift` (styles.css draws each one).
+  var DRIFTS = ["snow", "petal", "clover", "firefly", "sparkle"];
   var DEFAULT_SEASON = "off";
 
   function seasonById(id) {
@@ -303,8 +344,9 @@
   // is later than its end wraps the new year.
   function inWindow(season, date) {
     var md = (date.getMonth() + 1) * 100 + date.getDate();
-    var from = season.from[0] * 100 + season.from[1];
-    var to = season.to[0] * 100 + season.to[1];
+    var w = windowOf(season, date.getFullYear());
+    var from = w.from[0] * 100 + w.from[1];
+    var to = w.to[0] * 100 + w.to[1];
     return from <= to ? (md >= from && md <= to) : (md >= from || md <= to);
   }
   // duck-typed, not instanceof: a Date from another realm (an iframe, a test
@@ -312,9 +354,35 @@
   function isDate(d) {
     return !!d && typeof d.getMonth === "function" && !isNaN(d.getTime());
   }
-  function seasonFor(date) {
-    for (var i = 0; i < SEASONS.length; i++) if (inWindow(SEASONS[i], date)) return SEASONS[i];
+  function seasonFor(date, list) {
+    list = list || SEASONS;
+    for (var i = 0; i < list.length; i++) if (inWindow(list[i], date)) return list[i];
     return null;
+  }
+  // When a season next opens after `date` (a Date): this year's start if still ahead, else next year's.
+  function nextStart(season, date) {
+    var y = date.getFullYear();
+    for (var k = 0; k < 2; k++) {
+      var w = windowOf(season, y + k);
+      var start = new Date(y + k, w.from[0] - 1, w.from[1]);
+      if (start > date) return start;
+    }
+    var w2 = windowOf(season, y + 2);
+    return new Date(y + 2, w2.from[0] - 1, w2.from[1]);
+  }
+  // The picker's three groups: seasons whose window holds `date`, the next three to open (soonest
+  // first), and everything else (registry order). Each season is in exactly one group.
+  function seasonOutlook(date, list) {
+    list = list || SEASONS;
+    var active = [], waiting = [];
+    for (var i = 0; i < list.length; i++) {
+      if (inWindow(list[i], date)) active.push(list[i]);
+      else waiting.push({ season: list[i], at: nextStart(list[i], date), i: i });
+    }
+    waiting.sort(function (a, b) { return a.at - b.at || a.i - b.i; });
+    var upcoming = waiting.slice(0, 3).map(function (w) { return w.season; });
+    var rest = list.filter(function (s) { return active.indexOf(s) === -1 && upcoming.indexOf(s) === -1; });
+    return { active: active, upcoming: upcoming, rest: rest };
   }
   // This session's picks, held in memory as well as storage: on a kiosk WebView
   // where setItem throws, a tap must still repaint now (the same "the CURRENT
@@ -341,6 +409,8 @@
     var season = root.getAttribute("data-season") === "on" ? seasonFor(d) : null;
     var look = season ? lookFor(season) : "none";
     if (root.getAttribute("data-look") !== look) root.setAttribute("data-look", look);
+    var drift = season && DRIFTS.indexOf(season.drift) !== -1 ? season.drift : "none";
+    if (root.getAttribute("data-drift") !== drift) root.setAttribute("data-drift", drift);
     return look;
   }
   // Did someone on THIS device choose the season pref this session? The house
@@ -388,6 +458,12 @@
   }
 
   window.FH_SEASONS = SEASONS;
+  window.FH_DRIFTS = DRIFTS;
+  window.FH_SEASON_TOOLS = {
+    nthWeekday: nthWeekday, easterSunday: easterSunday, windows: WINDOWS, windowOf: windowOf,
+    inWindow: inWindow, seasonFor: seasonFor, seasonOutlook: seasonOutlook, nextStart: nextStart
+  };
+  window.seasonOutlook = function (date) { return seasonOutlook(isDate(date) ? date : new Date()); };
   window.setSeason = setSeason;
   window.stampSeason = stampSeasonIf;
   window.setSeasonLook = setSeasonLook;
@@ -396,13 +472,10 @@
   // seasons): lets the UI say "Fall starts Sep 1" when nothing is in season.
   window.nextSeason = function (date) {
     var d = isDate(date) ? date : new Date();
-    var today = (d.getMonth() + 1) * 100 + d.getDate();
-    var best = null, bestGap = Infinity;
+    var best = null, bestAt = null;
     for (var i = 0; i < SEASONS.length; i++) {
-      var start = SEASONS[i].from[0] * 100 + SEASONS[i].from[1];
-      // days-ish ordering is enough: compare month*100+day, wrapping the year
-      var gap = start > today ? start - today : start + 1300 - today;
-      if (gap < bestGap) { bestGap = gap; best = SEASONS[i]; }
+      var at = nextStart(SEASONS[i], d);
+      if (bestAt === null || at < bestAt) { bestAt = at; best = SEASONS[i]; }
     }
     return best;
   };

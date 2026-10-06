@@ -11,6 +11,7 @@ rolls that section to a dated version via `python scripts/release.py`.
 ## [Unreleased]
 
 ### Fixed
+- Seasons groundwork review: a season written with a moving window no longer breaks the page's theme at load, Settings copes with a moving season that has no words, the Settings previews keep their own drift kind when the wall paints another, the photo helper's download uses the Wikimedia-friendly User-Agent with a timeout and leaves no partial file, and Juneteenth (whose window hid Father's Day) is dropped from the plan.
 - Plan it: after a timeout the Dinner card is re-read again 5 and 15 seconds later (the hub may still be writing), and a delete only treats a real 404 as already gone, never a server or token error.
 - Plan it: a plan request finishing late no longer unlocks or closes a newer one on another recipe, a timeout says Mealie is slow instead of a raw browser message, and a database hiccup after the plan went through no longer turns it into an error.
 - Shopping: deleting an item that is already gone (two phones, a double tap) counts as done instead of an error; the header count moves the moment you tap an item; a list longer than 200 items says "Showing the first 200 of N".
@@ -38,6 +39,11 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Docs: the seasonal-looks standard describes moving-date windows, the `drift` kinds, the registry order and the Settings grouping for the seasons coming next.
+- Dev: scripts/season-photo-search.py finds public-domain and CC0 photo candidates (Wikimedia Commons, the Art Institute of Chicago) and writes a contact sheet for choosing seasonal looks; the seasonal-looks standard explains how to use it.
+- Seasons: a generic gentle-motion layer (snow, petals, clover leaves, fireflies, sparkle) for the seasons coming next; it is hidden by Lite, stops for reduced motion and at night, and nothing paints it yet.
+- Seasons: each season can name one gentle kind of motion (snow, petals, clover leaves, fireflies or sparkle); the page records which in data-drift. Nothing paints it yet.
+- Seasons: the registry can now hold holidays that move each year (Easter, Mother's Day, Father's Day, MLK Day, Thanksgiving), with the date maths and the whole-calendar overlap rules tested; nothing visible changes yet.
 - Seasonal Lite hides the far scene's motion structurally (every layer but the still webs), so a new season's far motion is hidden without being listed, and the test that guards new seasons now reads rules inside @media blocks and flags a moving rule in a season layer whatever its class is called.
 - Docs: the README and the seasonal-looks standard describe Lite and the rule every new season follows (its moving parts must be covered by Lite).
 - Settings > Seasonal looks has a Lite switch for this screen, and the Halloween spiders stand down under Lite without any layout work.
@@ -103,6 +109,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   another list, is a clean 404 and never a blind write.
 
 ### Changed
+- Settings > Seasonal looks groups its seasons (in season now, coming up, more seasons) so the list stays short as seasons are added.
 - Wall: the month grid under the agenda now grows into the screen height that is left, so the week rows are taller and less cramped when today and tomorrow are quiet (up to about 140px a week, never shorter than before); the agenda is unchanged.
 - Recipes: the Dinner card's **Full screen** button is now **Recipes** and opens the native
   view instead of embedding Mealie (a 15-25 second blank page on a Pi 3). The `open_url`

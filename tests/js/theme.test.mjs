@@ -430,24 +430,25 @@ test('Halloween owns October from inside fall, and fall keeps the rest', () => {
 });
 
 test('a season inside another season is always listed first', () => {
-  // The rule the registry comment promises, checked against whatever is
-  // actually registered rather than against today's two: the first matching
-  // window wins, so a holiday inside a broad season must come before it or
-  // it can never paint. Thanksgiving inside fall is next.
+  // The rule the registry comment promises, checked against whatever is actually registered: the
+  // first matching window wins, so a holiday inside a broad season must come before it or it can
+  // never paint. Checked day by day across several years, so wrapping windows (Winter) and moving
+  // ones (Easter) count too.
   const { win } = loadTheme();
-  const span = (s2) => {
-    const from = s2.from[0] * 100 + s2.from[1];
-    const to = s2.to[0] * 100 + s2.to[1];
-    return { from, to, wraps: to < from };
-  };
-  const seasons = win.FH_SEASONS.map((s2, i) => ({ id: s2.id, i, ...span(s2) }));
-  for (const a of seasons) {
-    for (const b of seasons) {
-      if (a === b || a.wraps || b.wraps) continue;
-      const aInsideB = a.from >= b.from && a.to <= b.to;
-      if (aInsideB) {
-        assert.ok(a.i < b.i,
-          `${a.id}'s window sits inside ${b.id}'s, so it must be listed first or it never paints`);
+  const T = win.FH_SEASON_TOOLS;
+  const list = Array.from(win.FH_SEASONS);
+  for (const year of [2026, 2027, 2028, 2031]) {
+    const days = list.map(() => new Set());
+    for (let t = new Date(year, 0, 1); t.getFullYear() === year; t = new Date(year, t.getMonth(), t.getDate() + 1)) {
+      list.forEach((s2, i) => { if (T.inWindow(s2, t)) days[i].add(t.getMonth() * 100 + t.getDate()); });
+    }
+    for (let a = 0; a < list.length; a++) {
+      for (let b = 0; b < list.length; b++) {
+        if (a === b || days[a].size === 0) continue;
+        const inside = [...days[a]].every((d) => days[b].has(d));
+        if (inside) {
+          assert.ok(a < b, `${list[a].id}'s window sits inside ${list[b].id}'s in ${year}, so it must be listed first or it never paints`);
+        }
       }
     }
   }
@@ -455,13 +456,29 @@ test('a season inside another season is always listed first', () => {
 
 test('the season registry is well formed', () => {
   const { win } = loadTheme();
+  const T = win.FH_SEASON_TOOLS;
   const ids = new Set();
   assert.ok(win.FH_SEASONS.length >= 1);
   for (const s of win.FH_SEASONS) {
+    // season ids are bare lowercase words (mothersday, stpatricks): test_static.py's _look_ids()
+    // treats every HYPHENATED id in the registry as a look
     assert.match(s.id, /^[a-z]+$/);
-    for (const [m, d] of [s.from, s.to]) {
-      assert.ok(m >= 1 && m <= 12 && d >= 1 && d <= 31, `${s.id} has a real date`);
+    assert.ok(!ids.has(s.id), `${s.id} is unique`);
+    ids.add(s.id);
+    // a fixed window has real dates; a moving one is a function of the year, gives real dates every
+    // year, and says in words when it is (Settings cannot print dates for it)
+    if (typeof s.window === 'function') {
+      assert.ok(s.when && typeof s.when === 'string', `${s.id} moves each year, so it needs a when text`);
+      for (let y = 2026; y <= 2040; y++) {
+        const w = T.windowOf(s, y);
+        for (const [m, d] of [w.from, w.to]) assert.ok(m >= 1 && m <= 12 && d >= 1 && d <= 31, `${s.id} ${y} has real dates`);
+      }
+    } else {
+      for (const [m, d] of [s.from, s.to]) {
+        assert.ok(m >= 1 && m <= 12 && d >= 1 && d <= 31, `${s.id} has a real date`);
+      }
     }
+    if (s.drift !== undefined) assert.ok(Array.from(win.FH_DRIFTS).includes(s.drift), `${s.id} names a known drift kind`);
     assert.ok(s.looks.length >= 1, `${s.id} has at least one look`);
     // test_static.py's _look_ids() finds look ids as the hyphenated ids in the
     // registry; a look id without a hyphen would drop out of its CSS guards

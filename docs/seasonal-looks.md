@@ -388,6 +388,32 @@ Maples with Poem Slips* screen (AIC), Karl Fredrickson "Trees in Fall" bokeh
 (Unsplash 2015, CC0), Aaron Burden maple canopy on blue sky (Unsplash 2015,
 CC0), Shenandoah NPS rolling hills.
 
+## 5b. Finding photos
+
+`scripts/season-photo-search.py` (dev-only, standard library only) finds candidates in the sources section 5
+allows, and nothing else:
+
+```
+python scripts/season-photo-search.py search "snow covered forest" --out scratch/winter [--min-width 2560] [--limit 40]
+python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out scratch/winter/pick.jpg
+```
+
+- **What it searches:** Wikimedia Commons (which includes NPS, US Forest Service and NASA works) and the Art
+  Institute of Chicago. Results are kept only when the licence is public domain or CC0, the image is landscape,
+  and it is at least 2560px wide (art results with no size given need `--allow-unknown-size`). The Met's public
+  search endpoint answers 410 Gone (checked 2026-10-06), so it is not searched.
+- **What it deliberately does not search:** Unsplash, Pexels and Pixabay. Their current licences are free to use
+  but not public domain, and bundling them in a public MIT repo is the grey area section 5 avoids. The operator
+  confirmed keeping that rule on 2026-10-06.
+- **`search`** writes `contact-sheet.html` (thumbnails, title, creator, licence, size, a link to the source page)
+  and `candidates.json` into the folder. Open the sheet, pick, then `fetch` the original (the helper downloads
+  nothing until you ask), run `scripts/prep-season-photo.py` on it, add the `CREDITS.md` row `fetch` prints, and
+  judge the photo by eye behind the glass cards (section 4).
+- **A Commons file marked "(Unsplash)"** is a pre-June-2017 Unsplash upload and is fine only when its Commons
+  page says CC0 with a licence review; check the file page before you pick it.
+- It is a search aid, not a licence authority: open the source page of anything you pick and confirm the
+  licence there.
+
 ## 6. Adding a look or a season
 
 1. **Find the image** under the rules above. Download the original and
@@ -404,8 +430,19 @@ CC0), Shenandoah NPS rolling hills.
 3. **Credit it:** add a row to `static/seasons/CREDITS.md`.
 4. **Register it** in `theme.js`'s `SEASONS`. Give it a name, a blurb and a
    credit, and mark one look per season `default: true`. A new season needs
-   its date window. List a short holiday (Halloween) *before* the broad
-   season it falls inside (fall), because the first window that matches wins.
+   its date window: fixed `from`/`to` (month/day, inclusive, may wrap the new
+   year), or, for a holiday that moves, `window: WINDOWS.easter` (also
+   `mothersDay`, `fathersDay`, `mlkDay`, `thanksgiving`) with a `when` text for
+   Settings ("About two weeks before Easter Sunday"). List a short holiday
+   (Halloween) *before* the broad season it falls inside (fall), because the
+   first window that matches wins; the registry order that is planned for the
+   whole year, and the overlaps it relies on, is pinned by the whole-calendar
+   test in `tests/js/seasons.test.mjs`. A season may also name one gentle kind
+   of motion with `drift: "snow" | "petal" | "clover" | "firefly" | "sparkle"`:
+   the page stamps it as `data-drift` and `styles.css` already draws every
+   kind (shape, size, speed, resting preview), so a season needs no motion CSS
+   of its own, only, optionally, its bit colours (`--sn-bit-1`/`--sn-bit-2`)
+   in its token block. Leave `drift` out for a photo-only season.
 5. **Style it** in `styles.css`. Copy an existing look's two blocks: the
    dark-theme block first (photo `--sn-scene`, focal point `--sn-pos`, leaf
    colours, accent), then the light-theme block (just the deeper accent).
@@ -453,6 +490,23 @@ CC0), Shenandoah NPS rolling hills.
 
 ## 7. How it works (reference)
 
+- **The registry and the calendar.** `theme.js` holds `SEASONS`; `FH_SEASON_TOOLS`
+  exposes the pure date helpers (`nthWeekday`, `easterSunday`, `windows`,
+  `seasonFor(date, list)`, `seasonOutlook(date, list)`) so they are tested without
+  a browser. `seasonOutlook` is what groups Settings' picker: the seasons whose
+  window holds today (open), the next three to start (folded) and the rest.
+- **The drift layer** is one generic set of ten bare bits (`hub.js`
+  `seasonDriftHtml`) in the far layer (inside `.season`, behind the glass) and the
+  near layer (`.season-fx`, over the cards), and resting in each Settings preview.
+  Only the wall's own layers carry `.live` and animate; Lite hides both layers,
+  reduced motion and night stop them (the night pause is as specific as the
+  animation rules, because the `animation` shorthand resets play-state).
+
+- **Season ids** are bare lowercase words (`mothersday`, `stpatricks`, `julyfourth`): the guards treat every
+  hyphenated id in the registry as a look, and a look's id is `<seasonid>-<name>`. A season that moves each year
+  (`window: WINDOWS.<name>`) must carry a `when` text; `theme.test.mjs` fails otherwise, and also for an unknown
+  `drift`, and checks day by day over several years that a season whose window sits inside another is listed
+  before it.
 - **Lite** is `data-lite="on|off"` on `<html>`, per device (`fh.lite`, no house
   default), stamped by `theme.js`; `?lite=1` / `?lite=0` in the page URL
   latches it the way `?kiosk=1` latches the kiosk. While a look paints, Lite

@@ -11507,3 +11507,145 @@ test('tapping a Lite button calls setLite with that value', () => {
   fire('click', { target: btn, preventDefault() {} });
   assert.deepEqual(calls.filter((c) => c[0] === 'setLite'), [['setLite', 'on']]);
 });
+
+// ---- the Seasonal looks picker groups its seasons (in season now / coming up / more seasons)
+
+const WIN = { id: 'winter', name: 'Winter', from: [12, 1], to: [2, 29], looks: [{ id: 'winter-a', name: 'Frost', blurb: 'B', default: true }] };
+const EAS = { id: 'easter', name: 'Easter', when: 'About two weeks before Easter Sunday', looks: [{ id: 'easter-a', name: 'Pastel', blurb: 'B', default: true }] };
+const SPR = { id: 'spring', name: 'Spring', from: [3, 1], to: [5, 31], looks: [{ id: 'spring-a', name: 'Bloom', blurb: 'B', default: true }] };
+
+function groupedHub(outlook) {
+  const env = seasonHub();
+  Object.assign(env.sandbox, { FH_SEASONS: [FALL[0], WIN, EAS, SPR], seasonOutlook: () => outlook });
+  const host = env.document.createElement('div');
+  host._id = 'settings-full';
+  env.document.body.appendChild(host);
+  env.sandbox.renderSettingsFull();
+  return { ...env, host, html: host.innerHTML };
+}
+
+test('the Seasonal looks picker groups its seasons: in season open, the rest folded', () => {
+  const { html } = groupedHub({ active: [FALL[0]], upcoming: [WIN, EAS], rest: [SPR] });
+  assert.match(html, /<div class="look-group"><div class="look-group-title">In season now<\/div>/);
+  assert.match(html, /<details class="look-group look-fold"><summary>Coming up<\/summary>/);
+  assert.match(html, /<details class="look-group look-fold"><summary>More seasons<\/summary>/);
+  assert.doesNotMatch(html, /<details[^>]*\bopen\b/, 'folded groups start closed');
+});
+
+test('every season appears exactly once across the groups', () => {
+  const { html } = groupedHub({ active: [FALL[0]], upcoming: [WIN, EAS], rest: [SPR] });
+  for (const id of ['fall-harvest', 'winter-a', 'easter-a', 'spring-a']) {
+    assert.equal((html.match(new RegExp(`data-look-pick="${id}"`, 'g')) || []).length, 1, id);
+  }
+  const count = (re) => (html.match(re) || []).length;
+  assert.equal(count(/<details\b/g), count(/<\/details>/g), 'balanced details');
+  assert.equal(count(/<div\b/g), count(/<\/div>/g), 'balanced divs');
+});
+
+test('an empty group is not drawn; a moving season shows its when text, a fixed one its dates', () => {
+  const none = groupedHub({ active: [], upcoming: [WIN, EAS], rest: [] });
+  assert.doesNotMatch(none.html, /In season now/);
+  assert.doesNotMatch(none.html, /More seasons/);
+  assert.match(none.html, /About two weeks before Easter Sunday/);
+  assert.match(none.html, /Dec 1 to Feb 29/);
+});
+
+test('the in-season season keeps its badge; picking a look inside a folded group still sets it', () => {
+  const { html, host, docListeners, calls } = groupedHub({ active: [FALL[0]], upcoming: [WIN], rest: [] });
+  assert.match(html, /In season/);
+  const node = host.querySelector('[data-look-pick="winter-a"]');
+  node.closest = (sel) => (sel.includes('[data-look-pick]') ? node : null);
+  (docListeners.click || []).forEach((fn) => fn({ target: node }));
+  assert.ok(calls.some((c) => c[0] === 'setSeasonLook' && c[1] === 'winter-a'));
+});
+
+test('without a seasonOutlook (theme.js missing) the picker is the old flat list', () => {
+  const { document, sandbox } = seasonHub();
+  const host = document.createElement('div');
+  host._id = 'settings-full';
+  document.body.appendChild(host);
+  sandbox.renderSettingsFull();
+  assert.doesNotMatch(host.innerHTML, /look-group|<details/);
+  assert.match(host.innerHTML, /data-look-pick="fall-maple"/);
+});
+
+test('with nothing in season the note says when the next one starts, a moving one in words', () => {
+  const env = seasonHub();
+  Object.assign(env.sandbox, { activeSeason: () => null, nextSeason: () => EAS });
+  env.document.documentElement.setAttribute('data-season', 'on');
+  const host = env.document.createElement('div');
+  host._id = 'settings-full';
+  env.document.body.appendChild(host);
+  env.sandbox.renderSettingsFull();
+  env.sandbox.reflectThemeControls();
+  const note = env.document.querySelectorAll('.season-idle-note')[0];
+  assert.match(note.textContent, /Easter starts about two weeks before Easter Sunday/);
+});
+
+test('with nothing in season the note still names a fixed season by its first date', () => {
+  const env = seasonHub();
+  Object.assign(env.sandbox, { activeSeason: () => null, nextSeason: () => WIN });
+  env.document.documentElement.setAttribute('data-season', 'on');
+  const host = env.document.createElement('div');
+  host._id = 'settings-full';
+  env.document.body.appendChild(host);
+  env.sandbox.renderSettingsFull();
+  env.sandbox.reflectThemeControls();
+  assert.match(env.document.querySelectorAll('.season-idle-note')[0].textContent, /Winter starts Dec 1\./);
+});
+
+
+// ---- the generic drift layer (snow, petals, clover leaves, fireflies, sparkle)
+
+test('seasonDriftHtml: one layer of ten bits, bare spans, safe inside a tile <button>', () => {
+  const { sandbox } = newHub();
+  const html = sandbox.seasonDriftHtml('front');
+  assert.match(html, /^<span class="sn-drift front">/);
+  assert.equal((html.match(/<span class="sn-bit"><b><\/b><\/span>/g) || []).length, 10);
+  assert.doesNotMatch(html, /<div/);
+  assert.equal((html.match(/<span\b/g) || []).length, (html.match(/<\/span>/g) || []).length);
+});
+
+test('the wall layers carry a LIVE drift layer, a Settings preview carries a resting one', () => {
+  const { sandbox } = newHub();
+  assert.match(sandbox.seasonFxHtml('back'), /sn-drift back live/);
+  assert.match(sandbox.seasonFxHtml(), /sn-drift front live/);
+  const scene = sandbox.seasonSceneHtml();
+  assert.match(scene, /sn-drift front"/);
+  assert.doesNotMatch(scene, /sn-drift[^"]* live/, 'a preview never animates');
+});
+
+test('a Settings tile carries its season\'s drift kind so the preview can show it resting', () => {
+  const env = seasonHub();
+  const winter = { id: 'winter', name: 'Winter', from: [12, 1], to: [2, 29], drift: 'snow',
+    looks: [{ id: 'winter-a', name: 'Frost', blurb: 'B', default: true }] };
+  Object.assign(env.sandbox, { FH_SEASONS: [winter], seasonOutlook: () => ({ active: [winter], upcoming: [], rest: [] }) });
+  const host = env.document.createElement('div');
+  host._id = 'settings-full';
+  env.document.body.appendChild(host);
+  env.sandbox.renderSettingsFull();
+  assert.match(host.innerHTML, /class="look-swatch" data-look="winter-a" data-drift="snow"/);
+  const plain = seasonHub();
+  const host2 = plain.document.createElement('div');
+  host2._id = 'settings-full';
+  plain.document.body.appendChild(host2);
+  plain.sandbox.renderSettingsFull();
+  assert.doesNotMatch(host2.innerHTML, /data-drift=/, 'a season with no drift adds no attribute');
+});
+
+
+test('a moving season with no when text never breaks Settings (it says it moves each year)', () => {
+  const MOV = { id: 'mothersday', name: "Mother's Day", window: () => ({ from: [5, 4], to: [5, 10] }),
+    looks: [{ id: 'mothersday-a', name: 'Bloom', blurb: 'B', default: true }] };
+  const env = seasonHub();
+  Object.assign(env.sandbox, { FH_SEASONS: [MOV], seasonOutlook: () => ({ active: [], upcoming: [MOV], rest: [] }),
+    activeSeason: () => null, nextSeason: () => MOV });
+  env.document.documentElement.setAttribute('data-season', 'on');
+  const host = env.document.createElement('div');
+  host._id = 'settings-full';
+  env.document.body.appendChild(host);
+  env.sandbox.renderSettingsFull();
+  assert.match(host.innerHTML, /Moves each year/);
+  env.sandbox.reflectThemeControls();
+  assert.match(env.document.querySelectorAll('.season-idle-note')[0].textContent, /Mother's Day starts on a date that moves each year/);
+});
