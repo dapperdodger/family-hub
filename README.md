@@ -47,7 +47,11 @@ at one URL.
   live preview tiles. Each of the five themes keeps its own glass: Light and
   Soft show the photo bright and airy, Blue, Grey and Black at dusk. Nothing
   moves at night or for reduced motion, and the art (public domain, CC0,
-  CC-BY and MIT) ships inside the app.
+  CC-BY and MIT) ships inside the app. A slow screen such as a Raspberry Pi 3
+  turns on **Lite** (All settings → Seasonal looks, per device, or add
+  `?lite=1` to that screen's URL to latch it): the photo stays, but the glass
+  becomes a plain card fill instead of a blur and the leaves, bats and
+  spiders never move.
   Adding a season or holiday follows [`docs/seasonal-looks.md`](docs/seasonal-looks.md).
 
   ![Seasonal looks: fall and Halloween](docs/seasons.jpg)

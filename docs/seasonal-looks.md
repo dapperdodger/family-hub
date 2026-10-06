@@ -419,10 +419,21 @@ CC0), Shenandoah NPS rolling hills.
    through `var(--sn-k, 1)` so the phone block can shrink it. Don't touch
    the glass, wash or any surface colour: those belong to the theme. `test_static.py` fails until every look
    token is there, and if a look sets a theme's token.
+
+   **Lite (a slow screen such as the wall's Raspberry Pi 3).** Every moving
+   thing a season brings must be switched off by Lite: put it in a layer
+   Lite already hides (`body > .season-fx`, `.season .sn-leaves`,
+   `.season .sn-bat`), or add its class to Lite's hide rule in `styles.css`
+   AND to `LITE_COVERS` in `tests/test_static.py`, which fails
+   (`test_every_class_a_season_animates_is_covered_by_lite`) until you do.
+   A still decoration (the webs, the season mark) stays under Lite.
 6. **Check it with your own eyes**, on the demo (`DEMO=1`), at full size:
    - every look × all five themes (Light, Soft, Blue, Grey, Black) at
      1920×1080, and seasons off in all five (it must match main exactly);
    - night mode (add `is-night` to `<body>`) and reduced motion;
+   - Lite on (`setLite('on')` in the console): the photo and the colours still
+     read as the season with no blur and nothing moving, and the text is
+     still readable on the 86% card fill;
    - a phone width (390px and 360px), with a two-digit hour on the clock
      ("12:59:59pm" is the widest; a narrower time hid an overflow);
    - the gear popover open;
@@ -436,6 +447,15 @@ CC0), Shenandoah NPS rolling hills.
    tracked files.
 
 ## 7. How it works (reference)
+
+- **Lite** is `data-lite="on|off"` on `<html>`, per device (`fh.lite`, no house
+  default), stamped by `theme.js`; `?lite=1` / `?lite=0` in the page URL
+  latches it the way `?kiosk=1` latches the kiosk. While a look paints, Lite
+  turns the glass into 86% of the theme's own `--surface` with no
+  `backdrop-filter`, never displays the near layer, the far leaves or the far
+  bats, and drops the photo's arrival fade. Night keeps its own near-solid
+  glass; the Settings tiles are unchanged. The spiders ask `data-lite` before
+  they ask the layout anything.
 
 - `theme.js` owns the registry, the prefs (`fh.season`, `fh.look.<season>`)
   and the derived `data-look` attribute on `<html>`. It stamps them before
