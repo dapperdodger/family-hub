@@ -397,10 +397,15 @@ def _shopping_item(raw: dict) -> dict | None:
     iid = raw.get("id")
     if not valid_uuid(iid):
         return None
-    text = raw.get("display")
-    if not isinstance(text, str) or not text.strip():
-        text = raw.get("note")
-    if not isinstance(text, str) or not text.strip():
+    display, note = raw.get("display"), raw.get("note")
+    usable = lambda v: isinstance(v, str) and bool(v.strip())   # noqa: E731
+    has_food = bool(raw.get("foodId")) or isinstance(raw.get("food"), dict)
+    # A food item shows Mealie's display ("2 cups flour"). A free-text one (no food) shows
+    # its note: Mealie prefixes the quantity to its display ("1 Milk" for a quick-add of
+    # "Milk"), which is wrong for something typed by hand.
+    first, second = (display, note) if has_food else (note, display)
+    text = first if usable(first) else second
+    if not usable(text):
         return None
     return {"id": iid, "text": " ".join(text.split())[:ITEM_TEXT_MAX],
             "checked": raw.get("checked") is True}
@@ -462,10 +467,13 @@ async def shopping_tile(client, cfg, env: dict) -> dict:
 
 
 # What a check/un-check sends back. Mealie's update REPLACES the item, so everything it
-# returned rides back unchanged (like Mealie's own UI does) except the read-only fields:
-# a deny-list, not an allow-list, so a field we did not think of (recipeReferences, food,
-# unit) is never silently dropped. Still to be confirmed against the real server by the
-# live probe (plan Task 0).
+# returned rides back unchanged except the read-only fields: a deny-list, not an
+# allow-list, so a field we did not think of is never dropped. Verified against a real
+# Mealie 3.28 (2026-10-06): display, quantity, food, unit, label and note all survive a
+# check. recipeReferences does NOT: Mealie clears an item's link to its recipe on ANY
+# update (the single PUT with the references whole or trimmed, without them, and the bulk
+# PUT all gave 1 -> 0), so it cannot be preserved from here. What is lost is only
+# Mealie's own "remove this recipe's ingredients" for that item, not anything shown.
 _ITEM_READONLY = ("id", "createdAt", "updatedAt", "display", "groupId", "householdId", "userId")
 _NOT_ON_LIST = {"ok": False, "error": "that item is not on the list", "status": 404}
 

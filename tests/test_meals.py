@@ -1458,3 +1458,24 @@ def test_concurrent_shopping_writes_are_serialized_by_the_route_lock(app_env):
     assert stalled == 0, "the second write read the item while the first was still in flight (no lock)"
     order = [(m, p.rsplit("/", 1)[-1]) for m, p in fake.log if "/shopping/items/" in p]
     assert order == [("GET", IID1), ("PUT", IID1), ("GET", IID1), ("PUT", IID1)]
+
+
+def test_a_free_text_item_shows_its_note_not_mealies_quantity_prefixed_display():
+    """Verified against a real Mealie 3.28: a quick-added item (no food) comes back with
+    display '1 Milk' (the quantity 1 is prefixed) and note 'Milk'. The card must show the
+    note, or every item added from the wall reads '1 Milk'."""
+    fake = FakeMealie(items=[item(IID1, "1 Milk", note="Milk", foodId=None)])
+    assert shop(fake)["items"][0]["text"] == "Milk"
+
+
+def test_a_recipe_derived_item_still_shows_mealies_display_with_its_quantity_and_unit():
+    fake = FakeMealie(items=[item(IID1, "2 cups flour", note="", foodId="f1",
+                                  food={"id": "f1", "name": "flour"})])
+    assert shop(fake)["items"][0]["text"] == "2 cups flour"
+    fake = FakeMealie(items=[item(IID1, "2 cups flour", note="sifted", foodId="f1")])
+    assert shop(fake)["items"][0]["text"] == "2 cups flour", "a food item uses display even when it has a note"
+
+
+def test_a_food_less_item_with_no_note_falls_back_to_display():
+    fake = FakeMealie(items=[item(IID1, "1 something", note="  ", foodId=None)])
+    assert shop(fake)["items"][0]["text"] == "1 something"
