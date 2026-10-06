@@ -4212,13 +4212,13 @@ function planDays() {
   return md.days.filter((d) => d && typeof d.date === 'string').map((d) => ({
     date: d.date,
     label: mealsDayLabel(d.date, today),
-    now: d.dinner && d.dinner.name ? String(d.dinner.name) : 'Nothing planned',
+    now: d.dinner && d.dinner.name ? String(d.dinner.name) + (d.dinner.more > 0 ? ` +${d.dinner.more}` : '') : 'Nothing planned',
   }));
 }
 
 function recipePlanHtml() {
   const days = planDays();
-  if (!days.length) return '';
+  if (!days.length || !recipesState.detail || !recipesState.detail.id) return '';
   const button = `<button type="button" class="recipe-plan" data-recipe-plan>Plan it</button>`;
   if (!recipesState.planOpen) return `<div class="recipe-planbox">${button}</div>`;
   const off = recipesState.planBusy ? MEAL_LOCK_ATTR : '';
@@ -4234,17 +4234,17 @@ async function planRecipe(date) {
   if (!d || recipesState.planBusy) return;
   const day = planDays().find((x) => x.date === date);
   recipesState.planBusy = true;
-  renderRecipes();
+  renderRecipes(true);
   try {
     await j('/api/mealie/plan', JSON_POST({ recipe_id: d.id, date }));
     showToast(`Planned ${d.name} for ${day ? day.label : date}`);
     recipesState.planOpen = false;
-    fetchMeals();               // the Dinner card behind this view shows the new dinner now
   } catch (e) {
     showToast((e && e.message) ? e.message : 'That did not work');
   } finally {
     recipesState.planBusy = false;
-    if (recipesState.slug && recipesState.detail === d) renderRecipes();
+    if (recipesState.slug && recipesState.detail === d) renderRecipes(true);
+    fetchMeals();               // success or not, show what Mealie actually has on the Dinner card
   }
 }
 
@@ -4280,13 +4280,13 @@ function recipesGridShellHtml() {
     + `<div id="recipes-controls"></div><div id="recipes-grid"></div></div>`;
 }
 
-function renderRecipes() {
+function renderRecipes(keepScroll = false) {
   const host = recipesHost();
   if (!host) return;
   const panel = host.parentNode;
   if (recipesState.slug) {
     host.innerHTML = recipeDetailHtml();
-    if (panel) panel.scrollTop = 0;
+    if (panel && !keepScroll) panel.scrollTop = 0;   // a newly opened recipe starts at the top
     return;
   }
   host.innerHTML = recipesGridShellHtml();
@@ -5019,7 +5019,7 @@ document.addEventListener('click', (e) => {
   const rcPlanDay = e.target.closest('[data-recipe-plan-day]');
   if (rcPlanDay) { planRecipe(rcPlanDay.dataset.recipePlanDay); return; }
   const rcPlan = e.target.closest('[data-recipe-plan]');
-  if (rcPlan) { recipesState.planOpen = !recipesState.planOpen; renderRecipes(); return; }
+  if (rcPlan) { recipesState.planOpen = !recipesState.planOpen; renderRecipes(true); return; }
   const rcBack = e.target.closest('[data-recipe-back]');
   if (rcBack) { recipesBack(); return; }
   const rcSort = e.target.closest('[data-recipe-sort]');

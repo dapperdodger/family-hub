@@ -11242,3 +11242,42 @@ test('Recipes: a dinner name from Mealie in a chip is inert text', async () => {
   assert.doesNotMatch(rcpHtml(r.host), /<img src=x/);
   assert.match(rcpHtml(r.host), /&lt;img src=x onerror=alert\(1\)&gt;/);
 });
+
+test('Recipes: opening and using Plan it never jumps the recipe page back to the top', async () => {
+  const r = await rcpPlanOpen();
+  const panel = { scrollTop: 300 };
+  r.host.parentNode = panel;       // the fake DOM has no scroller: give the host one
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  assert.equal(panel.scrollTop, 300, 'toggling the chips keeps the place');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  assert.equal(panel.scrollTop, 300, 'planning keeps the place too');
+});
+
+test('Recipes: a failed plan still re-reads the Dinner card (Mealie may have changed)', async () => {
+  const r = await rcpPlanOpen();
+  const seen = [];
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    seen.push(url);
+    return url === '/api/mealie/plan' ? { ok: false, status: 502, json: async () => ({ detail: 'half done' }) } : base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  assert.ok(seen.includes('/api/tiles/mealie'), 'the card was re-read after the failure');
+});
+
+test('Recipes: a chip says how many dinners it would replace', async () => {
+  const meals = MEALS_WEEK();
+  meals.days[1].dinner = dinner({ id: 2, name: 'Soup', more: 2 });
+  const r = await rcpPlanOpen({ meals });
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  assert.match(rcpHtml(r.host), /class="recipe-day-now">Soup \+2</);
+  assert.match(rcpHtml(r.host), /class="recipe-day-now">Nothing planned</);
+});
+
+test('Recipes: a recipe Mealie gave no usable id offers no Plan it', async () => {
+  const r = await rcpPlanOpen({ detail: RCP_DETAIL({ id: null }) });
+  assert.doesNotMatch(rcpHtml(r.host), /data-recipe-plan/);
+});
