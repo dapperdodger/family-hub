@@ -10956,6 +10956,7 @@ test('Recipes: tapping a card shows the detail; Back restores search, sort, cate
   assert.match(rcpHtml(host), /<li>1 can tomatoes<\/li>/);
   assert.match(rcpHtml(host), /Boil the pasta\.<br>Drain\./, 'step line breaks are kept');
   assert.match(rcpHtml(host), /Use basil\./);
+  assert.match(rcpHtml(host), /<strong>Boil<\/strong><br>Boil the pasta\./, 'a step title sits on its own line');
   assert.match(rcpHtml(host), new RegExp(`/api/mealie/image/${RID_A}"`), 'the detail photo is the medium size');
   tapRcp(fire, host, '[data-recipe-back]', 'data-recipe-back');
   assert.equal(host.querySelector('#recipe-search').value, 'ziti');

@@ -4210,10 +4210,10 @@ function recipeDetailHtml() {
     .map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHtml(String(v))}</dd></div>`).join('');
   const ings = (d.ingredients || []).map((i) => (i.heading
     ? `<li class="recipe-ing-head">${escapeHtml(i.heading)}</li>` : `<li>${escapeHtml(i.text)}</li>`)).join('');
-  const steps = (d.steps || []).map((s) => `<li>${s.title ? `<strong>${escapeHtml(s.title)}</strong> ` : ''}`
+  const steps = (d.steps || []).map((s) => `<li>${s.title ? `<strong>${escapeHtml(s.title)}</strong><br>` : ''}`
     + `${recipeParasHtml(s.text)}</li>`).join('');
   const notes = (d.notes || []).map((n) => `<div class="recipe-note-item">`
-    + `${n.title ? `<strong>${escapeHtml(n.title)}</strong> ` : ''}${recipeParasHtml(n.text)}</div>`).join('');
+    + `${n.title ? `<strong>${escapeHtml(n.title)}</strong><br>` : ''}${recipeParasHtml(n.text)}</div>`).join('');
   return `<div class="recipes">${back}<article class="recipe-detail">`
     + `<div class="recipe-side">${photo}${meta ? `<dl class="recipe-meta">${meta}</dl>` : ''}</div>`
     + `<div class="recipe-main"><h2>${escapeHtml(d.name)}</h2>`
