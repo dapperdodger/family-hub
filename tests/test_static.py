@@ -2580,4 +2580,9 @@ def test_recipes_css_is_light_enough_for_a_pi_3_and_adapts_to_the_phone():
     assert re.search(r"\.recipe-detail\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)", mobile), "one column on the phone"
     assert re.search(r"\.recipe-sort,[^{]*\.recipe-back\s*\{[^}]*min-height:\s*44px", mobile), "44px tap targets"
     assert re.search(r"\.recipe-img\.is-broken[^{]*\{[^}]*visibility:\s*hidden", CSS), "a failed photo reveals the placeholder glyph"
+    for cls in ("recipe-planbox", "recipe-plan", "recipe-days", "recipe-day", "recipe-day-name", "recipe-day-now"):
+        assert re.search(rf"\.{cls}\b[^{{]*\{{", CSS), f"{cls} is styled"
+    assert re.search(r"\.recipe-day\[disabled\]", CSS), "a busy chip looks inactive"
+    assert re.search(r"\.recipe-plan,[^{]*\.recipe-day\s*\{[^}]*min-height:\s*44px", mobile), "44px plan buttons on the phone"
+    assert re.search(r"\.recipe-days\s*\{[^}]*repeat\(2,", mobile), "two day chips across on the phone"
     assert "recipe-noimg" not in CSS
