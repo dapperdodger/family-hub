@@ -110,7 +110,6 @@ const PLAN = [
   { id: 'easter', window: (y) => T.windows.easter(y) },
   { id: 'mothers-day', window: (y) => T.windows.mothersDay(y) },
   { id: 'spring', from: [3, 1], to: [5, 31] },
-  { id: 'juneteenth', from: [6, 12], to: [6, 19] },
   { id: 'fathers-day', window: (y) => T.windows.fathersDay(y) },
   { id: 'july4', from: [6, 25], to: [7, 4] },
   { id: 'summer', from: [6, 1], to: [8, 31] },

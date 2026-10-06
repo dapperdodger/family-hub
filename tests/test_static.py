@@ -2792,3 +2792,35 @@ def test_drift_motion_is_compositor_only_and_stops_for_reduced_motion_and_night(
     assert min(classes(x) for x in night_bit) >= 5 and min(classes(x) for x in night_b) >= 5, \
         "the night pause must outrank the animation shorthand (it resets play-state)"
     assert not re.search(r"\.sn-bit[^{]*\{[^}]*filter:", css), "no filters on drift bits (a small GPU re-draws them every frame)"
+
+
+
+def _classish(sel):
+    """Specificity's middle number for the selectors this block uses: classes, attributes, :root."""
+    return len(re.findall(r"\.[A-Za-z_][\w-]*|\[[^\]]+\]|:root", sel))
+
+
+def test_a_settings_preview_never_takes_the_walls_drift_kind():
+    """The wall's kind rules (:root[data-drift=K] ...) also match the tiles inside the page. Where a tile
+    shows a DIFFERENT kind than the wall paints, the tile's own rule must outrank the wall's, or the Winter
+    tile draws Valentine's stars while Valentine's paints. Source order must not decide it."""
+    wall, tile = [], []
+    for sels, body, _ in _rules():
+        if not re.search(r"--k:|mask:|-gradient\(", body):
+            continue
+        for sel in sels:
+            if ':root[data-drift="' in sel and (".sn-bit" in sel or ".sn-drift" in sel) and ".live" not in sel:
+                wall.append(_classish(sel))
+            if ".look-swatch[data-drift=" in sel:
+                tile.append(_classish(sel))
+    assert wall and tile, "found the kind token/shape rules"
+    assert min(tile) > max(wall), f"tile rules ({min(tile)}) must outrank the wall's ({max(wall)})"
+
+
+def test_the_night_pause_outranks_the_wall_animation_rules():
+    paused = {s.strip() for sels, body, _ in _rules() if "animation-play-state: paused" in body for s in sels}
+    night = [x for x in paused if ".is-night" in x and ".sn-bit" in x]
+    live = [s for sels, body, _ in _rules() if re.search(r"animation:\s*[^;]*\bsn-(fall|sway|wander|glow|twinkle|rock)", body)
+            for s in sels if ".sn-bit" in s and ".live" in s]
+    assert night and live
+    assert min(_classish(x) for x in night) > max(_classish(x) for x in live), "the pause must be MORE specific than the animation"

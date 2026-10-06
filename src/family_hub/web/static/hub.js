@@ -5663,11 +5663,13 @@ async function spiderDrop() {
 // "Sep 1 to Nov 30" from a season's [month, day] window.
 function seasonWindowText(s) {
   if (s.when) return s.when;           // a moving holiday has no fixed dates to print
+  if (!s.from) return 'Moves each year';   // a moving season registered without its words: never throw
   const md = ([m, d]) => `${MONTHS[m - 1]} ${d}`;
   return `${md(s.from)} to ${md(s.to)}`;
 }
 // the phrase after "starts": "Sep 1", or "about two weeks before Easter Sunday"
 function seasonStartText(s) {
+  if (!s.when && !s.from) return 'on a date that moves each year';
   return s.when ? s.when.charAt(0).toLowerCase() + s.when.slice(1) : seasonWindowText(s).split(' to ')[0];
 }
 

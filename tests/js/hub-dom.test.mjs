@@ -11632,3 +11632,20 @@ test('a Settings tile carries its season\'s drift kind so the preview can show i
   plain.sandbox.renderSettingsFull();
   assert.doesNotMatch(host2.innerHTML, /data-drift=/, 'a season with no drift adds no attribute');
 });
+
+
+test('a moving season with no when text never breaks Settings (it says it moves each year)', () => {
+  const MOV = { id: 'mothersday', name: "Mother's Day", window: () => ({ from: [5, 4], to: [5, 10] }),
+    looks: [{ id: 'mothersday-a', name: 'Bloom', blurb: 'B', default: true }] };
+  const env = seasonHub();
+  Object.assign(env.sandbox, { FH_SEASONS: [MOV], seasonOutlook: () => ({ active: [], upcoming: [MOV], rest: [] }),
+    activeSeason: () => null, nextSeason: () => MOV });
+  env.document.documentElement.setAttribute('data-season', 'on');
+  const host = env.document.createElement('div');
+  host._id = 'settings-full';
+  env.document.body.appendChild(host);
+  env.sandbox.renderSettingsFull();
+  assert.match(host.innerHTML, /Moves each year/);
+  env.sandbox.reflectThemeControls();
+  assert.match(env.document.querySelectorAll('.season-idle-note')[0].textContent, /Mother's Day starts on a date that moves each year/);
+});

@@ -18,12 +18,12 @@ it suits, one gentle kind of motion. Everything stays Pi-3-safe: new motion live
   their dates (Winter covers December meanwhile); they then show from next year. Operator chose this
   with the dates in view.
 - **Holidays in scope:** Thanksgiving, Christmas, New Year's, Martin Luther King Jr. Day, Valentine's
-  Day, St Patrick's Day, Easter, Mother's Day, Juneteenth, Father's Day, Fourth of July. (Halloween and
+  Day, St Patrick's Day, Easter, Mother's Day, Father's Day, Fourth of July. (Halloween and
   Fall already exist.) **Not now:** Memorial Day, Labor Day, Veterans Day, Presidents' Day: they can be
   added later by the same recipe.
 - **Looks per season, by window length:** the long ones (Winter, Spring, Summer, Christmas, Thanksgiving,
   Fourth of July) get 3 looks; the short ones (New Year's, Valentine's, St Patrick's, Easter, Mother's Day,
-  Father's Day, MLK Day, Juneteenth) get 1 or 2. About 30 photos in all.
+  Father's Day, MLK Day) get 1 or 2. About 30 photos in all.
 - **Motion:** one gentle kind per season, photo only for the solemn ones.
 
 | Season | Window (first match wins; holidays are listed before the broad season they sit in) | Motion |
@@ -37,7 +37,6 @@ it suits, one gentle kind of motion. Everything stays Pi-3-safe: new motion live
 | Easter | the 14 days before Easter Sunday, through Easter Monday (moving) | drifting petals |
 | Mother's Day | the Monday to the Sunday of the second Sunday in May (moving) | drifting petals |
 | Spring | Mar 1 to May 31 (the rest of it) | drifting petals |
-| Juneteenth | Jun 12 to Jun 19 | photo only |
 | Father's Day | the Thursday to the Sunday of the third Sunday in June (moving) | photo only |
 | Fourth of July | Jun 25 to Jul 4 | slow sparkle |
 | Summer | Jun 1 to Aug 31 (the rest of it) | fireflies at dusk |
@@ -46,9 +45,15 @@ it suits, one gentle kind of motion. Everything stays Pi-3-safe: new motion live
 | Fall | Sep 1 to Nov 30 (existing) | existing |
 
 Order in the registry matters (first window that matches today wins): New Year's, Christmas, MLK Day,
-Valentine's, Winter; St Patrick's, Easter, Mother's Day, Spring; Juneteenth, Father's Day, Fourth of July,
+Valentine's, Winter; St Patrick's, Easter, Mother's Day, Spring; Father's Day, Fourth of July,
 Summer; Halloween, Thanksgiving, Fall. Christmas is listed before Thanksgiving so a late Thanksgiving
 week that touches Dec 1 yields to Christmas. Today's two overlaps are intentional and tested.
+
+**Rulings after the PR 1 review (2026-10-06).** Juneteenth is dropped (the operator could not think of good
+photos for it, and its window swallowed Father's Day in most years). **Season ids are bare lowercase words**
+(`newyears`, `mlkday`, `stpatricks`, `mothersday`, `fathersday`, `julyfourth`), because the static guards treat
+every hyphenated id as a look; a look's id is `<seasonid>-<name>`. The picker's third group is "More seasons"
+(it holds what is not in season and not coming up soon, so "All seasons" would misdescribe it).
 
 ## PR 1: groundwork
 

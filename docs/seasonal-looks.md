@@ -491,7 +491,7 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
 ## 7. How it works (reference)
 
 - **The registry and the calendar.** `theme.js` holds `SEASONS`; `FH_SEASON_TOOLS`
-  exposes the pure date helpers (`nthWeekday`, `easterSunday`, `WINDOWS`,
+  exposes the pure date helpers (`nthWeekday`, `easterSunday`, `windows`,
   `seasonFor(date, list)`, `seasonOutlook(date, list)`) so they are tested without
   a browser. `seasonOutlook` is what groups Settings' picker: the seasons whose
   window holds today (open), the next three to start (folded) and the rest.
@@ -502,6 +502,11 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
   reduced motion and night stop them (the night pause is as specific as the
   animation rules, because the `animation` shorthand resets play-state).
 
+- **Season ids** are bare lowercase words (`mothersday`, `stpatricks`, `julyfourth`): the guards treat every
+  hyphenated id in the registry as a look, and a look's id is `<seasonid>-<name>`. A season that moves each year
+  (`window: WINDOWS.<name>`) must carry a `when` text; `theme.test.mjs` fails otherwise, and also for an unknown
+  `drift`, and checks day by day over several years that a season whose window sits inside another is listed
+  before it.
 - **Lite** is `data-lite="on|off"` on `<html>`, per device (`fh.lite`, no house
   default), stamped by `theme.js`; `?lite=1` / `?lite=0` in the page URL
   latches it the way `?kiosk=1` latches the kiosk. While a look paints, Lite

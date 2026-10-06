@@ -250,6 +250,38 @@
   window.stampLayout = stampLayoutIf;
   window.stampIdleReturn = stampIdleReturnIf;
 
+  // ---- dates for moving holidays: pure, year-based ----
+  // nthWeekday: the day of month of the nth `weekday` (0 = Sunday) of `month` (1-12) in `year`.
+  function nthWeekday(year, month, weekday, n) {
+    var first = new Date(year, month - 1, 1).getDay();
+    return 1 + ((weekday - first + 7) % 7) + (n - 1) * 7;
+  }
+  // Easter Sunday (the Gregorian computus, Meeus/Jones/Butcher): [month, day].
+  function easterSunday(year) {
+    var a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    var d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    var g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    var i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    var m = Math.floor((a + 11 * h + 22 * l) / 451);
+    return [Math.floor((h + l - 7 * m + 114) / 31), ((h + l - 7 * m + 114) % 31) + 1];
+  }
+  // [month, day] of (year, month, day) shifted by n days
+  function shiftDay(year, month, day, n) {
+    var t = new Date(year, month - 1, day + n);
+    return [t.getMonth() + 1, t.getDate()];
+  }
+  // The named windows a season can use as `window: WINDOWS.easter`. Each takes the year.
+  var WINDOWS = {
+    easter: function (y) { var e = easterSunday(y); return { from: shiftDay(y, e[0], e[1], -14), to: shiftDay(y, e[0], e[1], 1) }; },
+    mothersDay: function (y) { var s = nthWeekday(y, 5, 0, 2); return { from: shiftDay(y, 5, s, -6), to: [5, s] }; },
+    fathersDay: function (y) { var s = nthWeekday(y, 6, 0, 3); return { from: shiftDay(y, 6, s, -3), to: [6, s] }; },
+    mlkDay: function (y) { var m = nthWeekday(y, 1, 1, 3); return { from: shiftDay(y, 1, m, -3), to: [1, m] }; },
+    thanksgiving: function (y) { var t = nthWeekday(y, 11, 4, 4); return { from: shiftDay(y, 11, t, -10), to: shiftDay(y, 11, t, 3) }; }
+  };
+  // A season's window for a year: a moving one computes it, a fixed one is its from/to.
+  function windowOf(season, year) {
+    return typeof season.window === "function" ? season.window(year) : { from: season.from, to: season.to };
+  }
   // ---- seasonal looks: data-season (the choice) + data-look (what paints) ----
   // A seasonal look is a real photograph (or public-domain artwork) filling
   // the screen behind glass cards, with a matching accent, leaves drifting
@@ -307,38 +339,6 @@
       for (var j = 0; j < looks.length; j++) if (looks[j].id === lookId) return SEASONS[i];
     }
     return null;
-  }
-  // ---- dates for moving holidays: pure, year-based ----
-  // nthWeekday: the day of month of the nth `weekday` (0 = Sunday) of `month` (1-12) in `year`.
-  function nthWeekday(year, month, weekday, n) {
-    var first = new Date(year, month - 1, 1).getDay();
-    return 1 + ((weekday - first + 7) % 7) + (n - 1) * 7;
-  }
-  // Easter Sunday (the Gregorian computus, Meeus/Jones/Butcher): [month, day].
-  function easterSunday(year) {
-    var a = year % 19, b = Math.floor(year / 100), c = year % 100;
-    var d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
-    var g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
-    var i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
-    var m = Math.floor((a + 11 * h + 22 * l) / 451);
-    return [Math.floor((h + l - 7 * m + 114) / 31), ((h + l - 7 * m + 114) % 31) + 1];
-  }
-  // [month, day] of (year, month, day) shifted by n days
-  function shiftDay(year, month, day, n) {
-    var t = new Date(year, month - 1, day + n);
-    return [t.getMonth() + 1, t.getDate()];
-  }
-  // The named windows a season can use as `window: WINDOWS.easter`. Each takes the year.
-  var WINDOWS = {
-    easter: function (y) { var e = easterSunday(y); return { from: shiftDay(y, e[0], e[1], -14), to: shiftDay(y, e[0], e[1], 1) }; },
-    mothersDay: function (y) { var s = nthWeekday(y, 5, 0, 2); return { from: shiftDay(y, 5, s, -6), to: [5, s] }; },
-    fathersDay: function (y) { var s = nthWeekday(y, 6, 0, 3); return { from: shiftDay(y, 6, s, -3), to: [6, s] }; },
-    mlkDay: function (y) { var m = nthWeekday(y, 1, 1, 3); return { from: shiftDay(y, 1, m, -3), to: [1, m] }; },
-    thanksgiving: function (y) { var t = nthWeekday(y, 11, 4, 4); return { from: shiftDay(y, 11, t, -10), to: shiftDay(y, 11, t, 3) }; }
-  };
-  // A season's window for a year: a moving one computes it, a fixed one is its from/to.
-  function windowOf(season, year) {
-    return typeof season.window === "function" ? season.window(year) : { from: season.from, to: season.to };
   }
   // month*100+day compares calendar dates without a year; a window whose start
   // is later than its end wraps the new year.

@@ -15,6 +15,7 @@ import argparse
 import html
 import json
 import re
+import shutil
 import sys
 import urllib.parse
 import urllib.request
@@ -132,9 +133,20 @@ def cmd_fetch(a):
                  if c["source"] == source and c["id"] == ident), None)
     if not cand:
         sys.exit(f"{a.ref} is not in {listing}")
-    urllib.request.urlretrieve(cand["original"], a.out)
-    print(f"saved {a.out}\nCREDITS.md row:\n| {Path(a.out).name} | {cand['title']} by {cand['creator']} | "
-          f"{cand['page']} | {cand['licence']} | resized to 2560px, metadata stripped |")
+    out = Path(a.out)
+    part = out.with_name(out.name + ".part")
+    try:
+        # the same User-Agent as the searches (Wikimedia's upload servers refuse the default urllib one) and a
+        # timeout; written to a .part file and renamed, so a failure never leaves a half-written photo
+        with urllib.request.urlopen(urllib.request.Request(cand["original"], headers=UA), timeout=60) as r, open(part, "wb") as f:
+            shutil.copyfileobj(r, f)
+        part.replace(out)
+    except Exception as ex:
+        part.unlink(missing_ok=True)
+        sys.exit(f"download failed: {type(ex).__name__}: {ex}")
+    cell = lambda v: " ".join(str(v).split()).replace("|", "\\|")      # noqa: E731 (a | or newline would break the table)
+    print(f"saved {a.out}\nCREDITS.md row:\n| {out.name} | {cell(cand['title'])} by {cell(cand['creator'])} | "
+          f"{cell(cand['page'])} | {cell(cand['licence'])} | resized to 2560px, metadata stripped |")
 
 
 def main(argv=None):

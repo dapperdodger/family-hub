@@ -11,6 +11,7 @@ rolls that section to a dated version via `python scripts/release.py`.
 ## [Unreleased]
 
 ### Fixed
+- Seasons groundwork review: a season written with a moving window no longer breaks the page's theme at load, Settings copes with a moving season that has no words, the Settings previews keep their own drift kind when the wall paints another, the photo helper's download uses the Wikimedia-friendly User-Agent with a timeout and leaves no partial file, and Juneteenth (whose window hid Father's Day) is dropped from the plan.
 - Plan it: after a timeout the Dinner card is re-read again 5 and 15 seconds later (the hub may still be writing), and a delete only treats a real 404 as already gone, never a server or token error.
 - Plan it: a plan request finishing late no longer unlocks or closes a newer one on another recipe, a timeout says Mealie is slow instead of a raw browser message, and a database hiccup after the plan went through no longer turns it into an error.
 - Shopping: deleting an item that is already gone (two phones, a double tap) counts as done instead of an error; the header count moves the moment you tap an item; a list longer than 200 items says "Showing the first 200 of N".

@@ -106,3 +106,82 @@ def test_the_default_sources_are_ones_that_answer_and_all_satisfy_the_licence_ru
     src = inspect.getsource(sps)
     for banned in ("unsplash.com", "pexels.com", "pixabay.com"):
         assert banned not in src.replace("Unsplash, Pexels and Pixabay", ""), banned
+
+
+
+def test_fetch_uses_the_user_agent_and_a_timeout_and_leaves_no_partial_file(tmp_path, monkeypatch, capsys):
+    import io
+    import json
+    import urllib.request
+    (tmp_path / "candidates.json").write_text(json.dumps([{"source": "commons", "id": "File:X.jpg", "title": "A | B", "creator": "C\nD",
+                                                           "licence": "CC0", "page": "https://p/x", "original": "https://o/x.jpg"}]))
+    seen = {}
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake(req, timeout=None):
+        seen["ua"] = req.get_header("User-agent")
+        seen["timeout"] = timeout
+        return Resp(b"JPEGDATA")
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    out = tmp_path / "pick.jpg"
+    sps.main(["fetch", "commons:File:X.jpg", "--out", str(out)])
+    assert out.read_bytes() == b"JPEGDATA" and not list(tmp_path.glob("*.part"))
+    assert "family-hub-photo-search" in seen["ua"] and seen["timeout"] and seen["timeout"] > 0
+    printed = capsys.readouterr().out
+    assert "A \\| B" in printed and "C D" in printed, "a | or a newline in a title cannot break the CREDITS table"
+
+
+def test_a_failed_download_leaves_nothing_behind_and_says_why(tmp_path, monkeypatch):
+    import json
+    import urllib.request
+    import pytest
+    (tmp_path / "candidates.json").write_text(json.dumps([{"source": "commons", "id": "a", "title": "T", "creator": "c",
+                                                           "licence": "CC0", "page": "p", "original": "https://o/x.jpg"}]))
+
+    def boom(req, timeout=None):
+        raise OSError("403")
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    with pytest.raises(SystemExit) as e:
+        sps.main(["fetch", "commons:a", "--out", str(tmp_path / "pick.jpg")])
+    assert "OSError" in str(e.value)
+    assert not list(tmp_path.glob("pick*")), "no partial file"
+
+
+def test_a_download_that_breaks_half_way_leaves_no_partial_photo(tmp_path, monkeypatch):
+    import io
+    import json
+    import urllib.request
+    import pytest
+    (tmp_path / "candidates.json").write_text(json.dumps([{"source": "commons", "id": "a", "title": "T", "creator": "c",
+                                                           "licence": "CC0", "page": "p", "original": "https://o/x.jpg"}]))
+
+    class Half(io.RawIOBase):
+        def __init__(self):
+            self.sent = False
+
+        def readable(self):
+            return True
+
+        def readinto(self, b):
+            if not self.sent:
+                self.sent = True
+                b[:4] = b"JPEG"
+                return 4
+            raise OSError("connection reset")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: Half())
+    with pytest.raises(SystemExit) as e:
+        sps.main(["fetch", "commons:a", "--out", str(tmp_path / "pick.jpg")])
+    assert "connection reset" in str(e.value)
+    assert not list(tmp_path.glob("pick*")), "neither the photo nor its .part file is left"

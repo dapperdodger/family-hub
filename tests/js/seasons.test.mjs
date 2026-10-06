@@ -53,18 +53,17 @@ test('the named window recipes', () => {
 // The year-round layout the new seasons will fill (spec: docs/superpowers/specs/2026-10-06-new-seasons-design.md).
 // Order matters: the first window that matches wins.
 const PLAN = [
-  { id: 'new-years', from: [12, 27], to: [1, 2] },
+  { id: 'newyears', from: [12, 27], to: [1, 2] },
   { id: 'christmas', from: [12, 1], to: [12, 26] },
-  { id: 'mlk', window: (y) => T.windows.mlkDay(y) },
+  { id: 'mlkday', window: (y) => T.windows.mlkDay(y) },
   { id: 'valentines', from: [2, 1], to: [2, 14] },
   { id: 'winter', from: [12, 1], to: [2, 29] },
-  { id: 'st-patricks', from: [3, 1], to: [3, 17] },
+  { id: 'stpatricks', from: [3, 1], to: [3, 17] },
   { id: 'easter', window: (y) => T.windows.easter(y) },
-  { id: 'mothers-day', window: (y) => T.windows.mothersDay(y) },
+  { id: 'mothersday', window: (y) => T.windows.mothersDay(y) },
   { id: 'spring', from: [3, 1], to: [5, 31] },
-  { id: 'juneteenth', from: [6, 12], to: [6, 19] },
-  { id: 'fathers-day', window: (y) => T.windows.fathersDay(y) },
-  { id: 'july4', from: [6, 25], to: [7, 4] },
+  { id: 'fathersday', window: (y) => T.windows.fathersDay(y) },
+  { id: 'julyfourth', from: [6, 25], to: [7, 4] },
   { id: 'summer', from: [6, 1], to: [8, 31] },
   { id: 'halloween', from: [10, 1], to: [10, 31] },
   { id: 'thanksgiving', window: (y) => T.windows.thanksgiving(y) },
@@ -74,17 +73,17 @@ const on = (s) => { const r = T.seasonFor(d(s), PLAN); return r ? r.id : null; }
 
 test('the whole-calendar table: every window edge, every overlap, the leap day, New Year', () => {
   const table = {
-    '2026-12-27': 'new-years', '2027-01-01': 'new-years', '2027-01-02': 'new-years', '2027-01-03': 'winter',
-    '2027-01-14': 'winter', '2027-01-15': 'mlk', '2027-01-18': 'mlk', '2027-01-19': 'winter',
-    '2026-12-01': 'christmas', '2026-12-26': 'christmas', '2026-12-31': 'new-years',
+    '2026-12-27': 'newyears', '2027-01-01': 'newyears', '2027-01-02': 'newyears', '2027-01-03': 'winter',
+    '2027-01-14': 'winter', '2027-01-15': 'mlkday', '2027-01-18': 'mlkday', '2027-01-19': 'winter',
+    '2026-12-01': 'christmas', '2026-12-26': 'christmas', '2026-12-31': 'newyears',
     '2027-02-01': 'valentines', '2027-02-14': 'valentines', '2027-02-15': 'winter', '2028-02-29': 'winter',
-    '2026-03-01': 'st-patricks', '2026-03-17': 'st-patricks', '2026-03-21': 'spring',
+    '2026-03-01': 'stpatricks', '2026-03-17': 'stpatricks', '2026-03-21': 'spring',
     '2026-03-22': 'easter', '2026-04-06': 'easter', '2026-04-07': 'spring',
-    '2024-03-17': 'st-patricks', '2024-03-18': 'easter', '2024-04-01': 'easter',
-    '2026-05-03': 'spring', '2026-05-04': 'mothers-day', '2026-05-10': 'mothers-day', '2026-05-11': 'spring',
+    '2024-03-17': 'stpatricks', '2024-03-18': 'easter', '2024-04-01': 'easter',
+    '2026-05-03': 'spring', '2026-05-04': 'mothersday', '2026-05-10': 'mothersday', '2026-05-11': 'spring',
     '2026-05-31': 'spring', '2026-06-01': 'summer', '2026-06-11': 'summer',
-    '2026-06-12': 'juneteenth', '2026-06-19': 'juneteenth', '2026-06-20': 'fathers-day', '2026-06-21': 'fathers-day',
-    '2026-06-22': 'summer', '2026-06-25': 'july4', '2026-07-04': 'july4', '2026-07-05': 'summer', '2026-08-31': 'summer',
+    '2026-06-17': 'summer', '2026-06-18': 'fathersday', '2026-06-21': 'fathersday', '2025-06-12': 'fathersday', '2025-06-15': 'fathersday',
+    '2026-06-22': 'summer', '2026-06-25': 'julyfourth', '2026-07-04': 'julyfourth', '2026-07-05': 'summer', '2026-08-31': 'summer',
     '2026-09-01': 'fall', '2026-10-01': 'halloween', '2026-10-31': 'halloween', '2026-11-01': 'fall',
     '2026-11-15': 'fall', '2026-11-16': 'thanksgiving', '2026-11-29': 'thanksgiving', '2026-11-30': 'fall',
     '2030-12-01': 'christmas',
@@ -179,4 +178,35 @@ test('turning seasons off clears the drift with the look', () => {
 test('a fresh page stamps data-drift none (no season painting yet)', () => {
   const { root } = loadTheme();
   assert.equal(root.getAttribute('data-drift'), 'none');
+});
+
+
+// ---- the registry itself must be able to USE the moving windows (review fix: WINDOWS was defined after it)
+
+function loadFrom(src) {
+  const attrs = {};
+  const root = { setAttribute(k, v) { attrs[k] = String(v); }, getAttribute(k) { return k in attrs ? attrs[k] : null; } };
+  const store = new Map([['fh.season', 'on']]);
+  const win = { localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) } };
+  const sandbox = { window: win, document: { documentElement: root } };
+  vm.createContext(sandbox);
+  vm.runInContext(src, sandbox);
+  return { win, root };
+}
+
+test('a season written as window: WINDOWS.easter in the registry loads and paints in its window', () => {
+  const src = themeSrc.replace('var SEASONS = [', 'var SEASONS = [\n    { id: "eastertest", name: "Easter", when: "Around Easter", window: WINDOWS.easter, drift: "petal",'
+    + ' looks: [{ id: "eastertest-a", name: "A", blurb: "b", default: true }] },');
+  assert.notEqual(src, themeSrc, 'the registry marker is still there');
+  const { win, root } = loadFrom(src);
+  assert.equal(win.FH_SEASONS[0].id, 'eastertest');
+  assert.equal(root.getAttribute('data-theme'), 'grey', 'the page was stamped (theme.js ran to the end)');
+  assert.equal(win.refreshLook(new Date(2026, 3, 1)), 'eastertest-a');
+  assert.equal(root.getAttribute('data-drift'), 'petal');
+  assert.notEqual(win.refreshLook(new Date(2026, 3, 8)), 'eastertest-a', 'after Easter Monday it is over');
+});
+
+test('the date helpers and WINDOWS are defined before the registry that uses them', () => {
+  assert.ok(themeSrc.indexOf('var WINDOWS = {') < themeSrc.indexOf('var SEASONS = ['), 'WINDOWS comes first');
+  assert.ok(themeSrc.indexOf('function windowOf(') < themeSrc.indexOf('var SEASONS = ['));
 });
