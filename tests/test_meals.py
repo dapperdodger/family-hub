@@ -1639,3 +1639,119 @@ def test_recipes_are_cached_briefly_and_expire(monkeypatch):
 def test_recipes_do_not_touch_the_dinner_source_state():
     recipes(FakeMealie(recipes=[recipe("a")]))
     assert "last_ok" not in tiles.SOURCE_STATE.get("meals", {})
+
+
+
+# ---------------------------------------------------------------- recipe detail
+
+def detail_body(slug="baked-ziti", **kw):
+    b = {"id": RID, "slug": slug, "name": "Baked Ziti", "image": "abc", "recipeServings": 6,
+         "prepTime": "15 Minutes", "cookTime": "45 Minutes", "totalTime": "1 Hour",
+         "description": "Cheesy pasta.",
+         "recipeIngredient": [{"display": "1 pound ziti", "note": "", "title": None},
+                              {"display": "", "note": "salt to taste", "title": None}],
+         "recipeInstructions": [{"title": "", "summary": "", "text": "Boil the pasta.\n\nDrain."}],
+         "notes": [{"title": "Tip", "text": "Use fresh basil."}]}
+    b.update(kw)
+    return b
+
+
+def detail(fake, slug="baked-ziti", cfg=None, env=ENV):
+    return run(fake, lambda c, cfg_: meals.recipe_detail(c, cfg_, env, slug), cfg)
+
+
+def test_detail_shape():
+    out = detail(FakeMealie(details={"baked-ziti": detail_body()}))
+    assert out == {"available": True, "recipe": {
+        "slug": "baked-ziti", "id": RID, "name": "Baked Ziti", "has_image": True, "servings": 6,
+        "prep": "15 Minutes", "cook": "45 Minutes", "total": "1 Hour", "description": "Cheesy pasta.",
+        "ingredients": [{"text": "1 pound ziti"}, {"text": "salt to taste"}],
+        "steps": [{"title": None, "text": "Boil the pasta.\n\nDrain."}],
+        "notes": [{"title": "Tip", "text": "Use fresh basil."}]}}
+
+
+def test_detail_section_titles_become_headings_and_blank_rows_are_dropped():
+    body = detail_body(recipeIngredient=[
+        {"title": "For the sauce", "display": "1 can tomatoes"}, {"display": "  ", "note": "", "originalText": ""},
+        {"title": "Topping", "display": ""}, "junk", None],
+        recipeInstructions=[{"title": "Prep", "text": ""}, {"text": "  "}, {"summary": "Bake it."}],
+        notes=[{"title": "", "text": ""}])
+    r = detail(FakeMealie(details={"baked-ziti": body}))["recipe"]
+    assert r["ingredients"] == [{"heading": "For the sauce"}, {"text": "1 can tomatoes"}, {"heading": "Topping"}]
+    assert r["steps"] == [{"title": "Prep", "text": ""}, {"title": None, "text": "Bake it."}]
+    assert r["notes"] == []
+
+
+def test_detail_markup_and_markdown_stay_inert_literal_text():
+    body = detail_body(name="<b>Zesty</b> **Ziti**", description="<script>alert(1)</script>",
+                       recipeInstructions=[{"text": "# Heading\n<img src=x onerror=1>"}])
+    r = detail(FakeMealie(details={"baked-ziti": body}))["recipe"]
+    assert r["name"] == "<b>Zesty</b> **Ziti**" and r["description"] == "<script>alert(1)</script>"
+    assert r["steps"][0]["text"] == "# Heading\n<img src=x onerror=1>"
+
+
+def test_detail_clips_and_caps_everything():
+    big = detail_body(name="n" * 500, description="d" * 5000,
+                      recipeIngredient=[{"display": "i" * 900}] * 500,
+                      recipeInstructions=[{"text": "s" * 9000}] * 500, notes=[{"text": "t" * 9000}] * 500)
+    r = detail(FakeMealie(details={"baked-ziti": big}))["recipe"]
+    assert len(r["name"]) == meals.RECIPE_NAME_MAX and len(r["description"]) == meals.RECIPE_DESC_MAX
+    assert len(r["ingredients"]) == len(r["steps"]) == len(r["notes"]) == meals.RECIPE_MAX_ROWS
+    assert len(r["ingredients"][0]["text"]) == meals.RECIPE_LINE_MAX
+    assert len(r["steps"][0]["text"]) == len(r["notes"][0]["text"]) == meals.RECIPE_TEXT_MAX
+
+
+@pytest.mark.parametrize("servings,want", [(6, 6), (6.0, 6), (2.5, 2.5), (0, None), (-1, None),
+                                           ("6", None), (True, None), (None, None)])
+def test_detail_servings(servings, want):
+    r = detail(FakeMealie(details={"baked-ziti": detail_body(recipeServings=servings)}))["recipe"]
+    assert r["servings"] == want
+
+
+@pytest.mark.parametrize("slug", ["", "Bad Slug", "../x", "a/b", "A", "x" * 201, None, 5, "ok\n"])
+def test_detail_bad_slug_is_a_422_before_any_request(slug):
+    fake = FakeMealie(details={"baked-ziti": detail_body()})
+    out = detail(fake, slug=slug)
+    assert out["available"] is False and out["status"] == 422
+    assert fake.calls == []
+
+
+def test_detail_unknown_slug_is_a_404():
+    out = detail(FakeMealie(), slug="gone-recipe")
+    assert out == {"available": False, "status": 404, "error": "no such recipe"}
+
+
+@pytest.mark.parametrize("body", [[], "x", 5, {}, {"name": "  "}, {"slug": "x"}])
+def test_detail_with_an_unusable_body_is_unavailable(body):
+    fake = FakeMealie(details={"baked-ziti": body})
+    assert detail(fake) == {"available": False, "needs_auth": False}
+
+
+def test_detail_unconfigured_or_tokenless_make_no_request():
+    fake = FakeMealie(details={"baked-ziti": detail_body()})
+    assert detail(fake, cfg=Config()) == {"available": False}
+    assert detail(fake, env={}) == {"available": False, "needs_auth": True}
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("status,auth", [(401, True), (403, True), (500, False)])
+def test_detail_upstream_errors(status, auth):
+    fake = FakeMealie(details={"baked-ziti": detail_body()})
+    fake.fail[("GET", "/api/recipes/")] = status
+    assert detail(fake) == {"available": False, "needs_auth": auth}
+    assert meals._recipe_cache == {}
+
+
+def test_detail_is_cached_per_slug_and_the_cache_is_bounded():
+    fake = FakeMealie(details={f"r-{n}": detail_body(slug=f"r-{n}")
+                               for n in range(meals.RECIPE_DETAIL_CACHE_MAX + 5)})
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)) as c:
+            await meals.recipe_detail(c, mcfg(), ENV, "r-0")
+            await meals.recipe_detail(c, mcfg(), ENV, "r-0")                 # cached
+            n = len([1 for m, p in fake.log if p == "/api/recipes/r-0"])
+            for k in range(meals.RECIPE_DETAIL_CACHE_MAX + 5):
+                await meals.recipe_detail(c, mcfg(), ENV, f"r-{k}")
+            return n
+    assert asyncio.run(go()) == 1
+    assert len(meals._recipe_cache) <= meals.RECIPE_DETAIL_CACHE_MAX

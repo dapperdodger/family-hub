@@ -35,6 +35,8 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Recipes: `GET /api/mealie/recipes/{slug}` returns one recipe's photo flag, times, servings,
+  description, ingredients (with section headings), steps and notes as plain trimmed text.
 - Recipes: the hub can read the Mealie recipe library for a native Recipes view
   (`GET /api/mealie/recipes`): every recipe's name, photo flag, time, categories, tags and
   dates in one cached request, capped at 200, read-only and fail-soft.

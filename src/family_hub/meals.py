@@ -688,6 +688,97 @@ async def recipes_tile(client, cfg, env: dict) -> dict:
     return result
 
 
+def _rows(value: object) -> list:
+    return value[:RECIPE_MAX_ROWS] if isinstance(value, list) else []
+
+
+def _recipe_body(body: dict) -> dict | None:
+    """One recipe as the detail view shows it, or None when it has no name."""
+    name = _one_line(body.get("name"), RECIPE_NAME_MAX)
+    if not name:
+        return None
+    rid = body.get("id") if valid_uuid(body.get("id")) else None
+    ingredients: list[dict] = []
+    for it in _rows(body.get("recipeIngredient")):
+        if not isinstance(it, dict):
+            continue
+        heading = _one_line(it.get("title"), RECIPE_NAME_MAX)
+        text = next((t for t in (_one_line(it.get(k), RECIPE_LINE_MAX)
+                                 for k in ("display", "note", "originalText")) if t), "")
+        if heading:
+            ingredients.append({"heading": heading})
+        if text:
+            ingredients.append({"text": text})
+    steps = []
+    for st in _rows(body.get("recipeInstructions")):
+        if not isinstance(st, dict):
+            continue
+        text = _paragraphs(st.get("text"), RECIPE_TEXT_MAX) or _paragraphs(st.get("summary"), RECIPE_TEXT_MAX)
+        title = _one_line(st.get("title"), RECIPE_NAME_MAX) or None
+        if text or title:
+            steps.append({"title": title, "text": text})
+    notes = []
+    for n in _rows(body.get("notes")):
+        if not isinstance(n, dict):
+            continue
+        text = _paragraphs(n.get("text"), RECIPE_TEXT_MAX)
+        title = _one_line(n.get("title"), RECIPE_NAME_MAX) or None
+        if text:
+            notes.append({"title": title, "text": text})
+    sv = body.get("recipeServings")
+    servings = None
+    if isinstance(sv, (int, float)) and not isinstance(sv, bool) and sv > 0:
+        servings = int(sv) if float(sv).is_integer() else sv
+    return {"slug": body.get("slug") if isinstance(body.get("slug"), str) else None, "id": rid, "name": name,
+            "has_image": bool(rid and isinstance(body.get("image"), str) and body["image"]),
+            "servings": servings,
+            "prep": _one_line(body.get("prepTime"), RECIPE_TIME_MAX) or None,
+            "cook": _one_line(body.get("cookTime"), RECIPE_TIME_MAX) or None,
+            "total": _one_line(body.get("totalTime"), RECIPE_TIME_MAX) or None,
+            "description": _one_line(body.get("description"), RECIPE_DESC_MAX),
+            "ingredients": ingredients, "steps": steps, "notes": notes}
+
+
+async def recipe_detail(client, cfg, env: dict, slug: object) -> dict:
+    """One recipe's detail. ``{available, recipe}``, or ``{available: False, status?, error?}``:
+    422 for a slug that cannot be one (no request made), 404 for a recipe Mealie does not have.
+    Never raises; errors are never cached."""
+    mc = getattr(cfg, "mealie", None)
+    if not mc:
+        return {"available": False}
+    if not isinstance(slug, str) or not _SLUG.fullmatch(slug):
+        return {"available": False, "status": 422, "error": "not a recipe slug"}
+    if not mealie_token(env):
+        return {"available": False, "needs_auth": True}
+    key = (mc["base"], slug)
+    hit = _recipe_cache.get(key)
+    if hit is not None and hit[0] > time.monotonic():
+        return hit[1]
+    try:
+        r = await client.get(f"{mc['base']}/api/recipes/{slug}", headers=_headers(env), timeout=TIMEOUT)
+        if r.status_code == 404:
+            return {"available": False, "status": 404, "error": "no such recipe"}
+        r.raise_for_status()
+        body = r.json()
+    except json.JSONDecodeError as e:
+        log.warning("meals recipe %s: non-JSON reply: %s", slug, e)
+        return {"available": False, "needs_auth": False}
+    except (httpx.HTTPError, ValueError) as e:
+        log.warning("meals recipe %s unavailable: %s", slug, e)
+        _note_auth(e)
+        return {"available": False, "needs_auth": _auth_failed(e)}
+    shaped = _recipe_body(body) if isinstance(body, dict) else None
+    if shaped is None:
+        log.warning("meals recipe %s: the reply has no usable recipe", slug)
+        return {"available": False, "needs_auth": False}
+    shaped["slug"] = slug
+    result = {"available": True, "recipe": shaped}
+    if len(_recipe_cache) >= RECIPE_DETAIL_CACHE_MAX:
+        _recipe_cache.pop(next(iter(_recipe_cache)))
+    _recipe_cache[key] = (time.monotonic() + RECIPE_DETAIL_TTL, result)
+    return result
+
+
 async def fetch_image(client, cfg, env: dict, recipe_id: object) -> tuple[bytes, str] | None:
     """A recipe photo as (bytes, content type), or None. Cached for an hour."""
     mc = getattr(cfg, "mealie", None)
