@@ -2565,6 +2565,9 @@ def test_recipes_view_is_wired_and_the_mealie_iframe_is_gone():
         "the search box carries .txt-input, the class the on-screen keyboard serves"
     common = (STATIC / "common.js").read_text(encoding="utf-8")
     assert re.search(r"view === 'recipes'\)\s*return\s+\d{6,}", common), "Recipes gets a long idle timeout"
+    # image errors do not bubble: the listener must be a capture-phase one or no photo ever falls back
+    m = re.search(r"addEventListener\('error',.*?[}], true\);", hub, re.S)
+    assert m and "recipe-img" in m.group(0) and "recipe-photo" in m.group(0), "capture-phase photo fallback"
 
 
 def test_recipes_css_is_light_enough_for_a_pi_3_and_adapts_to_the_phone():
@@ -2576,3 +2579,5 @@ def test_recipes_css_is_light_enough_for_a_pi_3_and_adapts_to_the_phone():
     assert re.search(r"\.recipe-grid\s*\{[^}]*repeat\(2,", mobile), "two cards across on the phone"
     assert re.search(r"\.recipe-detail\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)", mobile), "one column on the phone"
     assert re.search(r"\.recipe-sort,[^{]*\.recipe-back\s*\{[^}]*min-height:\s*44px", mobile), "44px tap targets"
+    assert re.search(r"\.recipe-img\.is-broken[^{]*\{[^}]*visibility:\s*hidden", CSS), "a failed photo reveals the placeholder glyph"
+    assert "recipe-noimg" not in CSS

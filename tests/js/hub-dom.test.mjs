@@ -10908,8 +10908,9 @@ test('Recipes: opening the overlay shows the grid A to Z with every control, and
 
 test('Recipes: a card shows its thumbnail (tiny, lazy), name and time; no photo or no time degrades cleanly', async () => {
   const { host } = await rcpOpen();
-  assert.match(rcpHtml(host), new RegExp(`<img class="recipe-thumb" src="/api/mealie/image/${RID_A}\\?size=tiny" alt="" loading="lazy" decoding="async">`));
-  assert.match(rcpHtml(host), /recipe-noimg/);
+  assert.match(rcpHtml(host), new RegExp(`<span class="recipe-thumb" aria-hidden="true">🍽<img class="recipe-img" src="/api/mealie/image/${RID_A}\\?size=tiny" alt="" loading="lazy" decoding="async"></span>`));
+  assert.match(rcpHtml(host), /<span class="recipe-thumb" aria-hidden="true">🍽<\/span>/, 'a recipe with no photo is the bare placeholder');
+  assert.doesNotMatch(rcpHtml(host), /recipe-noimg/);
   assert.match(rcpHtml(host), /<span class="recipe-time">30 Minutes<\/span>/);
   const chili = host.querySelectorAll('.recipe-card').find((c) => c.dataset.recipeOpen === 'chili');
   assert.doesNotMatch(chili.innerHTML, /recipe-time/);
@@ -11035,8 +11036,10 @@ test('Recipes: a late older LIST reply never overwrites a newer one', async () =
 
 test('Recipes: Mealie down, a refused token and an empty library each say so; Try again re-reads', async () => {
   let r = await rcpOpen({ failList: true });
-  assert.match(rcpHtml(r.host), /Mealie isn.t reachable/);
+  assert.match(rcpHtml(r.host), /Couldn.t load recipes/, 'the hub itself failing is not blamed on Mealie');
   assert.ok(r.host.querySelector('[data-recipe-retry]'));
+  r = await rcpOpen({ list: { available: false, needs_auth: false } });
+  assert.match(rcpHtml(r.host), /Mealie isn.t reachable/);
   r = await rcpOpen({ list: { available: false, needs_auth: true } });
   assert.match(rcpHtml(r.host), /Needs a Mealie token/);
   r = await rcpOpen({ list: { available: true, truncated: false, total: 0, recipes: [] } });
@@ -11065,11 +11068,77 @@ test('Recipes: opening the view again starts fresh (no leftover search, sort, ca
   assert.deepEqual(rcpCards(host), ['apple-pie', 'baked-ziti', 'chili', 'oats']);
 });
 
-test('Recipes: a thumbnail that fails to load is hidden, leaving the placeholder tile', () => {
+test('Recipes: a thumbnail or detail photo that fails to load is hidden, leaving the placeholder', () => {
   const { fire } = newHub();
-  const img = { tagName: 'IMG', classList: { contains: (c) => c === 'recipe-thumb', add(c) { this.added = c; } } };
-  fire('error', { target: img });
-  assert.equal(img.classList.added, 'is-broken');
+  for (const cls of ['recipe-img', 'recipe-photo']) {
+    const img = { tagName: 'IMG', classList: { contains: (c) => c === cls, add(c) { this.added = c; } } };
+    fire('error', { target: img });
+    assert.equal(img.classList.added, 'is-broken', cls);
+  }
   const other = { tagName: 'IMG', classList: { contains: () => false, add() { throw new Error('touched'); } } };
   fire('error', { target: other });
+});
+
+test('Recipes: typing while the list is still loading keeps the same search box and filters when it arrives', async () => {
+  const hub = newHub();
+  vm.runInContext(LISTED, hub.sandbox);
+  const slow = {}; slow.p = new Promise((r) => { slow.go = r; });
+  hub.sandbox.fetch = async () => { await slow.p; return { ok: true, status: 200, json: async () => RCP_LIST() }; };
+  hub.sandbox.openOverlay('recipes');
+  await flush();
+  const host = hub.document.getElementById('recipes-full');
+  const box = host.querySelector('#recipe-search');
+  assert.ok(box);
+  assert.match(rcpHtml(host), /Loading/);
+  hub.fire('input', { target: { id: 'recipe-search', value: 'ziti' } });
+  slow.go(); await flush(); await flush();
+  assert.equal(host.querySelector('#recipe-search'), box, 'the box the keyboard is typing into is never replaced');
+  assert.deepEqual(rcpCards(host), ['baked-ziti']);
+});
+
+test('Recipes: reopening after reading a recipe and picking a chip starts at the plain grid', async () => {
+  const { sandbox, fire, host } = await rcpOpen();
+  tapRcp(fire, host, '[data-recipe-cat="Dinner"]', 'data-recipe-cat');
+  tapRcp(fire, host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  sandbox.closeOverlay();
+  sandbox.openOverlay('recipes');
+  await flush(); await flush();
+  assert.equal(vm.runInContext('recipesState.slug', sandbox), null);
+  assert.equal(vm.runInContext('recipesState.cat', sandbox), '');
+  assert.deepEqual(rcpCards(host), ['apple-pie', 'baked-ziti', 'chili', 'oats']);
+  assert.doesNotMatch(rcpHtml(host), /data-recipe-cat="Dinner"[^>]*aria-pressed="true"/);
+});
+
+test('Recipes: a refused token on a recipe says so; a hiccup says one fixed thing, not the raw error', async () => {
+  const ALL = ['apple-pie', 'baked-ziti', 'chili', 'oats'];
+  const toastAfterTap = async (r) => {
+    tapRcp(r.fire, r.host, '.recipe-card', 'data-recipe-open');
+    await flush(); await flush();
+    assert.deepEqual(rcpCards(r.host), ALL, 'the grid is back');
+    return r.document.getElementById('toast').textContent;
+  };
+  let r = await rcpOpen({ detail: { available: false, needs_auth: true } });
+  assert.equal(await toastAfterTap(r), 'Needs a Mealie token');
+  r = await rcpOpen({ detail: { available: true } });
+  assert.equal(await toastAfterTap(r), 'Could not load that recipe');
+  r = await rcpOpen();
+  r.sandbox.fetch = async () => { throw new TypeError('NetworkError when attempting to fetch resource.'); };
+  assert.equal(await toastAfterTap(r), 'Could not load that recipe');
+  r = await rcpOpen();
+  r.sandbox.fetch = async () => ({ ok: false, status: 500, json: async () => { throw new Error('<html>'); } });
+  assert.equal(await toastAfterTap(r), 'Could not load that recipe', 'never "/api/... -> HTTP 500"');
+});
+
+test('Recipes: a null list reply reads as unreachable, and Try again shows Loading while it re-reads', async () => {
+  const r = await rcpOpen({ list: null });
+  assert.match(rcpHtml(r.host), /Mealie isn.t reachable/);
+  const slow = {}; slow.p = new Promise((res) => { slow.go = res; });
+  r.sandbox.fetch = async () => { await slow.p; return { ok: true, status: 200, json: async () => RCP_LIST() }; };
+  tapRcp(r.fire, r.host, '[data-recipe-retry]', 'data-recipe-retry');
+  await flush();
+  assert.match(rcpHtml(r.host), /Loading/);
+  assert.doesNotMatch(rcpHtml(r.host), /isn.t reachable/);
+  slow.go(); await flush(); await flush();
+  assert.deepEqual(rcpCards(r.host), ['apple-pie', 'baked-ziti', 'chili', 'oats']);
 });

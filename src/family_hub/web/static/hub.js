@@ -3660,8 +3660,8 @@ async function fetchFleet() {
    unreadable scaled into a 340px column). An empty day offers a random pick;
    a day the hub itself picked offers a re-roll; a planned day offers "add the
    ingredients to the shopping list". Every control is a real <button> (>=44px
-   on the phone) and goes through mealsAct. Mealie's own UI stays one tap away
-   under "Full screen". */
+   on the phone) and goes through mealsAct. The recipe library is one tap away
+   under "Recipes" in the header. */
 
 function mealsDayLabel(dateStr, todayStr, short = false) {
   if (dateStr === todayStr) return 'Tonight';
@@ -3809,8 +3809,7 @@ function mealsSlotHtml() {
 }
 
 /* Paint the Meals card. The header sits OUTSIDE the card like every section
-   and offers "Full screen" only when the tile carries a URL to open (the demo
-   has none: no dead button). Never blanks the column: an unconfigured token or
+   and offers "Recipes" whenever Meals is available. Never blanks the column: an unconfigured token or
    a dead Mealie gets a slim note, header intact. */
 function renderMeals(m = mealsData) {
   const host = document.getElementById('meals-slot');
@@ -4144,9 +4143,10 @@ function recipesReset() {
 function recipesHost() { return document.getElementById('recipes-full'); }
 
 function recipeCardHtml(r) {
-  const thumb = r.has_image && r.id
-    ? `<img class="recipe-thumb" src="/api/mealie/image/${escapeHtml(r.id)}?size=tiny" alt="" loading="lazy" decoding="async">`
-    : `<span class="recipe-thumb recipe-noimg" aria-hidden="true">🍽</span>`;
+  // the glyph is always there; a photo sits over it, and a photo that 404s hides itself to reveal it
+  const photo = r.has_image && r.id
+    ? `<img class="recipe-img" src="/api/mealie/image/${escapeHtml(r.id)}?size=tiny" alt="" loading="lazy" decoding="async">` : '';
+  const thumb = `<span class="recipe-thumb" aria-hidden="true">🍽${photo}</span>`;
   return `<button type="button" class="recipe-card" data-recipe-open="${escapeHtml(r.slug)}">${thumb}`
     + `<span class="recipe-name">${escapeHtml(r.name)}</span>`
     + (r.time ? `<span class="recipe-time">${escapeHtml(r.time)}</span>` : '') + `</button>`;
@@ -4170,6 +4170,7 @@ function recipesControlsHtml(all) {
 function recipesGridNote(d) {
   const retry = `<button type="button" class="recipe-sort" data-recipe-retry>Try again</button>`;
   if (d == null) return `<div class="recipes-note">Loading…</div>`;
+  if (d.failed) return `<div class="recipes-note">Couldn’t load recipes ${retry}</div>`;
   if (!d.available) {
     return `<div class="recipes-note">${d.needs_auth ? 'Needs a Mealie token' : 'Mealie isn’t reachable'} ${retry}</div>`;
   }
@@ -4251,7 +4252,8 @@ async function fetchRecipes() {
   try {
     res = await j('/api/mealie/recipes');
   } catch (e) {
-    res = { available: false };
+    console.warn('recipes: the hub did not answer', e);
+    res = { available: false, failed: true };      // our own hub failed: not Mealie's fault
   }
   if (seq !== recipesState.seq) return;            // a newer read (or a reopen) owns the screen
   recipesState.data = res && typeof res === 'object' ? res : { available: false };
@@ -4273,11 +4275,13 @@ async function openRecipe(slug) {
   try {
     res = await j(`/api/mealie/recipes/${encodeURIComponent(slug)}`);
   } catch (e) {
-    res = { available: false, error: e && e.message };
+    // only the hub's own 404 text is shown; anything else (network, a proxy page) is one fixed line
+    res = { available: false, gone: !!(e && e.message === 'no such recipe') };
   }
   if (seq !== recipesState.detailSeq || recipesState.slug !== slug) return;   // Back, or another card
   if (!res || !res.available || !res.recipe) {
-    showToast(res && res.needs_auth ? 'Needs a Mealie token' : ((res && res.error) || 'Could not load that recipe'));
+    showToast(res && res.needs_auth ? 'Needs a Mealie token'
+      : res && res.gone ? 'no such recipe' : 'Could not load that recipe');
     recipesState.slug = null;
     renderRecipes();
     return;
@@ -4304,7 +4308,9 @@ document.addEventListener('input', (e) => {
 // error does not bubble, so listen in the capture phase
 document.addEventListener('error', (e) => {
   const t = e.target;
-  if (t && t.tagName === 'IMG' && t.classList && t.classList.contains('recipe-thumb')) t.classList.add('is-broken');
+  if (t && t.tagName === 'IMG' && t.classList && (t.classList.contains('recipe-img') || t.classList.contains('recipe-photo'))) {
+    t.classList.add('is-broken');
+  }
 }, true);
 
 let fitDebounce = null;
@@ -4967,7 +4973,7 @@ document.addEventListener('click', (e) => {
   const rcCat = e.target.closest('[data-recipe-cat]');
   if (rcCat) { recipesState.cat = rcCat.dataset.recipeCat; updateRecipesGrid(); return; }
   const rcRetry = e.target.closest('[data-recipe-retry]');
-  if (rcRetry) { fetchRecipes(); return; }
+  if (rcRetry) { recipesState.data = null; updateRecipesGrid(); fetchRecipes(); return; }
   const evRow = e.target.closest('[data-eid]');
   if (evRow) { openEventDetail(evRow.dataset.eid); return; }
   // full-calendar controls

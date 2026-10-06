@@ -1591,11 +1591,6 @@ def test_recipes_with_no_items_list_are_unavailable_never_an_empty_library(body)
     assert meals._recipes_cache == {}
 
 
-def test_recipes_items_that_are_all_junk_read_as_an_empty_library():
-    out = recipes(FakeMealie(recipes=[None, 5, "x"]))
-    assert out["available"] is True and out["recipes"] == []
-
-
 def test_recipes_unconfigured_or_tokenless_make_no_request():
     fake = FakeMealie(recipes=[recipe("a")])
     assert run(fake, lambda c, cfg: meals.recipes_tile(c, cfg, ENV), Config()) == {"available": False}
@@ -1847,3 +1842,82 @@ def test_route_image_size_option(app_env):
     assert c.get(f"/api/mealie/image/{RID}").status_code == 200
     assert fake.log[-1][1].endswith("/min-original.webp")
     assert c.get(f"/api/mealie/image/{RID}?size=huge").status_code == 422
+
+
+
+# ---------------------------------------------- recipe review fixes (final review)
+
+def test_recipes_when_every_entry_is_unusable_the_library_is_unavailable_and_not_cached(caplog):
+    """A changed slug shape or a renamed name field must not read as an empty library."""
+    fake = FakeMealie(recipes=[{"slug": "Bad Slug", "name": "x"}, None, 5, {"slug": "ok"}])
+    with caplog.at_level(logging.WARNING, logger="family_hub.meals"):
+        out = recipes(fake)
+    assert out == {"available": False, "needs_auth": False}
+    assert meals._recipes_cache == {}
+    assert "none of 4 entries" in caplog.text
+
+
+def test_recipes_a_genuinely_empty_library_is_still_available_and_empty():
+    out = recipes(FakeMealie(recipes=[]))
+    assert out["available"] is True and out["recipes"] == [] and out["truncated"] is False
+
+
+def test_recipes_cap_is_enforced_by_the_code_even_if_mealie_ignores_perpage():
+    many = [recipe(f"r-{n}", f"R {n}") for n in range(meals.RECIPES_MAX + 30)]
+    def handler(req):
+        if req.url.path == "/api/recipes":      # a Mealie that ignores (or renames) perPage
+            return httpx.Response(200, json={"total": len(many), "items": many})
+        return httpx.Response(404)
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            return await meals.recipes_tile(c, mcfg(), ENV)
+    out = asyncio.run(go())
+    assert len(out["recipes"]) == meals.RECIPES_MAX
+    assert out["truncated"] is True and out["total"] == meals.RECIPES_MAX + 30
+
+
+def test_recipes_truncated_without_a_total_compares_against_the_cap():
+    many = [recipe(f"r-{n}", f"R {n}") for n in range(meals.RECIPES_MAX + 5)]
+    def handler(req):
+        return httpx.Response(200, json={"items": many})       # no "total" at all
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            return await meals.recipes_tile(c, mcfg(), ENV)
+    out = asyncio.run(go())
+    assert out["truncated"] is True and len(out["recipes"]) == meals.RECIPES_MAX
+
+
+def test_recipes_non_json_reply_is_unavailable_and_not_cached():
+    def handler(req):
+        return httpx.Response(200, content=b"<html>a proxy page</html>")
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            return await meals.recipes_tile(c, mcfg(), ENV)
+    assert asyncio.run(go()) == {"available": False, "needs_auth": False}
+    assert meals._recipes_cache == {}
+
+
+def test_detail_non_json_reply_and_a_dead_mealie_are_unavailable_and_not_cached():
+    def junk(req):
+        return httpx.Response(200, content=b"<html>a proxy page</html>")
+    def down(req):
+        raise httpx.ConnectError("down")
+    for handler in (junk, down):
+        async def go():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+                return await meals.recipe_detail(c, mcfg(), ENV, "baked-ziti")
+        assert asyncio.run(go()) == {"available": False, "needs_auth": False}
+        assert meals._recipe_cache == {}
+
+
+def test_a_recipe_that_is_gone_clears_the_cached_list_so_the_next_open_re_reads():
+    """Tapping a deleted recipe must not leave it in the grid for the rest of the 5-minute cache."""
+    fake = FakeMealie(recipes=[recipe("gone-recipe", "Gone")])        # listed, but no detail: Mealie 404s it
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)) as c:
+            await meals.recipes_tile(c, mcfg(), ENV)
+            assert meals._recipes_cache, "the list was cached"
+            out = await meals.recipe_detail(c, mcfg(), ENV, "gone-recipe")
+            return out, dict(meals._recipes_cache)
+    out, cache = asyncio.run(go())
+    assert out["status"] == 404 and cache == {}

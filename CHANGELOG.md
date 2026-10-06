@@ -35,6 +35,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Recipes: a Mealie that answers with nothing usable now reads as unavailable instead of an empty library, the hub's own failures say "Couldn't load recipes", a failed recipe load shows one fixed message, Try again shows Loading, a missing photo falls back to the plate icon, and long category names wrap.
 - Recipes: a step's or note's title sits on its own line above its text.
 - Recipes: a native Recipes view (photo grid, search, category chips, four sorts, and a recipe
   page with ingredients, steps and notes) that opens full screen on the wall and the phone.

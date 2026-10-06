@@ -52,7 +52,7 @@ RANDOM_BUDGET_S = 6.0           # stop drawing again past this (the wall's own r
 SHOPPING_TTL = 10.0             # a list changes when someone edits it; the card re-reads every minute anyway
 SHOPPING_MAX_ITEMS = 200
 ITEM_TEXT_MAX = 120
-RECIPES_TTL = 300.0             # the library changes when someone edits Mealie; the view re-reads on open
+RECIPES_TTL = 300.0             # the library changes when someone edits Mealie; a detail 404 drops this early
 RECIPES_MAX = 200
 RECIPES_TIMEOUT = 8.0           # up to 200 summaries come back in one reply
 RECIPE_DETAIL_TTL = 300.0
@@ -684,10 +684,15 @@ async def recipes_tile(client, cfg, env: dict) -> dict:
         return {"available": False, "needs_auth": False}
     kept = items[:RECIPES_MAX]
     shaped = [s for s in (_recipe_summary(x) for x in kept) if s is not None]
+    if kept and not shaped:
+        # every entry unusable (a renamed field, a changed slug shape): not an empty library
+        log.warning("meals recipes: none of %d entries has a usable slug and name", len(kept))
+        return {"available": False, "needs_auth": False}
     if len(shaped) != len(kept):
         log.warning("meals recipes: skipped %d entries with no usable slug or name", len(kept) - len(shaped))
     total = body.get("total") if _is_int(body.get("total")) else len(items)
-    result = {"available": True, "truncated": total > len(items), "total": total, "recipes": shaped}
+    # truncated against what we KEEP (the cap is ours: a Mealie that ignores perPage must not slip past it)
+    result = {"available": True, "truncated": total > len(kept), "total": total, "recipes": shaped}
     _recipes_cache[mc["base"]] = (time.monotonic() + RECIPES_TTL, result)
     return result
 
@@ -761,6 +766,7 @@ async def recipe_detail(client, cfg, env: dict, slug: object) -> dict:
     try:
         r = await client.get(f"{mc['base']}/api/recipes/{slug}", headers=_headers(env), timeout=TIMEOUT)
         if r.status_code == 404:
+            _recipes_cache.pop(mc["base"], None)      # the library changed under us: re-read it next open
             return {"available": False, "status": 404, "error": "no such recipe"}
         r.raise_for_status()
         body = r.json()
