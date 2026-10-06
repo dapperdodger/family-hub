@@ -4219,7 +4219,7 @@ function planDays() {
 function recipePlanHtml() {
   const days = planDays();
   if (!days.length) return '';
-  const button = `<button type="button" class="recipe-plan" data-recipe-plan>🗓 Plan it</button>`;
+  const button = `<button type="button" class="recipe-plan" data-recipe-plan>Plan it</button>`;
   if (!recipesState.planOpen) return `<div class="recipe-planbox">${button}</div>`;
   const off = recipesState.planBusy ? MEAL_LOCK_ATTR : '';
   const chips = days.map((d) => `<button type="button" class="recipe-day" data-recipe-plan-day="${escapeHtml(d.date)}"${off}>`

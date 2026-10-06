@@ -86,7 +86,7 @@ status, plan = call("GET", f"/api/households/mealplans?start_date={DAY}&end_date
 print("after delete:", len(plan["items"]), "entries on", DAY)
 ```
 
-Save it at `C:\Users\mrtim\AppData\Local\Temp\claude\C--Users-mrtim-Documents-family-hub-deploy\3616fd7c-405a-4982-8032-ad1bc192ee43\scratchpad\probe_mealplan_create.py`.
+Save it in the scratchpad as `probe_mealplan_create.py`. The default base URL is a placeholder: the operator sets `MEALIE_BASE` to the real address when running it.
 
 - [ ] **Step 2: Hand it to the operator**
 
