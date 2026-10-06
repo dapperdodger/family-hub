@@ -38,6 +38,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Docs: the seasonal-looks standard describes moving-date windows, the `drift` kinds, the registry order and the Settings grouping for the seasons coming next.
 - Dev: scripts/season-photo-search.py finds public-domain and CC0 photo candidates (Wikimedia Commons, the Art Institute of Chicago) and writes a contact sheet for choosing seasonal looks; the seasonal-looks standard explains how to use it.
 - Seasons: a generic gentle-motion layer (snow, petals, clover leaves, fireflies, sparkle) for the seasons coming next; it is hidden by Lite, stops for reduced motion and at night, and nothing paints it yet.
 - Seasons: each season can name one gentle kind of motion (snow, petals, clover leaves, fireflies or sparkle); the page records which in data-drift. Nothing paints it yet.

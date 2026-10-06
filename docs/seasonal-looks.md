@@ -430,8 +430,19 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
 3. **Credit it:** add a row to `static/seasons/CREDITS.md`.
 4. **Register it** in `theme.js`'s `SEASONS`. Give it a name, a blurb and a
    credit, and mark one look per season `default: true`. A new season needs
-   its date window. List a short holiday (Halloween) *before* the broad
-   season it falls inside (fall), because the first window that matches wins.
+   its date window: fixed `from`/`to` (month/day, inclusive, may wrap the new
+   year), or, for a holiday that moves, `window: WINDOWS.easter` (also
+   `mothersDay`, `fathersDay`, `mlkDay`, `thanksgiving`) with a `when` text for
+   Settings ("About two weeks before Easter Sunday"). List a short holiday
+   (Halloween) *before* the broad season it falls inside (fall), because the
+   first window that matches wins; the registry order that is planned for the
+   whole year, and the overlaps it relies on, is pinned by the whole-calendar
+   test in `tests/js/seasons.test.mjs`. A season may also name one gentle kind
+   of motion with `drift: "snow" | "petal" | "clover" | "firefly" | "sparkle"`:
+   the page stamps it as `data-drift` and `styles.css` already draws every
+   kind (shape, size, speed, resting preview), so a season needs no motion CSS
+   of its own, only, optionally, its bit colours (`--sn-bit-1`/`--sn-bit-2`)
+   in its token block. Leave `drift` out for a photo-only season.
 5. **Style it** in `styles.css`. Copy an existing look's two blocks: the
    dark-theme block first (photo `--sn-scene`, focal point `--sn-pos`, leaf
    colours, accent), then the light-theme block (just the deeper accent).
@@ -478,6 +489,18 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
    tracked files.
 
 ## 7. How it works (reference)
+
+- **The registry and the calendar.** `theme.js` holds `SEASONS`; `FH_SEASON_TOOLS`
+  exposes the pure date helpers (`nthWeekday`, `easterSunday`, `WINDOWS`,
+  `seasonFor(date, list)`, `seasonOutlook(date, list)`) so they are tested without
+  a browser. `seasonOutlook` is what groups Settings' picker: the seasons whose
+  window holds today (open), the next three to start (folded) and the rest.
+- **The drift layer** is one generic set of ten bare bits (`hub.js`
+  `seasonDriftHtml`) in the far layer (inside `.season`, behind the glass) and the
+  near layer (`.season-fx`, over the cards), and resting in each Settings preview.
+  Only the wall's own layers carry `.live` and animate; Lite hides both layers,
+  reduced motion and night stop them (the night pause is as specific as the
+  animation rules, because the `animation` shorthand resets play-state).
 
 - **Lite** is `data-lite="on|off"` on `<html>`, per device (`fh.lite`, no house
   default), stamped by `theme.js`; `?lite=1` / `?lite=0` in the page URL
