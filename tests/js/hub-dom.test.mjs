@@ -11281,3 +11281,62 @@ test('Recipes: a recipe Mealie gave no usable id offers no Plan it', async () =>
   const r = await rcpPlanOpen({ detail: RCP_DETAIL({ id: null }) });
   assert.doesNotMatch(rcpHtml(r.host), /data-recipe-plan/);
 });
+
+
+// ---- Shopping follow-ups: menu, header count, cap note, edges
+
+test('shopCheck: checking an item closes an open row menu', async () => {
+  const { sandbox, fire, host } = shopSetup();
+  tapShop(fire, host, `[data-shop-open="${IID_B}"]`);
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), IID_B);
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), null);
+  assert.doesNotMatch(host.innerHTML, /class="shop-menu"/);
+  await flush(); await flush();
+});
+
+test('shopCheck: the header count follows the tap at once, and a refused write puts it back', async () => {
+  const { sandbox, fire, host } = shopSetup();
+  assert.match(host.innerHTML, /<span class="shead-chip">2<\/span>/);
+  sandbox.fetch = async (url, opts = {}) => (opts.method === 'PUT'
+    ? { ok: false, status: 502, json: async () => ({ detail: 'no' }) }
+    : { ok: false, status: 502, json: async () => ({ detail: 'down' }) });
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  assert.match(host.innerHTML, /<span class="shead-chip">1<\/span>/, 'checking Milk: one left to get');
+  await flush(); await flush(); await flush();
+  assert.match(host.innerHTML, /<span class="shead-chip">2<\/span>/, 'the refused write restored the count');
+});
+
+test('shopCheck: un-checking raises the count at once', async () => {
+  const { fire, host } = shopSetup();
+  tapShop(fire, host, `[data-shop-check="${IID_C}"]`);
+  assert.match(host.innerHTML, /<span class="shead-chip">3<\/span>/);
+  await flush(); await flush();
+});
+
+test('renderShopping: a capped list says how many are shown of how many', () => {
+  const capped = { ...SHOP_LIST(), truncated: true, total: 340 };
+  assert.match(shopHtml(capped).html, /class="shop-note">Showing the first 3 of 340</);
+  assert.doesNotMatch(shopHtml(SHOP_LIST()).html, /shop-note/);
+  assert.doesNotMatch(shopHtml({ ...SHOP_LIST(), truncated: false, total: 3 }).html, /shop-note/);
+});
+
+test('row menu: a menu left alone closes itself after 15 seconds', () => {
+  const { sandbox, fire, host } = shopSetup();
+  const timers = [];
+  sandbox.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  tapShop(fire, host, `[data-shop-open="${IID_A}"]`);
+  const idle = timers.find((t) => t.ms === 15000);
+  assert.ok(idle, 'a 15 s timer was set');
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), IID_A);
+  idle.fn();
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), null);
+});
+
+test('shopDelete: a second tap while the first is in flight sends one DELETE', async () => {
+  const { sandbox, calls } = shopSetup();
+  sandbox.shopDelete(IID_A);
+  sandbox.shopDelete(IID_A);
+  await flush(); await flush();
+  assert.equal(calls.filter((c) => c.method === 'DELETE').length, 1);
+});

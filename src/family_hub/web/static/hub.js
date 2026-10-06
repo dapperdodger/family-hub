@@ -3946,7 +3946,7 @@ function shoppingRowHtml(it) {
       : '');
 }
 
-function shoppingCardHtml(items) {
+function shoppingCardHtml(items, s = null) {
   return `<article class="card shop-card">`
     + `<form id="shop-add-form" class="shop-add" autocomplete="off">`
     + `<input id="shop-add-input" class="txt-input" maxlength="120" placeholder="Add an item…"`
@@ -3955,6 +3955,7 @@ function shoppingCardHtml(items) {
     + (items.length
       ? `<div class="shop-rows">${items.map(shoppingRowHtml).join('')}</div>`
       : `<div class="shop-empty">Nothing on the list</div>`)
+    + (s && s.truncated ? `<div class="shop-note">Showing the first ${items.length} of ${Number(s.total) || items.length}</div>` : '')
     + `</article>`;
 }
 
@@ -3973,7 +3974,7 @@ function renderShopping(s = shopData) {
   const body = s == null
     ? `<div class="card wx-loading" aria-hidden="true"></div>`
     : s.available
-      ? shoppingCardHtml(items)
+      ? shoppingCardHtml(items, s)
       : `<div class="wx-offline">${s.needs_auth ? 'Shopping needs a Mealie token'
         : (typeof s.reason === 'string' && s.reason ? escapeHtml(s.reason) : 'Shopping unavailable')}</div>`;
   const prevInput = document.getElementById('shop-add-input');
@@ -4031,6 +4032,11 @@ async function fetchShopping() {
 const JSON_PUT = (body) => ({ method: 'PUT', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body) });
 
+// the header count is the server's true unchecked count, so a tap moves it by hand until the re-read
+function shopOpenAdjust(delta) {
+  if (shopData && Number.isInteger(shopData.open)) shopData.open = Math.max(0, shopData.open + delta);
+}
+
 function shopItemById(id) {
   return shopData && Array.isArray(shopData.items) ? shopData.items.find((i) => i && i.id === id) : null;
 }
@@ -4070,11 +4076,13 @@ async function shopCheck(id) {
   shopScrollAt = Date.now();
   shopBusy.add(id);
   it.checked = next;
+  shopOpenAdjust(next ? -1 : 1);
   renderShopping();
   try {
     await j(`/api/mealie/shopping/items/${encodeURIComponent(id)}`, JSON_PUT({ checked: next }));
   } catch (e) {
     it.checked = !next;
+    shopOpenAdjust(next ? 1 : -1);
     showToast((e && e.message) ? e.message : 'That did not work');
   } finally {
     shopBusy.delete(id);

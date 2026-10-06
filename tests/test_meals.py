@@ -1183,6 +1183,7 @@ def test_shopping_read_shape_orders_unchecked_first_and_counts_open():
     ])
     out = shop(fake)
     assert out == {"available": True, "list": {"id": RID2, "name": "Groceries"}, "open": 2,
+                   "total": 3, "truncated": False,
                    "items": [{"id": IID3, "text": "Bread", "checked": False},
                              {"id": IID2, "text": "Milk", "checked": False},
                              {"id": IID1, "text": "Eggs", "checked": True}]}
@@ -1391,10 +1392,16 @@ def test_check_rejects_a_non_boolean_before_any_request(checked):
     assert out["ok"] is False and out["status"] == 422 and fake.calls == []
 
 
-def test_check_and_delete_an_item_that_is_gone_are_a_404_and_write_nothing():
+def test_check_an_item_that_is_gone_is_a_404_and_writes_nothing():
     fake = FakeMealie(items=[])
-    for out in (check(fake, IID1, True), delete(fake, IID1)):
-        assert out == {"ok": False, "error": "that item is not on the list", "status": 404}
+    assert check(fake, IID1, True) == {"ok": False, "error": "that item is not on the list", "status": 404}
+    assert not [c for c in fake.calls if c["method"] in ("PUT", "DELETE")]
+
+
+def test_delete_an_item_that_is_already_gone_is_a_success_that_writes_nothing():
+    """Two phones tapping Delete: the second one wants the item gone, and it is."""
+    fake = FakeMealie(items=[])
+    assert delete(fake, IID1) == {"ok": True, "gone": True}
     assert not [c for c in fake.calls if c["method"] in ("PUT", "DELETE")]
 
 
@@ -1500,7 +1507,7 @@ def test_route_shopping_rejections_are_real_http_statuses_with_a_reason(app_env)
     assert c.put(f"/api/mealie/shopping/items/{IID1}", json={}).status_code == 422
     assert c.put(f"/api/mealie/shopping/items/{IID2}", json={"checked": True}).status_code == 404
     assert c.delete("/api/mealie/shopping/items/..%2F..%2Fx").status_code in (404, 405, 422)
-    assert c.delete(f"/api/mealie/shopping/items/{IID2}").status_code == 404
+    assert c.delete(f"/api/mealie/shopping/items/{IID2}").json() == {"ok": True, "gone": True}
     assert not [x for x in fake.calls if x["method"] in ("PUT", "DELETE")]
 
 
@@ -2047,3 +2054,23 @@ def test_a_recipe_that_is_gone_clears_the_cached_list_so_the_next_open_re_reads(
             return out, dict(meals._recipes_cache)
     out, cache = asyncio.run(go())
     assert out["status"] == 404 and cache == {}
+
+
+def test_shopping_tile_says_when_the_list_is_capped_and_how_long_it_really_is():
+    many = [item(f"{n:08d}-0000-4000-8000-000000000000", f"Thing {n}", position=n)
+            for n in range(meals.SHOPPING_MAX_ITEMS + 25)]
+    out = shop(FakeMealie(items=many))
+    assert len(out["items"]) == meals.SHOPPING_MAX_ITEMS
+    assert out["truncated"] is True and out["total"] == meals.SHOPPING_MAX_ITEMS + 25
+    assert out["open"] == meals.SHOPPING_MAX_ITEMS + 25, "open is still the true count"
+
+
+def test_shopping_tile_a_short_list_is_not_truncated():
+    out = shop(FakeMealie(items=[item(IID1, "Milk"), item(IID2, "Eggs", checked=True)]))
+    assert out["truncated"] is False and out["total"] == 2
+
+
+def test_an_item_on_the_list_matches_the_list_id_whatever_the_case():
+    fake = FakeMealie(items=[item(IID1, "Milk", list_id=RID2.upper())])
+    assert check(fake, IID1, True)["ok"] is True
+    assert delete(fake, IID1) == {"ok": True}

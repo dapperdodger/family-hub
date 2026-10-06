@@ -416,7 +416,7 @@ def demo_shopping() -> dict:
     items += [{"id": f"00000000-0000-4000-8000-{n:012d}", "text": t, "checked": True}
               for n, t in enumerate(checked, start=len(names) + 1)]
     return {"available": True, "list": {"id": "00000000-0000-4000-8000-0000000000ff", "name": "Groceries"},
-            "items": items, "open": len(names)}
+            "items": items, "open": len(names), "total": len(items), "truncated": False}
 
 
 # (slug, name, time, categories, tags, days since added, days since made or None, rating or None)
