@@ -23,7 +23,9 @@
    ---------------------------------------------------------------------- */
 :root {
   /* font tokens are theme-agnostic (no color) so they live on the bare root */
-  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  /* NOT ui-monospace or "Cascadia Code": on Windows Firefox (157) text in this font rendered
+     invisible (wordmark, clock, day labels, count chips); Consolas is a safe Windows font */
+  --mono: "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* ---- theme system: light base (dark + accent overrides follow) ---- */

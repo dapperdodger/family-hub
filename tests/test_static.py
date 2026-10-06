@@ -2529,3 +2529,18 @@ def test_kiosk_hides_the_mouse_pointer():
     assert osk.index("is-kiosk") > gate, "only a latched kiosk is marked, never a phone or laptop"
     assert re.search(r"body\.is-kiosk,\s*body\.is-kiosk \*\s*\{[^}]*cursor:\s*none\s*!important", CSS),         "the kiosk body and everything in it hides the pointer"
 
+
+def test_mono_font_stack_avoids_the_fonts_that_render_blank_in_firefox():
+    """On Windows Firefox (157), text set in `var(--mono)` rendered INVISIBLE (the wordmark,
+    clock, day labels, count chips) while a plain `Consolas, monospace` fixed it, so the
+    stack must not offer `ui-monospace` or "Cascadia Code" (one of them resolved to a font
+    Firefox drew blank). It keeps the Apple fonts, Windows' Consolas and Linux fallbacks."""
+    m = re.search(r"--mono:\s*([^;]+);", CSS)
+    assert m, "the --mono token"
+    stack = m.group(1)
+    for bad in ("ui-monospace", "Cascadia"):
+        assert bad not in stack, f"{bad} must not be in the --mono stack: {stack}"
+    for good in ("SF Mono", "Menlo", "Consolas", "DejaVu Sans Mono"):
+        assert good in stack, f"{good} should stay in the --mono stack"
+    assert stack.rstrip().endswith("monospace"), "ends in the generic family"
+
