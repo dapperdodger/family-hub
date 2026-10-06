@@ -46,6 +46,11 @@
 
   if (!kiosk) return;
 
+  // Mark the body for the stylesheet (body.is-kiosk hides the mouse pointer). The wall's
+  // touchscreen reaches the browser as a mouse, so the compositor parks a pointer in the
+  // middle of the screen; a phone or laptop never latches the flag, so it keeps its own.
+  document.body.classList.add('is-kiosk');
+
   // The inputs the keyboard serves. A `.txt-input` <select> (the chore person
   // picker) also carries the class, so oskTypeable() below excludes non-text
   // controls - the keyboard must only attach to something you can type into.

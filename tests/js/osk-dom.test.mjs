@@ -133,7 +133,7 @@ class El {
   dispatchEvent() { return true; }
 }
 
-function loadOsk() {
+function loadOsk(kiosk = true) {
   const docListeners = {};
   const document = {
     addEventListener: (t, fn) => { (docListeners[t] || (docListeners[t] = [])).push(fn); },
@@ -143,7 +143,7 @@ function loadOsk() {
   document.activeElement = document.body;
   document.querySelectorAll = (sel) => document.body.querySelectorAll(sel);
   const observers = [];
-  const store = new Map([['oskKiosk', '1']]);
+  const store = new Map(kiosk ? [['oskKiosk', '1']] : []);
   const sandbox = {
     document,
     navigator: {},
@@ -164,7 +164,7 @@ function loadOsk() {
   vm.runInContext(commonSrc, sandbox);
   vm.runInContext(oskSrc, sandbox);
   const osk = document.body.children.find((c) => c.classList.contains('osk'));
-  assert.ok(osk, 'kiosk mode built the keyboard');
+  if (kiosk) assert.ok(osk, 'kiosk mode built the keyboard');
   const fire = (type, ev) => (docListeners[type] || []).forEach((fn) => fn(ev));
   // What the browser does after DOM changes: run every observer's callback.
   const mutated = (records) => observers.forEach((o) => o.cb(records));
@@ -283,4 +283,17 @@ test('osk: Done pressed again while a save is still out sends nothing new', () =
   fire('focusin', { target: inp });
   pressDone(osk);
   assert.equal(saves, 1, 'one write, not two');
+});
+
+test('kiosk: a latched kiosk flag marks the body, so the wall can hide the mouse pointer', () => {
+  // The wall's touchscreen reaches the browser as a mouse, so the compositor keeps a
+  // pointer parked mid-screen. CSS (body.is-kiosk { cursor: none }) hides it; this is the hook.
+  const { document } = loadOsk(true);
+  assert.ok(document.body.classList.contains('is-kiosk'));
+});
+
+test('kiosk: a browser that never opened the hub with ?kiosk=1 keeps its pointer and gets no keyboard', () => {
+  const { document, osk } = loadOsk(false);
+  assert.ok(!document.body.classList.contains('is-kiosk'));
+  assert.equal(osk, undefined, 'no keyboard outside kiosk mode');
 });

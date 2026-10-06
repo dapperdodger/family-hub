@@ -2517,3 +2517,15 @@ def test_applywalllayout_keeps_the_left_column_alive_for_shopping_alone():
     assert re.search(r"setDisp\('\.col-left', chores \|\| todos \|\| shopping\)", body), \
         "with Chores and To-Dos both off, Shopping alone must still show the left column"
     assert "setDisp('.shopping-slot', shopping)" in body
+
+
+def test_kiosk_hides_the_mouse_pointer():
+    """The wall's touchscreen reaches the browser as a mouse, so the compositor parks a
+    pointer mid-screen. osk.js marks the body once the kiosk flag is latched, and the CSS
+    hides the cursor on it (and everything inside it). Phones and laptops never latch it."""
+    osk = (STATIC / "osk.js").read_text(encoding="utf-8")
+    assert "document.body.classList.add('is-kiosk')" in osk
+    gate = osk.index("if (!kiosk) return;")
+    assert osk.index("is-kiosk") > gate, "only a latched kiosk is marked, never a phone or laptop"
+    assert re.search(r"body\.is-kiosk,\s*body\.is-kiosk \*\s*\{[^}]*cursor:\s*none\s*!important", CSS),         "the kiosk body and everything in it hides the pointer"
+
