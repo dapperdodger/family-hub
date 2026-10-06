@@ -35,6 +35,9 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Recipes: the hub can read the Mealie recipe library for a native Recipes view
+  (`GET /api/mealie/recipes`): every recipe's name, photo flag, time, categories, tags and
+  dates in one cached request, capped at 200, read-only and fail-soft.
 - Shopping: the Mealie shopping list as a native wall card (left column, beside the
   To-Do card) and a section on the phone's Meals tab. Check items off and un-check
   them, quick-add an item, delete one. The list scrolls inside the card like the meal

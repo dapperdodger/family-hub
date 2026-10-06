@@ -50,6 +50,19 @@ RANDOM_BUDGET_S = 6.0           # stop drawing again past this (the wall's own r
 SHOPPING_TTL = 10.0             # a list changes when someone edits it; the card re-reads every minute anyway
 SHOPPING_MAX_ITEMS = 200
 ITEM_TEXT_MAX = 120
+RECIPES_TTL = 300.0             # the library changes when someone edits Mealie; the view re-reads on open
+RECIPES_MAX = 200
+RECIPES_TIMEOUT = 8.0           # up to 200 summaries come back in one reply
+RECIPE_DETAIL_TTL = 300.0
+RECIPE_DETAIL_CACHE_MAX = 32
+RECIPE_NAME_MAX = 120
+RECIPE_TIME_MAX = 40
+RECIPE_LINE_MAX = 300           # one ingredient
+RECIPE_DESC_MAX = 600
+RECIPE_TEXT_MAX = 2000          # one step or note
+RECIPE_MAX_ROWS = 200           # ingredients / steps / notes per recipe
+_SLUG = re.compile(r"[a-z0-9][a-z0-9_-]{0,199}")
+_ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
@@ -65,12 +78,17 @@ _shop_cache: dict[str, tuple[float, dict]] = {}
 # Bumped by every shopping write (even a failed one) and by the wall's refresh; a read
 # that STARTED before it must not cache its pre-write answer after it (same idea as _gen).
 _shop_gen = 0
+# Mealie base -> (expiry monotonic, result); (base, slug) -> (expiry, result), bounded.
+_recipes_cache: dict[str, tuple[float, dict]] = {}
+_recipe_cache: dict[tuple[str, str], tuple[float, dict]] = {}
 
 
 def reset_caches() -> None:
     _cache.clear()
     _image_cache.clear()
     _shop_cache.clear()
+    _recipes_cache.clear()
+    _recipe_cache.clear()
 
 
 def forget_plan() -> None:
@@ -578,6 +596,96 @@ async def delete_shopping_item(client, cfg, env: dict, item_id: object) -> dict:
         r.raise_for_status()
         return {"ok": True}
     return await _shopping_write(client, cfg, env, run)
+
+
+def _one_line(value: object, limit: int) -> str:
+    """One line of plain text: whitespace collapsed, clipped; anything that is not text is ''."""
+    return " ".join(value.split())[:limit] if isinstance(value, str) else ""
+
+
+def _paragraphs(value: object, limit: int) -> str:
+    """Plain text that keeps its line breaks (a step, a note): each line trimmed, runs of
+    blank lines collapsed, clipped. Never markdown or HTML: the page escapes it."""
+    if not isinstance(value, str):
+        return ""
+    text = "\n".join(" ".join(line.split()) for line in value.splitlines()).strip()
+    while "\n\n\n" in text:
+        text = text.replace("\n\n\n", "\n\n")
+    return text[:limit]
+
+
+def _names(value: object) -> list[str]:
+    """The names in a list of {name} dicts (categories, tags): trimmed, de-duplicated, at most 12."""
+    out: list[str] = []
+    for v in value if isinstance(value, list) else []:
+        n = _one_line(v.get("name"), RECIPE_NAME_MAX) if isinstance(v, dict) else ""
+        if n and n not in out:
+            out.append(n)
+    return out[:12]
+
+
+def _iso(value: object) -> str | None:
+    return value[:32] if isinstance(value, str) and _ISO.match(value) else None
+
+
+def _recipe_summary(raw: object) -> dict | None:
+    """One recipe as the grid shows it, or None when it has no usable slug or name."""
+    if not isinstance(raw, dict):
+        return None
+    slug = raw.get("slug")
+    name = _one_line(raw.get("name"), RECIPE_NAME_MAX)
+    if not isinstance(slug, str) or not _SLUG.fullmatch(slug) or not name:
+        return None
+    rid = raw.get("id") if valid_uuid(raw.get("id")) else None
+    rating = raw.get("rating")
+    ok_rating = isinstance(rating, (int, float)) and not isinstance(rating, bool) and 0 < rating <= 5
+    return {"slug": slug, "id": rid, "name": name,
+            "time": _one_line(raw.get("totalTime"), RECIPE_TIME_MAX) or None,
+            "has_image": bool(rid and isinstance(raw.get("image"), str) and raw["image"]),
+            "categories": _names(raw.get("recipeCategory")), "tags": _names(raw.get("tags")),
+            "added": _iso(raw.get("dateAdded")), "made": _iso(raw.get("lastMade")),
+            "rating": rating if ok_rating else None}
+
+
+async def recipes_tile(client, cfg, env: dict) -> dict:
+    """``{available, needs_auth?, truncated, total, recipes: [...]}``: every recipe's summary in
+    one request (capped at RECIPES_MAX; ``truncated`` says so), for the Recipes view to filter
+    and sort on the screen. Never raises; errors are never cached. A reply with no ``items`` list
+    is unavailable, never an empty library."""
+    mc = getattr(cfg, "mealie", None)
+    if not mc:
+        return {"available": False}
+    if not mealie_token(env):
+        return {"available": False, "needs_auth": True}
+    hit = _recipes_cache.get(mc["base"])
+    if hit is not None and hit[0] > time.monotonic():
+        return hit[1]
+    try:
+        r = await client.get(
+            f"{mc['base']}/api/recipes",
+            params={"perPage": RECIPES_MAX, "page": 1, "orderBy": "name", "orderDirection": "asc"},
+            headers=_headers(env), timeout=RECIPES_TIMEOUT)
+        r.raise_for_status()
+        body = r.json()
+    except json.JSONDecodeError as e:
+        log.warning("meals recipes: non-JSON reply: %s", e)
+        return {"available": False, "needs_auth": False}
+    except (httpx.HTTPError, ValueError) as e:
+        log.warning("meals recipes unavailable: %s", e)
+        _note_auth(e)
+        return {"available": False, "needs_auth": _auth_failed(e)}
+    items = body.get("items") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        log.warning("meals recipes: the reply carries no items list")
+        return {"available": False, "needs_auth": False}
+    kept = items[:RECIPES_MAX]
+    shaped = [s for s in (_recipe_summary(x) for x in kept) if s is not None]
+    if len(shaped) != len(kept):
+        log.warning("meals recipes: skipped %d entries with no usable slug or name", len(kept) - len(shaped))
+    total = body.get("total") if _is_int(body.get("total")) else len(items)
+    result = {"available": True, "truncated": total > len(items), "total": total, "recipes": shaped}
+    _recipes_cache[mc["base"]] = (time.monotonic() + RECIPES_TTL, result)
+    return result
 
 
 async def fetch_image(client, cfg, env: dict, recipe_id: object) -> tuple[bytes, str] | None:

@@ -35,6 +35,17 @@ def item(iid, text, checked=False, position=0, list_id=RID2, **kw):
     return it
 
 
+def recipe(slug, name=None, rid=RID, **kw):
+    """A recipe summary as Mealie's /api/recipes returns it."""
+    r = {"id": rid, "slug": slug, "name": name or slug.replace("-", " ").title(), "image": "abc",
+         "totalTime": "30 Minutes",
+         "recipeCategory": [{"id": "c1", "name": "Dinner", "slug": "dinner"}],
+         "tags": [{"id": "t1", "name": "Easy", "slug": "easy"}],
+         "rating": 4, "dateAdded": "2026-09-01T10:00:00+00:00", "lastMade": None}
+    r.update(kw)
+    return r
+
+
 def mcfg(**over):
     block = {"base": "http://mealie", "days": 5}
     block.update(over)
@@ -61,10 +72,13 @@ def roll(eid, n, rid=RID):
 class FakeMealie:
     """A tiny Mealie: a plan, shopping lists, and a log of every request."""
 
-    def __init__(self, plan=None, lists=None, items=None):
+    def __init__(self, plan=None, lists=None, items=None, recipes=None, details=None):
         self.plan = list(plan or [])
         self.lists = lists if lists is not None else [{"id": RID2, "name": "Groceries"}]
         self.items = list(items or [])
+        self.recipes = list(recipes or [])
+        self.details = dict(details or {})
+        self.missing_files = set()     # media file names that 404
         self.log = []
         self.fail = {}          # (METHOD, path-prefix) -> status
         self.next_id = 100
@@ -123,7 +137,18 @@ class FakeMealie:
             if req.method == "DELETE":
                 self.items = [i for i in self.items if i is not found]
                 return httpx.Response(200, json={})
+        if req.method == "GET" and p == "/api/recipes":
+            per = int(req.url.params.get("perPage", 50))
+            return httpx.Response(200, json={"page": 1, "per_page": per, "total": len(self.recipes),
+                                             "total_pages": 1, "items": self.recipes[:per]})
+        if req.method == "GET" and p.startswith("/api/recipes/"):
+            found = self.details.get(p.rsplit("/", 1)[1])
+            if found is None:
+                return httpx.Response(404, json={"detail": "not found"})
+            return httpx.Response(200, json=found)
         if req.method == "GET" and p.startswith("/api/media/recipes/"):
+            if p.rsplit("/", 1)[1] in self.missing_files:
+                return httpx.Response(404)
             return httpx.Response(200, content=b"IMG", headers={"content-type": "image/webp"})
         return httpx.Response(404)
 
@@ -1479,3 +1504,138 @@ def test_a_recipe_derived_item_still_shows_mealies_display_with_its_quantity_and
 def test_a_food_less_item_with_no_note_falls_back_to_display():
     fake = FakeMealie(items=[item(IID1, "1 something", note="  ", foodId=None)])
     assert shop(fake)["items"][0]["text"] == "1 something"
+
+
+
+# ------------------------------------------------------------------ recipe list
+
+def recipes(fake, cfg=None):
+    return run(fake, lambda c, cfg_: meals.recipes_tile(c, cfg_, ENV), cfg)
+
+
+def test_recipes_read_shape_and_the_single_request_it_makes():
+    fake = FakeMealie(recipes=[
+        recipe("baked-ziti", "Baked Ziti", lastMade="2026-09-20T18:00:00+00:00"),
+        recipe("soup", "Soup", image=None, rating=0, totalTime=None)])
+    out = recipes(fake)
+    assert out["available"] is True and out["truncated"] is False and out["total"] == 2
+    assert out["recipes"][0] == {
+        "slug": "baked-ziti", "id": RID, "name": "Baked Ziti", "time": "30 Minutes", "has_image": True,
+        "categories": ["Dinner"], "tags": ["Easy"], "added": "2026-09-01T10:00:00+00:00",
+        "made": "2026-09-20T18:00:00+00:00", "rating": 4}
+    soup = out["recipes"][1]
+    assert soup["has_image"] is False and soup["time"] is None and soup["rating"] is None and soup["made"] is None
+    reqs = [c for c in fake.calls if c["path"] == "/api/recipes"]
+    assert len(reqs) == 1
+    assert reqs[0]["params"] == {"perPage": str(meals.RECIPES_MAX), "page": "1",
+                                 "orderBy": "name", "orderDirection": "asc"}
+
+
+@pytest.mark.parametrize("bad", [
+    {"slug": "Bad Slug", "name": "x"}, {"slug": "", "name": "x"}, {"slug": "ok", "name": "   "},
+    {"slug": "../x", "name": "x"}, {"slug": 5, "name": "x"}, {"name": "no slug"}, "junk", None, 5])
+def test_recipes_skip_entries_with_no_usable_slug_or_name(bad, caplog):
+    fake = FakeMealie(recipes=[recipe("good", "Good"), bad])
+    with caplog.at_level(logging.WARNING, logger="family_hub.meals"):
+        out = recipes(fake)
+    assert [r["slug"] for r in out["recipes"]] == ["good"]
+    assert "skipped 1" in caplog.text
+
+
+def test_recipes_trim_cap_and_dedupe_text():
+    cats = [{"name": f"Cat {n}"} for n in range(20)] + [{"name": "Cat 1"}, {"name": "  "}, "x", None]
+    fake = FakeMealie(recipes=[recipe("a", "  A \n  very   long " + "x" * 300, recipeCategory=cats,
+                                      totalTime="  1  Hour \n 30 Minutes ")])
+    r = recipes(fake)["recipes"][0]
+    assert r["name"].startswith("A very long xxx") and len(r["name"]) == meals.RECIPE_NAME_MAX
+    assert r["time"] == "1 Hour 30 Minutes"
+    assert len(r["categories"]) == 12 and r["categories"].count("Cat 1") == 1
+
+
+@pytest.mark.parametrize("rating,want", [(4, 4), (4.5, 4.5), (5, 5), (0, None), (6, None), (-1, None),
+                                         ("5", None), (True, None), (None, None)])
+def test_recipes_rating_is_a_number_from_one_to_five_or_none(rating, want):
+    assert recipes(FakeMealie(recipes=[recipe("a", rating=rating)]))["recipes"][0]["rating"] == want
+
+
+def test_recipes_dates_must_look_like_iso_dates():
+    r = recipes(FakeMealie(recipes=[recipe("a", dateAdded="yesterday", lastMade="2026-10-01")]))["recipes"][0]
+    assert r["added"] is None and r["made"] == "2026-10-01"
+
+
+def test_recipes_has_image_needs_a_photo_and_a_valid_id():
+    out = recipes(FakeMealie(recipes=[recipe("a", image=""), recipe("b", rid="nope"), recipe("c")]))["recipes"]
+    assert [r["has_image"] for r in out] == [False, False, True] and out[1]["id"] is None
+
+
+def test_recipes_are_capped_but_the_true_total_and_truncated_flag_say_so():
+    many = [recipe(f"r-{n}", f"R {n}") for n in range(meals.RECIPES_MAX + 30)]
+    fake = FakeMealie(recipes=many)
+    out = recipes(fake)
+    assert len(out["recipes"]) == meals.RECIPES_MAX
+    assert out["truncated"] is True and out["total"] == meals.RECIPES_MAX + 30
+
+
+@pytest.mark.parametrize("body", [[], "x", 5, {}, {"items": "x"}, {"items": None}])
+def test_recipes_with_no_items_list_are_unavailable_never_an_empty_library(body):
+    fake = FakeMealie()
+    inner = fake.handler
+    def handler(req):
+        if req.url.path == "/api/recipes":
+            return httpx.Response(200, json=body)
+        return inner(req)
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            return await meals.recipes_tile(c, mcfg(), ENV)
+    assert asyncio.run(go()) == {"available": False, "needs_auth": False}
+    assert meals._recipes_cache == {}
+
+
+def test_recipes_items_that_are_all_junk_read_as_an_empty_library():
+    out = recipes(FakeMealie(recipes=[None, 5, "x"]))
+    assert out["available"] is True and out["recipes"] == []
+
+
+def test_recipes_unconfigured_or_tokenless_make_no_request():
+    fake = FakeMealie(recipes=[recipe("a")])
+    assert run(fake, lambda c, cfg: meals.recipes_tile(c, cfg, ENV), Config()) == {"available": False}
+    assert run(fake, lambda c, cfg: meals.recipes_tile(c, cfg, {})) == {"available": False, "needs_auth": True}
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("status,auth", [(401, True), (403, True), (500, False), (404, False)])
+def test_recipes_upstream_errors_are_unavailable_and_flag_auth_only_for_401_403(status, auth):
+    fake = FakeMealie(recipes=[recipe("a")])
+    fake.fail[("GET", "/api/recipes")] = status
+    assert recipes(fake) == {"available": False, "needs_auth": auth}
+    assert meals._recipes_cache == {}
+
+
+def test_recipes_transport_error_is_unavailable_and_never_cached():
+    def handler(req):
+        raise httpx.ConnectError("down")
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            return await meals.recipes_tile(c, mcfg(), ENV)
+    assert asyncio.run(go()) == {"available": False, "needs_auth": False}
+    assert meals._recipes_cache == {}
+
+
+def test_recipes_are_cached_briefly_and_expire(monkeypatch):
+    fake = FakeMealie(recipes=[recipe("a")])
+    clock = [1000.0]
+    monkeypatch.setattr(meals.time, "monotonic", lambda: clock[0])
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)) as c:
+            await meals.recipes_tile(c, mcfg(), ENV)
+            await meals.recipes_tile(c, mcfg(), ENV)                 # cached
+            n1 = len(fake.log)
+            clock[0] += meals.RECIPES_TTL + 1
+            await meals.recipes_tile(c, mcfg(), ENV)                 # expired
+            return n1, len(fake.log)
+    assert asyncio.run(go()) == (1, 2)
+
+
+def test_recipes_do_not_touch_the_dinner_source_state():
+    recipes(FakeMealie(recipes=[recipe("a")]))
+    assert "last_ok" not in tiles.SOURCE_STATE.get("meals", {})
