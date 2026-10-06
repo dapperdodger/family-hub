@@ -35,6 +35,9 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Recipes: search, category filter and four sorts (A to Z, recently added, recently made, top
+  rated) run on the loaded library, so typing never waits on the network; the Recipes view
+  stays open 15 minutes without a touch (the wall's default is 90 seconds).
 - Recipes: demo mode serves a canned twelve-recipe library with detail pages, so the Recipes
   view shows every state (categories, never-made and unrated recipes, section headings, notes).
 - Recipes: the photo proxy takes `?size=tiny` (the grid's thumbnails, with their own cache big

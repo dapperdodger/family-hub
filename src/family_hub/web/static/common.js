@@ -177,7 +177,51 @@ function dayHeadHtml(dateStr, todayStr) {
 function idleReturnMs(view) {
   if (view && view.indexOf('camera') === 0) return 300000;  // camera, camera:<src>
   if (view === 'calendar') return 180000;
+  if (view === 'recipes') return 900000;   // someone cooking from a recipe is not idle
   return 90000;
+}
+
+/* ---- Recipes view: filter, sort, categories (pure, run on the loaded list) ---------- */
+const RECIPE_SORTS = [['name', 'A to Z'], ['added', 'Recently added'], ['made', 'Recently made'], ['rated', 'Top rated']];
+
+function recipeFilter(recipes, query, category) {
+  const q = String(query == null ? '' : query).trim().toLowerCase();
+  const list = Array.isArray(recipes) ? recipes : [];
+  return list.filter((r) => {
+    if (!r) return false;
+    const cats = Array.isArray(r.categories) ? r.categories : [];
+    const tags = Array.isArray(r.tags) ? r.tags : [];
+    if (category && !cats.includes(category)) return false;
+    if (!q) return true;
+    return [r.name, ...cats, ...tags].some((s) => typeof s === 'string' && s.toLowerCase().includes(q));
+  });
+}
+
+function recipeSort(recipes, key) {
+  const byName = (a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' });
+  const when = (v) => { const t = Date.parse(v); return Number.isFinite(t) ? t : null; };
+  const stars = (r) => (Number.isFinite(r.rating) && r.rating > 0 ? r.rating : null);
+  // newest/highest first; recipes with no value last; ties and the no-value group A to Z
+  const desc = (get) => (a, b) => {
+    const x = get(a); const y = get(b);
+    if (x === null && y === null) return byName(a, b);
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return (y - x) || byName(a, b);
+  };
+  const list = (Array.isArray(recipes) ? recipes : []).slice();
+  if (key === 'added') return list.sort(desc((r) => when(r.added)));
+  if (key === 'made') return list.sort(desc((r) => when(r.made)));
+  if (key === 'rated') return list.sort(desc(stars));
+  return list.sort(byName);
+}
+
+function recipeCategories(recipes) {
+  const seen = new Set();
+  (Array.isArray(recipes) ? recipes : []).forEach((r) => {
+    ((r && Array.isArray(r.categories)) ? r.categories : []).forEach((c) => { if (typeof c === 'string' && c) seen.add(c); });
+  });
+  return [...seen].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 }
 
 /* ---- comfort / air-quality banding -------------------------------------- */
