@@ -37,6 +37,18 @@ let mealsMenuTimer = null;
 const MEALS_MENU_IDLE_MS = 15000;     // an open menu closes itself after this
 const MEALS_SCROLL_KEEP_MS = 30000;   // keep a hand-scrolled list in place this long, then return to the top
 const mealsBusy = new Set();   // in-flight meal actions (a button is disabled while its key is here)
+let shopData = null;         // last /api/mealie/shopping payload (native Shopping card)
+let shopFails = 0;           // consecutive shopping fetch failures (see fetchShopping)
+let shopSeq = 0;             // numbers shopping fetches so a late older reply never repaints over a newer one
+let shopScrollAt = 0;        // when the list was last scrolled or used by hand
+let shopMenuOpen = null;     // the item id whose action row (delete) is open: one at a time
+let shopMenuTimer = null;
+let shopAddBusy = false;     // one quick add at a time
+const SHOP_MENU_IDLE_MS = 15000;     // an open row menu closes itself after this
+const SHOP_SCROLL_KEEP_MS = 30000;   // keep a hand-scrolled list in place this long, then return to the top
+const shopBusy = new Set();  // item ids with a write in flight (their check is disabled meanwhile)
+// an HTML attribute, not a class: held in a constant so the static class guard leaves it alone
+const SHOP_LOCK_ATTR = ' disabled';
 let lastIntegrations = [];  // last /api/hub integrations block (settings toggles)
 const TILE_FAIL_LIMIT = 3;   // keep the last good card until this many in a row
 let warnedNoWeatherSlot = false;   // one-time warn: weather_base set, no 'weather' panel
@@ -3895,6 +3907,113 @@ async function mealsAct(btn) {
   mealsRestoreFocus(focus);
 }
 
+/* ---------------------------------------------------- native Shopping card */
+
+/* The Mealie shopping list (operator, 2026-10-05): a card in the wall's left column
+   beside the To-Do card (switch To-Dos off in Settings to give it the room) and a
+   section on the phone's Meals tab. It rides the Meals (Mealie) switch. Check an item
+   off with one tap on its circle; tap its text to open an inline row menu (delete) --
+   inline, not a popover, because the list scrolls inside the card and would clip one.
+   The quick-add field sits ABOVE the scroller so a long list never moves it. */
+
+// unchecked first, then checked, whatever order the payload came in; drops anything unusable
+function shopItems(s) {
+  const raw = s && Array.isArray(s.items) ? s.items : [];
+  const ok = raw.filter((i) => i && typeof i.id === 'string' && typeof i.text === 'string');
+  return ok.filter((i) => !i.checked).concat(ok.filter((i) => i.checked));
+}
+
+function shoppingRowHtml(it) {
+  const t = escapeHtml(it.text);
+  const id = escapeHtml(it.id);
+  const open = shopMenuOpen === it.id;
+  const lock = shopBusy.has(it.id) ? SHOP_LOCK_ATTR : '';
+  const label = it.checked ? 'Mark not bought' : 'Mark bought';
+  return `<div class="shop-row${it.checked ? ' done' : ''}">`
+    + `<button type="button" class="shop-check" data-shop-check="${id}" aria-pressed="${!!it.checked}"`
+    + ` aria-label="${label}: ${t}"${lock}><span class="todo-check">✓</span></button>`
+    + `<button type="button" class="shop-text" data-shop-open="${id}" aria-expanded="${open}"`
+    + `${open ? ' aria-controls="shop-menu"' : ''}>${t}</button></div>`
+    + (open
+      ? `<div class="shop-menu" id="shop-menu" role="group" aria-label="Actions for ${t}">`
+        + `<button type="button" class="meal-btn shop-del" data-shop-del="${id}"${lock}>Delete</button></div>`
+      : '');
+}
+
+function shoppingCardHtml(items) {
+  return `<article class="card shop-card">`
+    + `<form id="shop-add-form" class="shop-add" autocomplete="off">`
+    + `<input id="shop-add-input" class="txt-input" maxlength="120" placeholder="Add an item…"`
+    + ` autocomplete="off" aria-label="Add a shopping item">`
+    + `<button class="cal-nav-btn" type="submit">Add</button></form>`
+    + (items.length
+      ? `<div class="shop-rows">${items.map(shoppingRowHtml).join('')}</div>`
+      : `<div class="shop-empty">Nothing on the list</div>`)
+    + `</article>`;
+}
+
+/* Paint the Shopping card. Header outside the card like every section; never blanks the
+   column (a dead Mealie or a missing token gets a slim note). A repaint replaces the
+   quick-add field, so carry its draft and focus/caret across (a refresh must not dismiss
+   the on-screen keyboard mid-type) and the list's scroll position while it is in use. */
+function renderShopping(s = shopData) {
+  const host = document.getElementById('shopping-slot');
+  if (!host) return;
+  const listed = ((hubData && hubData.integrations) || []).some((i) => i.id === 'mealie');
+  if (!listed && (s == null || !s.available)) { host.innerHTML = ''; return; }
+  const items = shopItems(s);
+  const open = s && Number.isInteger(s.open) ? s.open : items.filter((i) => !i.checked).length;
+  const head = sectionHead('Shopping', open > 0 ? { chip: String(open) } : {});
+  const body = s == null
+    ? `<div class="card wx-loading" aria-hidden="true"></div>`
+    : s.available
+      ? shoppingCardHtml(items)
+      : `<div class="wx-offline">${s.needs_auth ? 'Shopping needs a Mealie token' : 'Shopping unavailable'}</div>`;
+  const prevInput = document.getElementById('shop-add-input');
+  const draft = prevInput ? prevInput.value : '';
+  const hadFocus = !!prevInput && document.activeElement === prevInput;
+  const selStart = hadFocus ? prevInput.selectionStart : null;
+  const selEnd = hadFocus ? prevInput.selectionEnd : null;
+  const prev = typeof host.querySelector === 'function' ? host.querySelector('.shop-rows') : null;
+  const keep = prev && prev.scrollTop > 0 && Date.now() - shopScrollAt < SHOP_SCROLL_KEEP_MS ? prev.scrollTop : 0;
+  host.innerHTML = head + body;
+  const inp = document.getElementById('shop-add-input');
+  if (inp && draft) inp.value = draft;
+  if (inp && hadFocus) {
+    inp.focus();
+    try { inp.setSelectionRange(selStart == null ? inp.value.length : selStart,
+      selEnd == null ? inp.value.length : selEnd); } catch (e) { /* unsupported */ }
+  }
+  if (keep) {
+    const next = host.querySelector('.shop-rows');
+    if (next) next.scrollTop = keep;
+  }
+}
+
+// scroll does not bubble: listen in the capture phase to learn when the list is being used
+document.addEventListener('scroll', (e) => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('shop-rows')) shopScrollAt = Date.now();
+}, true);
+
+async function fetchShopping() {
+  // like fetchMeals: a hub that has loaded its registry and has no Mealie never asks
+  const known = hubData && Array.isArray(hubData.integrations);
+  if (known && !hubData.integrations.some((i) => i.id === 'mealie')) return;
+  const seq = ++shopSeq;
+  try {
+    const s = await j('/api/mealie/shopping');
+    if (seq !== shopSeq) return;
+    shopData = s;
+    shopFails = 0;
+  } catch (e) {
+    if (seq !== shopSeq) return;
+    shopFails += 1;
+    if (!shopData || shopFails >= TILE_FAIL_LIMIT) shopData = { available: false };
+  }
+  renderShopping();
+}
+
 let fitDebounce = null;
 /* Fit-to-screen. The wall is authored at a fixed 1920x1080 canvas. On the
    target Pi kiosk that IS the viewport, so nothing scales (1:1). On any other
@@ -5208,9 +5327,10 @@ function renderIntegrations(data) {
   const mealsListed = list.some((i) => i.id === 'mealie');
   if (list.length && mealsListed !== mealsWasListed) {
     mealsWasListed = mealsListed;
-    if (!mealsListed) { mealsData = null; mealsFails = 0; }
+    if (!mealsListed) { mealsData = null; mealsFails = 0; shopData = null; shopFails = 0; }
     renderMeals();
-    if (mealsListed) fetchMeals();
+    renderShopping();
+    if (mealsListed) { fetchMeals(); fetchShopping(); }
   }
   const lnListed = list.some((i) => i.id === 'laundry');
   if (lnListed !== lnWasListed) {
@@ -5988,6 +6108,7 @@ fetchClimate();
 fetchLaundry();
 fetchFleet();
 fetchMeals();
+fetchShopping();
 lnConnect();   // the laundry live stream (fetchLaundry stays as fallback)
 setInterval(scheduledPoll, POLL_MS);
 // the poll beat doubles as the stream's re-arm: lnConnect is idempotent on
@@ -5999,6 +6120,7 @@ setInterval(fetchClimate, POLL_MS);
 setInterval(fetchLaundry, POLL_MS);
 setInterval(fetchFleet, POLL_MS);
 setInterval(fetchMeals, POLL_MS);
+setInterval(fetchShopping, POLL_MS);
 // the countdown + timer arc stay live between polls (in-place, no re-render)
 setInterval(laundryTick, 30000);
 setInterval(scheduledProbeCamera, CAM_PROBE_MS);

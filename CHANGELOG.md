@@ -17,6 +17,10 @@ rolls that section to a dated version via `python scripts/release.py`.
   plan. It follows the Meals (Mealie) switch; To-Dos can be switched off to give it the
   room. Backend: `GET /api/mealie/shopping`, `POST /api/mealie/shopping/items`,
   `PUT`/`DELETE /api/mealie/shopping/items/{id}`.
+- Shopping card (wall): shows the list with the open count in its header, unchecked
+  items first. The quick-add field stays pinned above a list that scrolls inside the
+  card (four rows and a peek, like the meal plan), and a refresh keeps what you were
+  typing, the keyboard and your scroll position.
 - Shopping: in demo mode the card serves a canned list and its writes are no-ops (they
   never reach Mealie and never change what the demo shows); real writes are
   serialized behind one lock so two phones tapping at once cannot interleave.

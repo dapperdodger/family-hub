@@ -33,7 +33,7 @@ const hubSrc = readFileSync(join(staticDir, 'hub.js'), 'utf8');
 // for anything else (e.g. 'toast'), so hub.js's create-if-missing branches run
 // for real — that's the whole point of the showToast assertions below.
 const SEEDED_IDS = [
-  'conn-word', 'clock-date', 'clock-time', 'cal', 'month-slot', 'meals-slot', 'people', 'todo-slot', 'tiles',
+  'conn-word', 'clock-date', 'clock-time', 'cal', 'month-slot', 'meals-slot', 'shopping-slot', 'people', 'todo-slot', 'tiles',
   'camgrid', 'integrations-ctl',
   'panels', 'tabbar', 'overlay', 'overlay-home', 'overlay-content', 'ev-modal',
   'ev-card',
@@ -10478,4 +10478,128 @@ test('refresh button: a sync that did not run leaves its reason in the console, 
   assert.equal(warned[0][1].reason, 'error');
   assert.equal(warned[0][1].needs_auth, true);
   assert.equal(reloadCalls.length, 1);
+});
+
+// ---- the native Shopping card ----
+
+const IID_A = '11111111-1111-4111-8111-111111111111';
+const IID_B = '22222222-2222-4222-8222-222222222222';
+const IID_C = '33333333-3333-4333-8333-333333333333';
+const shopItem = (id, text, checked = false) => ({ id, text, checked });
+const SHOP_LIST = () => ({ available: true, list: { id: 'l', name: 'Groceries' }, open: 2, items: [
+  shopItem(IID_A, 'Milk'), shopItem(IID_B, 'Eggs'), shopItem(IID_C, 'Butter', true)] });
+
+function shopHtml(payload) {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext(LISTED, sandbox);
+  sandbox.renderShopping(payload);
+  return { html: document.getElementById('shopping-slot').innerHTML, document, sandbox, fire };
+}
+
+test('renderShopping: loading placeholder, unavailable and needs-a-token notes, header always stands', () => {
+  assert.match(shopHtml(null).html, /wx-loading/);
+  assert.match(shopHtml({ available: false }).html, /Shopping unavailable/);
+  assert.match(shopHtml({ available: false, needs_auth: true }).html, /Shopping needs a Mealie token/);
+  assert.match(shopHtml(null).html, /<h2>Shopping<\/h2>/);
+});
+
+test('renderShopping: unlisted (no Mealie on this hub) and nothing to show renders nothing', () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext("hubData = { integrations: [] };", sandbox);
+  sandbox.renderShopping({ available: false });
+  assert.equal(document.getElementById('shopping-slot').innerHTML, '');
+});
+
+test('renderShopping: the add field sits above the scrolling rows; open count is the header chip', () => {
+  const { html } = shopHtml(SHOP_LIST());
+  assert.match(html, /<span class="shead-chip">2<\/span>/);
+  assert.ok(html.indexOf('id="shop-add-form"') < html.indexOf('class="shop-rows"'),
+    'the quick-add stays outside the scroller');
+  assert.match(html, /id="shop-add-input" class="txt-input"/, 'the on-screen keyboard serves .txt-input');
+});
+
+test('renderShopping: unchecked first, checked last and marked done; every control is a real button', () => {
+  const { html } = shopHtml(SHOP_LIST());
+  const order = [...html.matchAll(/data-shop-check="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(order, [IID_A, IID_B, IID_C]);
+  assert.match(html, new RegExp(`shop-row done"><button type="button" class="shop-check" data-shop-check="${IID_C}" aria-pressed="true" aria-label="Mark not bought: Butter"`));
+  assert.match(html, new RegExp(`class="shop-check" data-shop-check="${IID_A}" aria-pressed="false" aria-label="Mark bought: Milk"`));
+  assert.match(html, new RegExp(`<button type="button" class="shop-text" data-shop-open="${IID_A}"`));
+});
+
+test('renderShopping: the client orders unchecked first even if the payload does not', () => {
+  const out = shopHtml({ ...SHOP_LIST(), items: [shopItem(IID_C, 'Butter', true), shopItem(IID_A, 'Milk')] }).html;
+  assert.ok(out.indexOf(IID_A) < out.indexOf(IID_C));
+});
+
+test('renderShopping: an empty list has its own empty state, not a blank card', () => {
+  assert.match(shopHtml({ ...SHOP_LIST(), items: [], open: 0 }).html, /Nothing on the list/);
+});
+
+test('renderShopping: item text and ids from Mealie are inert', () => {
+  const evil = { available: true, list: { id: 'l', name: 'x' }, open: 1, items: [
+    shopItem(IID_A, '<img src=x onerror=alert(1)>'), shopItem('"><svg onload=alert(2)>', '<script>x</script>')] };
+  const html = shopHtml(evil).html;
+  assert.doesNotMatch(html, /<script|<svg|<img src=x/, 'no live markup from upstream text');
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('renderShopping: a malformed payload degrades to a note, never throws', () => {
+  for (const items of [null, 'x', 5, {}, [null, 5, {}], [{ id: 5 }]]) {
+    const r = shopHtml({ available: true, list: { id: 'l', name: 'x' }, open: 0, items });
+    assert.match(r.html, /Nothing on the list|wx-offline/);
+  }
+});
+
+test('renderShopping: the open count comes from the server so a capped list still reads true', () => {
+  assert.match(shopHtml({ ...SHOP_LIST(), open: 340 }).html, /<span class="shead-chip">340<\/span>/);
+});
+
+const shopFetchLog = (sandbox, { list = SHOP_LIST(), failGet = false } = {}) => {
+  const calls = [];
+  sandbox.fetch = async (url, opts = {}) => {
+    calls.push({ url, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
+    if (failGet && !opts.method) return { ok: false, status: 502, json: async () => ({ detail: 'down' }) };
+    return { ok: true, status: 200, json: async () => (url === '/api/mealie/shopping' ? list : { ok: true }) };
+  };
+  return calls;
+};
+
+test('fetchShopping: paints the list, keeps the last good one through transient failures, then gives up', async () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext(LISTED, sandbox);
+  shopFetchLog(sandbox);
+  await sandbox.fetchShopping();
+  assert.match(document.getElementById('shopping-slot').innerHTML, /data-shop-check/);
+  shopFetchLog(sandbox, { failGet: true });
+  await sandbox.fetchShopping();                       // 1st failure: last good card stays
+  assert.match(document.getElementById('shopping-slot').innerHTML, /data-shop-check/);
+  await sandbox.fetchShopping(); await sandbox.fetchShopping();   // reaches TILE_FAIL_LIMIT
+  assert.match(document.getElementById('shopping-slot').innerHTML, /Shopping unavailable/);
+});
+
+test('fetchShopping: a late older reply never repaints over a newer one', async () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext(LISTED, sandbox);
+  let release;
+  const slow = new Promise((r) => { release = r; });
+  let n = 0;
+  sandbox.fetch = async () => {
+    n += 1;
+    if (n === 1) { await slow; return { ok: true, status: 200, json: async () => ({ ...SHOP_LIST(), items: [shopItem(IID_A, 'OLD')], open: 1 }) }; }
+    return { ok: true, status: 200, json: async () => ({ ...SHOP_LIST(), items: [shopItem(IID_B, 'NEW')], open: 1 }) };
+  };
+  const first = sandbox.fetchShopping();
+  await sandbox.fetchShopping();
+  release(); await first;
+  const html = document.getElementById('shopping-slot').innerHTML;
+  assert.match(html, /NEW/); assert.doesNotMatch(html, /OLD/);
+});
+
+test('fetchShopping: a hub whose registry lacks Mealie never asks', async () => {
+  const { sandbox } = newHub();
+  vm.runInContext("hubData = { integrations: [{ id: 'chores', enabled: true }] };", sandbox);
+  const calls = shopFetchLog(sandbox);
+  await sandbox.fetchShopping();
+  assert.equal(calls.length, 0);
 });

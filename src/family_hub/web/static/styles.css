@@ -999,6 +999,33 @@ body {
 .meal-menu { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 14px 10px;
   background: color-mix(in srgb, var(--ink) 5%, transparent); border-bottom: 1px solid var(--edge); }
 .meal-row .meal-row-empty .meal-btn, .meal-row-empty .meal-btn-random { font-size: 13px; }
+/* ---- native Shopping card: the Mealie list, scrolling INSIDE its card like the meal plan ---- */
+.shopping-slot { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.shop-card { padding: 0; overflow: hidden; min-width: 0; }
+.shop-add { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--edge); }
+.shop-add .txt-input { flex: 1; min-width: 0; }
+/* The rows scroll INSIDE the card on the wall (the add field stays put above them), so a
+   long list does not make the left column taller than the screen. The cap shows four rows
+   and the top of the fifth: that peek is the hint there is more. The phone shell lifts it. */
+.shop-rows { max-height: 200px; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.shop-row { display: flex; align-items: center; gap: 4px; padding: 0 12px 0 6px; min-height: 44px; min-width: 0;
+  border-bottom: 1px solid var(--edge); }
+.shop-row:last-child { border-bottom: 0; }
+.shop-check { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  background: none; border: 0; padding: 0; cursor: pointer; color: inherit; }
+.shop-row.done .todo-check { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* long names shrink to nothing and ellipsize (the same zero-basis trick as .meal-rname) */
+.shop-text { flex: 1 1 0; width: 0; min-width: 0; text-align: left; background: none; border: 0; font: inherit;
+  font-size: 14px; color: var(--ink); cursor: pointer; padding: 10px 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-row.done .shop-text { color: var(--dim); text-decoration: line-through; }
+.shop-check:focus-visible, .shop-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+/* a row's action menu, open inline under the row (a floating popover would be clipped by the scrolling list) */
+.shop-menu { display: flex; gap: 8px; padding: 8px 14px 10px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent); border-bottom: 1px solid var(--edge); }
+.shop-empty { padding: 16px 14px; font-size: 14px; color: var(--dim); }
+.shop-del { color: color-mix(in srgb, var(--crit) 90%, transparent); }   /* the crit red, like the To-Do delete */
 .fleet { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
 .fleet-sys { display: flex; align-items: center; gap: 8px; }
 .fleet-dot { width: 9px; height: 9px; border-radius: 50%; flex: none;
@@ -2384,6 +2411,7 @@ body.integ-off-climate #climate-slot { display: none; }
 body.integ-off-laundry #laundry-slot { display: none; }
 body.integ-off-fleet #fleet-slot { display: none; }
 body.integ-off-mealie #meals-slot { display: none; }
+body.integ-off-mealie #shopping-slot { display: none; }
 body.integ-off-cameras .tile-camera,
 body.integ-off-cameras #camgrid { display: none; }
 body.integ-off-chores .people-col { display: none; }
