@@ -11340,3 +11340,46 @@ test('shopDelete: a second tap while the first is in flight sends one DELETE', a
   await flush(); await flush();
   assert.equal(calls.filter((c) => c.method === 'DELETE').length, 1);
 });
+
+
+// ---- Plan it follow-ups: a late old request, a slow Mealie
+
+test('Recipes: a plan request finishing late never unlocks a newer one on another recipe page', async () => {
+  const r = await rcpPlanOpen();
+  const gates = [];
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    if (url === '/api/mealie/plan') {
+      await new Promise((go) => gates.push(go));
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }
+    return base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');       // request A, in flight
+  tapRcp(r.fire, r.host, '[data-recipe-back]', 'data-recipe-back');
+  tapRcp(r.fire, r.host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');       // request B, in flight
+  assert.equal(vm.runInContext('recipesState.planBusy', r.sandbox), true);
+  gates[0]();                                                                      // A finishes first
+  await flush(); await flush();
+  assert.equal(vm.runInContext('recipesState.planBusy', r.sandbox), true, 'B is still in flight and still locked');
+  assert.equal(vm.runInContext('recipesState.planOpen', r.sandbox), true, 'A does not close B\'s chips');
+  gates[1](); await flush(); await flush();
+  assert.equal(vm.runInContext('recipesState.planBusy', r.sandbox), false);
+});
+
+test('Recipes: a plan that times out says Mealie is slow, not a raw browser message', async () => {
+  const r = await rcpPlanOpen();
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    if (url === '/api/mealie/plan') throw Object.assign(new Error('signal is aborted without reason'), { name: 'AbortError' });
+    return base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  assert.equal(r.document.getElementById('toast').textContent, 'Mealie is slow: check the Dinner card to see whether it went through');
+});

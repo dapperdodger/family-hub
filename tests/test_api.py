@@ -6873,3 +6873,32 @@ def test_plan_route_planning_the_hub_rolled_dinner_itself_takes_its_reroll_away(
     monkeypatch.setattr(app_mod.meals, "plan_recipe", fake_plan)
     assert client.post("/api/mealie/plan", json={"recipe_id": _PLAN_RID, "date": "2026-10-07"}).status_code == 200
     assert app_mod._meals_rolled() == {}, "an explicit pick is the dinner: no Re-roll for it"
+
+
+def test_plan_route_a_memory_read_failure_never_turns_a_planned_dinner_into_an_error(client, app_mod, monkeypatch):
+    async def fake_plan(*a, **k):
+        return {"ok": True, "entry_id": 9, "recipe_id": _PLAN_RID, "same": False, "removed": [5]}
+    monkeypatch.setattr(app_mod.meals, "plan_recipe", fake_plan)
+    def boom():
+        raise RuntimeError("db hiccup")
+    monkeypatch.setattr(app_mod, "_meals_rolled", boom)
+    r = client.post("/api/mealie/plan", json={"recipe_id": _PLAN_RID, "date": "2026-10-07"})
+    assert r.status_code == 200 and r.json()["ok"] is True
+
+
+def test_plan_route_two_simultaneous_plans_never_overlap(app_mod, monkeypatch):
+    import asyncio
+    live, worst = [], [0]
+    async def fake_plan(*a, **k):
+        live.append(1)
+        worst[0] = max(worst[0], len(live))
+        await asyncio.sleep(0.02)
+        live.pop()
+        return {"ok": True, "entry_id": 1, "recipe_id": _PLAN_RID, "same": False, "removed": []}
+    monkeypatch.setattr(app_mod.meals, "plan_recipe", fake_plan)
+    async def go():
+        body = app_mod.MealsPlanIn(recipe_id=_PLAN_RID, date="2026-10-07")
+        return await asyncio.gather(app_mod.mealie_plan(body), app_mod.mealie_plan(body))
+    out = asyncio.run(go())
+    assert [o["ok"] for o in out] == [True, True]
+    assert worst[0] == 1, "the write lock serializes plan calls (the second sees the first's result)"

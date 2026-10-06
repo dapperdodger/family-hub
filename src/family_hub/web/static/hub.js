@@ -4142,6 +4142,7 @@ const recipesState = {
   scroll: 0,         // the grid's scroll position, restored on Back
   planOpen: false,   // the Plan it day chips are showing on the recipe page
   planBusy: false,   // a plan write is in flight (chips disabled, a second tap ignored)
+  planSeq: 0,        // numbers plan writes, so a late older one never unlocks or closes a newer one
 };
 
 function recipesReset() {
@@ -4241,17 +4242,22 @@ async function planRecipe(date) {
   const d = recipesState.detail;
   if (!d || recipesState.planBusy) return;
   const day = planDays().find((x) => x.date === date);
+  const seq = ++recipesState.planSeq;
   recipesState.planBusy = true;
   renderRecipes(true);
   try {
     await j('/api/mealie/plan', JSON_POST({ recipe_id: d.id, date }));
     showToast(`Planned ${d.name} for ${day ? day.label : date}`);
-    recipesState.planOpen = false;
+    if (seq === recipesState.planSeq) recipesState.planOpen = false;
   } catch (e) {
-    showToast((e && e.message) ? e.message : 'That did not work');
+    // a timeout is the hub's 12 s guard, not Mealie's answer: the write may well have gone through
+    showToast(e && e.name === 'AbortError' ? 'Mealie is slow: check the Dinner card to see whether it went through'
+      : (e && e.message) ? e.message : 'That did not work');
   } finally {
-    recipesState.planBusy = false;
-    if (recipesState.slug && recipesState.detail === d) renderRecipes(true);
+    if (seq === recipesState.planSeq) {
+      recipesState.planBusy = false;
+      if (recipesState.slug && recipesState.detail === d) renderRecipes(true);
+    }
     fetchMeals();               // success or not, show what Mealie actually has on the Dinner card
   }
 }
