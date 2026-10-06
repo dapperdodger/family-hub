@@ -497,10 +497,11 @@ def _shopping_item(raw: dict) -> dict | None:
 
 
 async def shopping_tile(client, cfg, env: dict) -> dict:
-    """``{available, needs_auth?, list: {id, name}, items: [{id, text, checked}], open}``.
+    """``{available, needs_auth?, list: {id, name}, items: [{id, text, checked}], open, total, truncated}``.
 
     Unchecked items first (by Mealie's own order), then checked ones; capped at
-    SHOPPING_MAX_ITEMS, with ``open`` still the true unchecked count. Never raises;
+    SHOPPING_MAX_ITEMS (``truncated`` says so, ``total`` is the real length), with ``open`` still the
+    true unchecked count. Never raises;
     errors are never cached. A failing read says nothing about the dinner tile (the
     shared ``auth_rejected`` flag is the one thing both report)."""
     mc = getattr(cfg, "mealie", None)
@@ -545,7 +546,8 @@ async def shopping_tile(client, cfg, env: dict) -> dict:
     rows.sort(key=lambda t: t[:3])
     result = {"available": True, "list": {"id": list_id, "name": list_name},
               "items": [t[3] for t in rows[:SHOPPING_MAX_ITEMS]],
-              "open": sum(1 for t in rows if not t[0])}
+              "open": sum(1 for t in rows if not t[0]),
+              "total": len(rows), "truncated": len(rows) > SHOPPING_MAX_ITEMS}
     if gen == _shop_gen:             # a write landed while we were reading: don't cache the old list
         _shop_cache[mc["base"]] = (time.monotonic() + SHOPPING_TTL, result)
     return result
@@ -572,14 +574,19 @@ def _clean_item_text(text: object) -> str | None:
     return clean if 0 < len(clean) <= ITEM_TEXT_MAX else None
 
 
-async def _own_item(client, mc: dict, env: dict, list_id: str, item_id: str) -> dict | None:
-    """The item, only if it exists AND sits on the configured list. An id from
-    another list, another household or one Mealie has since deleted is None: the
-    hub never writes to something it did not just confirm is on its list."""
+_GONE = {"gone": True}      # _own_item's answer, when asked, for an item Mealie no longer has
+
+
+async def _own_item(client, mc: dict, env: dict, list_id: str, item_id: str, gone=None) -> dict | None:
+    """The item, only if it exists AND sits on the configured list. An id from another
+    list is None: the hub never writes to something it did not just confirm is on its
+    list. So is an id Mealie answers 404 for (one it has since deleted, or one it will
+    not show this household), unless the caller passes ``gone``: a delete wants the
+    item gone, and a 404 means there is nothing to delete. Any other error raises."""
     r = await client.get(f"{mc['base']}/api/households/shopping/items/{item_id}",
                          headers=_headers(env), timeout=TIMEOUT)
     if r.status_code == 404:
-        return None
+        return gone
     r.raise_for_status()
     found = r.json()
     if not isinstance(found, dict) or str(found.get("shoppingListId", "")).lower() != list_id.lower():
@@ -656,7 +663,10 @@ async def delete_shopping_item(client, cfg, env: dict, item_id: object) -> dict:
         return {"ok": False, "error": "not an item id", "status": 422}
 
     async def run(mc, list_id):
-        if await _own_item(client, mc, env, list_id, item_id) is None:
+        found = await _own_item(client, mc, env, list_id, item_id, gone=_GONE)
+        if found is _GONE:
+            return {"ok": True, "gone": True}     # two phones tapping Delete: it is gone, as asked
+        if found is None:
             return dict(_NOT_ON_LIST)
         r = await client.delete(f"{mc['base']}/api/households/shopping/items/{item_id}",
                                 headers=_headers(env), timeout=TIMEOUT)

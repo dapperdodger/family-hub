@@ -3946,7 +3946,7 @@ function shoppingRowHtml(it) {
       : '');
 }
 
-function shoppingCardHtml(items) {
+function shoppingCardHtml(items, s = null) {
   return `<article class="card shop-card">`
     + `<form id="shop-add-form" class="shop-add" autocomplete="off">`
     + `<input id="shop-add-input" class="txt-input" maxlength="120" placeholder="Add an item…"`
@@ -3955,6 +3955,7 @@ function shoppingCardHtml(items) {
     + (items.length
       ? `<div class="shop-rows">${items.map(shoppingRowHtml).join('')}</div>`
       : `<div class="shop-empty">Nothing on the list</div>`)
+    + (s && s.truncated ? `<div class="shop-note">Showing the first ${items.length} of ${Number(s.total) || items.length}</div>` : '')
     + `</article>`;
 }
 
@@ -3973,7 +3974,7 @@ function renderShopping(s = shopData) {
   const body = s == null
     ? `<div class="card wx-loading" aria-hidden="true"></div>`
     : s.available
-      ? shoppingCardHtml(items)
+      ? shoppingCardHtml(items, s)
       : `<div class="wx-offline">${s.needs_auth ? 'Shopping needs a Mealie token'
         : (typeof s.reason === 'string' && s.reason ? escapeHtml(s.reason) : 'Shopping unavailable')}</div>`;
   const prevInput = document.getElementById('shop-add-input');
@@ -4031,6 +4032,11 @@ async function fetchShopping() {
 const JSON_PUT = (body) => ({ method: 'PUT', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body) });
 
+// the header count is the server's true unchecked count, so a tap moves it by hand until the re-read
+function shopOpenAdjust(delta) {
+  if (shopData && Number.isInteger(shopData.open)) shopData.open = Math.max(0, shopData.open + delta);
+}
+
 function shopItemById(id) {
   return shopData && Array.isArray(shopData.items) ? shopData.items.find((i) => i && i.id === id) : null;
 }
@@ -4070,11 +4076,13 @@ async function shopCheck(id) {
   shopScrollAt = Date.now();
   shopBusy.add(id);
   it.checked = next;
+  shopOpenAdjust(next ? -1 : 1);
   renderShopping();
   try {
     await j(`/api/mealie/shopping/items/${encodeURIComponent(id)}`, JSON_PUT({ checked: next }));
   } catch (e) {
     it.checked = !next;
+    shopOpenAdjust(next ? 1 : -1);
     showToast((e && e.message) ? e.message : 'That did not work');
   } finally {
     shopBusy.delete(id);
@@ -4134,6 +4142,7 @@ const recipesState = {
   scroll: 0,         // the grid's scroll position, restored on Back
   planOpen: false,   // the Plan it day chips are showing on the recipe page
   planBusy: false,   // a plan write is in flight (chips disabled, a second tap ignored)
+  planSeq: 0,        // numbers plan writes, so a late older one never unlocks or closes a newer one
 };
 
 function recipesReset() {
@@ -4233,17 +4242,25 @@ async function planRecipe(date) {
   const d = recipesState.detail;
   if (!d || recipesState.planBusy) return;
   const day = planDays().find((x) => x.date === date);
+  const seq = ++recipesState.planSeq;
   recipesState.planBusy = true;
   renderRecipes(true);
   try {
     await j('/api/mealie/plan', JSON_POST({ recipe_id: d.id, date }));
     showToast(`Planned ${d.name} for ${day ? day.label : date}`);
-    recipesState.planOpen = false;
+    if (seq === recipesState.planSeq) recipesState.planOpen = false;
   } catch (e) {
-    showToast((e && e.message) ? e.message : 'That did not work');
+    // a timeout is the hub's 12 s guard, not Mealie's answer: the write may well have gone through
+    // (the hub still holds its write lock), so look at the card again a little later too
+    const slow = !!(e && e.name === 'AbortError');
+    if (slow) { setTimeout(fetchMeals, 5000); setTimeout(fetchMeals, 15000); }
+    showToast(slow ? 'Mealie is slow: check the Dinner card to see whether it went through'
+      : (e && e.message) ? e.message : 'That did not work');
   } finally {
-    recipesState.planBusy = false;
-    if (recipesState.slug && recipesState.detail === d) renderRecipes(true);
+    if (seq === recipesState.planSeq) {
+      recipesState.planBusy = false;
+      if (recipesState.slug && recipesState.detail === d) renderRecipes(true);
+    }
     fetchMeals();               // success or not, show what Mealie actually has on the Dinner card
   }
 }

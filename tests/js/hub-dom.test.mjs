@@ -11281,3 +11281,141 @@ test('Recipes: a recipe Mealie gave no usable id offers no Plan it', async () =>
   const r = await rcpPlanOpen({ detail: RCP_DETAIL({ id: null }) });
   assert.doesNotMatch(rcpHtml(r.host), /data-recipe-plan/);
 });
+
+
+// ---- Shopping follow-ups: menu, header count, cap note, edges
+
+test('shopCheck: checking an item closes an open row menu', async () => {
+  const { sandbox, fire, host } = shopSetup();
+  tapShop(fire, host, `[data-shop-open="${IID_B}"]`);
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), IID_B);
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), null);
+  assert.doesNotMatch(host.innerHTML, /class="shop-menu"/);
+  await flush(); await flush();
+});
+
+test('shopCheck: the header count follows the tap at once, and a refused write puts it back', async () => {
+  const { sandbox, fire, host } = shopSetup();
+  assert.match(host.innerHTML, /<span class="shead-chip">2<\/span>/);
+  sandbox.fetch = async (url, opts = {}) => (opts.method === 'PUT'
+    ? { ok: false, status: 502, json: async () => ({ detail: 'no' }) }
+    : { ok: false, status: 502, json: async () => ({ detail: 'down' }) });
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  assert.match(host.innerHTML, /<span class="shead-chip">1<\/span>/, 'checking Milk: one left to get');
+  await flush(); await flush(); await flush();
+  assert.match(host.innerHTML, /<span class="shead-chip">2<\/span>/, 'the refused write restored the count');
+});
+
+test('shopCheck: un-checking raises the count at once', async () => {
+  const { fire, host } = shopSetup();
+  tapShop(fire, host, `[data-shop-check="${IID_C}"]`);
+  assert.match(host.innerHTML, /<span class="shead-chip">3<\/span>/);
+  await flush(); await flush();
+});
+
+test('renderShopping: a capped list says how many are shown of how many', () => {
+  const capped = { ...SHOP_LIST(), truncated: true, total: 340 };
+  assert.match(shopHtml(capped).html, /class="shop-note">Showing the first 3 of 340</);
+  assert.doesNotMatch(shopHtml(SHOP_LIST()).html, /shop-note/);
+  assert.doesNotMatch(shopHtml({ ...SHOP_LIST(), truncated: false, total: 3 }).html, /shop-note/);
+});
+
+test('row menu: a menu left alone closes itself after 15 seconds', () => {
+  const { sandbox, fire, host } = shopSetup();
+  const timers = [];
+  sandbox.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  tapShop(fire, host, `[data-shop-open="${IID_A}"]`);
+  const idle = timers.find((t) => t.ms === 15000);
+  assert.ok(idle, 'a 15 s timer was set');
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), IID_A);
+  idle.fn();
+  assert.equal(vm.runInContext('shopMenuOpen', sandbox), null);
+});
+
+test('shopDelete: a second tap while the first is in flight sends one DELETE', async () => {
+  const { sandbox, calls } = shopSetup();
+  sandbox.shopDelete(IID_A);
+  sandbox.shopDelete(IID_A);
+  await flush(); await flush();
+  assert.equal(calls.filter((c) => c.method === 'DELETE').length, 1);
+});
+
+
+// ---- Plan it follow-ups: a late old request, a slow Mealie
+
+test('Recipes: a plan request finishing late never unlocks a newer one on another recipe page', async () => {
+  const r = await rcpPlanOpen();
+  const gates = [];
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    if (url === '/api/mealie/plan') {
+      await new Promise((go) => gates.push(go));
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }
+    return base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');       // request A, in flight
+  tapRcp(r.fire, r.host, '[data-recipe-back]', 'data-recipe-back');
+  tapRcp(r.fire, r.host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');       // request B, in flight
+  assert.equal(vm.runInContext('recipesState.planBusy', r.sandbox), true);
+  gates[0]();                                                                      // A finishes first
+  await flush(); await flush();
+  assert.equal(vm.runInContext('recipesState.planBusy', r.sandbox), true, 'B is still in flight and still locked');
+  assert.equal(vm.runInContext('recipesState.planOpen', r.sandbox), true, 'A does not close B\'s chips');
+  gates[1](); await flush(); await flush();
+  assert.equal(vm.runInContext('recipesState.planBusy', r.sandbox), false);
+});
+
+test('Recipes: a plan that times out says Mealie is slow, not a raw browser message', async () => {
+  const r = await rcpPlanOpen();
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    if (url === '/api/mealie/plan') throw Object.assign(new Error('signal is aborted without reason'), { name: 'AbortError' });
+    return base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  assert.equal(r.document.getElementById('toast').textContent, 'Mealie is slow: check the Dinner card to see whether it went through');
+});
+
+
+test('Recipes: after a plan times out the Dinner card is re-read again a few seconds later', async () => {
+  const r = await rcpPlanOpen();
+  const seen = [];
+  const timers = [];
+  r.sandbox.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    seen.push(url);
+    if (url === '/api/mealie/plan') throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    return base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  const later = timers.filter((t) => t.ms === 5000 || t.ms === 15000);
+  assert.ok(later.length >= 1, 'a delayed re-read was scheduled (the server may still be writing)');
+  const before = seen.filter((u) => u === '/api/tiles/mealie').length;
+  later.forEach((t) => t.fn());
+  await flush(); await flush();
+  assert.ok(seen.filter((u) => u === '/api/tiles/mealie').length > before, 'and it re-reads the card');
+});
+
+test('Recipes: an ordinary failure does not schedule delayed re-reads', async () => {
+  const r = await rcpPlanOpen();
+  const timers = [];
+  r.sandbox.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => (url === '/api/mealie/plan'
+    ? { ok: false, status: 502, json: async () => ({ detail: 'no' }) } : base(url, o));
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  assert.equal(timers.filter((t) => t.ms === 5000 || t.ms === 15000).length, 0);
+});

@@ -3143,18 +3143,18 @@ async def mealie_plan(body: MealsPlanIn):
         # dinners removed here are gone whether or not the whole write succeeded: forget them. The new
         # dinner is deliberately NOT remembered as hub-picked, so the card offers no Re-roll for it.
         # Mealie has already changed, so a failed save only leaves a stale entry the card ignores.
-        rolled = _meals_rolled()
-        forget = set(res.get("removed", []))
-        if res.get("ok") and meals._is_int(res.get("entry_id")):
-            forget.add(res["entry_id"])     # the pick is THE dinner (no Re-roll), and Mealie can reuse an id
-        gone = [i for i in forget if i in rolled]
-        if gone:
-            for i in gone:
-                rolled.pop(i, None)
-            try:
+        try:
+            rolled = _meals_rolled()
+            forget = set(res.get("removed", []))
+            if res.get("ok") and meals._is_int(res.get("entry_id")):
+                forget.add(res["entry_id"])     # the pick is THE dinner (no Re-roll), and Mealie can reuse an id
+            gone = [i for i in forget if i in rolled]
+            if gone:
+                for i in gone:
+                    rolled.pop(i, None)
                 _meals_rolled_save(rolled)
-            except Exception:
-                log.exception("meals: could not save the re-roll memory (the plan itself went through)")
+        except Exception:
+            log.exception("meals: could not update the re-roll memory (the plan itself went through)")
     return _meals_reply(res)
 
 

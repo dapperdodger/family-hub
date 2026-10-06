@@ -1027,6 +1027,7 @@ body {
 .shop-menu { display: flex; gap: 8px; padding: 8px 14px 10px;
   background: color-mix(in srgb, var(--ink) 5%, transparent); border-bottom: 1px solid var(--edge); }
 .shop-empty { padding: 16px 14px; font-size: 14px; color: var(--dim); }
+.shop-note { padding: 8px 14px; font-size: 13px; color: var(--dim); border-top: 1px solid var(--edge); }
 .shop-del { color: color-mix(in srgb, var(--crit) 90%, transparent); }   /* the crit red, like the To-Do delete */
 /* ---- native Recipes view (opened from the Dinner card): grid, filters, detail ---- */
 .recipes { display: flex; flex-direction: column; gap: 14px; max-width: 1840px; margin: 0 auto; }
