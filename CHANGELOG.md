@@ -11,6 +11,10 @@ rolls that section to a dated version via `python scripts/release.py`.
 ## [Unreleased]
 
 ### Fixed
+- Fonts: the monospace labels (wordmark, clock, day names, count chips) rendered
+  invisible in Windows Firefox 157, because its monospace stack offered `ui-monospace` /
+  "Cascadia Code". The stack is now SF Mono, Menlo, Consolas, DejaVu Sans Mono, Liberation
+  Mono, then the generic family: Mac and Pi look the same, Windows uses Consolas.
 - Shopping: an item added from the wall showed as "1 Milk" instead of "Milk" (Mealie
   prefixes the quantity to its display text). Items you type now show exactly what you
   typed; items that came from a recipe still show Mealie's "2 cups flour".
