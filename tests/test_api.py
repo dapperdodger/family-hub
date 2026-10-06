@@ -3615,6 +3615,13 @@ def test_caldav_test_endpoint_reports_sync_outcome(tmp_path, monkeypatch):
         assert tc.post("/api/integrations/icloud_caldav/test").json() \
             == {"ok": False, "error": "no credentials"}
 
+    # Relative to today, never a fixed date: the sync only keeps events inside its window
+    # (today -45d .. +400d), so a hard-coded date goes stale and the test fails on the day
+    # it leaves the window (this one did, on 2026-10-05, with a 2026-08-20 event).
+    ev_day = dt.date.today() + dt.timedelta(days=3)
+    ev_start = ev_day.strftime("%Y%m%d")
+    ev_end = (ev_day + dt.timedelta(days=1)).strftime("%Y%m%d")
+
     class _Fake:
         def configured(self):
             return True
@@ -3625,8 +3632,8 @@ def test_caldav_test_endpoint_reports_sync_outcome(tmp_path, monkeypatch):
         def fetch_ics(self, col, lo, hi):
             return [{"href": "h", "etag": "e", "ics":
                      "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:u1\r\n"
-                     "SUMMARY:E\r\nDTSTART;VALUE=DATE:20260820\r\n"
-                     "DTEND;VALUE=DATE:20260821\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"}]
+                     f"SUMMARY:E\r\nDTSTART;VALUE=DATE:{ev_start}\r\n"
+                     f"DTEND;VALUE=DATE:{ev_end}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"}]
 
         def fetch_todos(self, col):
             return []
