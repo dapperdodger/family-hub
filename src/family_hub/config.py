@@ -214,8 +214,9 @@ MEALIE_DAYS_RANGE = (3, 7)
 
 def _clean_mealie(raw: object) -> dict | None:
     """Keep only a well-formed mealie block: a dict with an http(s) `base`.
-    `open_url` (what the browser opens full-screen; defaults to base) must also
-    be http(s) or it is dropped with a warning. `days` is clamped to 3..7 and
+    `open_url` (kept for old configs; the Dinner button now opens the native
+    Recipes view, not Mealie; defaults to base) must also be http(s) or it is
+    dropped with a warning. `days` is clamped to 3..7 and
     `shopping_list` (an id or a name; default: Mealie's first list) is kept as
     text. Malformed input is dropped and logged loudly, never a crash: a
     silently-vanished integration is the trap this gate exists to catch.

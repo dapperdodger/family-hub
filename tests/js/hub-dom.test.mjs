@@ -1190,10 +1190,12 @@ test('renderMeals: loading placeholder, unavailable and needs-a-token notes, hea
   assert.doesNotMatch(r.html, /data-overlay/, 'no dead Full screen button when nothing is available');
 });
 
-test('renderMeals: Full screen only with an http(s) URL to open', () => {
-  assert.match(mealsHtml(MEALS_WEEK()).html, /data-overlay="meals-full"/);
-  for (const url of ['', 'javascript:alert(1)', 'ftp://x', undefined, 5]) {
-    assert.doesNotMatch(mealsHtml({ ...MEALS_WEEK(), open_url: url }).html, /data-overlay/, `url ${url}`);
+test('renderMeals: the header offers Recipes whenever Meals is available, whatever open_url says', () => {
+  for (const url of ['http://mealie.invalid:9000', '', undefined, 5, 'javascript:alert(1)']) {
+    const html = mealsHtml({ ...MEALS_WEEK(), open_url: url }).html;
+    assert.match(html, /data-overlay="recipes"/, `url ${url}`);
+    assert.match(html, /⛶ Recipes/);
+    assert.doesNotMatch(html, /meals-full|Full screen/);
   }
 });
 
@@ -1396,20 +1398,33 @@ test('updateTabVisibility: the Meals tab shows only with the mealie integration 
   assert.equal(byTab('meals').hidden, true, 'toggled off -> tab and surface go together');
 });
 
-test('the full-screen Meals view opens only an http(s) URL the TILE supplied', () => {
+test('the Recipes overlay builds the view and never an iframe', () => {
   const { document, sandbox } = newHub();
   const made = [];
   sandbox.makeIframe = (url) => { made.push(url); return document.createElement('div'); };
-  vm.runInContext("mealsData = { available: true, open_url: 'http://mealie.invalid:9000' };", sandbox);
-  sandbox.openOverlay('meals-full');
-  assert.deepEqual(made, ['http://mealie.invalid:9000']);
+  sandbox.fetch = async () => ({ ok: true, status: 200, json: async () => ({ available: false }) });
+  vm.runInContext(LISTED + "mealsData = { available: true, open_url: 'http://mealie.invalid:9000' };", sandbox);
+  sandbox.openOverlay('recipes');
+  assert.equal(vm.runInContext('openView', sandbox), 'recipes');
+  assert.deepEqual(made, [], 'the Mealie page is never embedded');
+  assert.match(document.getElementById('overlay-content').innerHTML, /id="recipes-full"/);
   sandbox.closeOverlay();
-  for (const url of ['javascript:alert(1)', 'data:text/html,x', '', undefined, 5]) {
-    vm.runInContext(`mealsData = { available: true, open_url: ${JSON.stringify(url) ?? 'undefined'} };`, sandbox);
-    sandbox.openOverlay('meals-full');
-    sandbox.closeOverlay();
-  }
-  assert.equal(made.length, 1, 'a non-http(s) URL never becomes an iframe');
+  sandbox.openOverlay('meals-full');
+  assert.equal(document.getElementById('overlay-content').innerHTML, '', 'the old view name opens nothing');
+  assert.deepEqual(made, []);
+});
+
+test('the Dinner header Recipes button opens the Recipes overlay (a header tap, wall and phone alike)', () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED, sandbox);
+  sandbox.fetch = async () => ({ ok: true, status: 200, json: async () => ({ available: false }) });
+  sandbox.renderMeals(MEALS_WEEK());
+  const btn = document.getElementById('meals-slot').querySelector('.expand');
+  assert.ok(btn);
+  assert.equal(btn.dataset.overlay, 'recipes');
+  btn.closest = (s) => (s === '.expand' ? btn : null);
+  fire('click', { target: btn, preventDefault() {} });
+  assert.equal(vm.runInContext('openView', sandbox), 'recipes');
 });
 
 // ---- review round (2026-10-01): off-switch, newest-wins, labels, the +N badge ----

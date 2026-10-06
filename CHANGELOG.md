@@ -87,6 +87,9 @@ rolls that section to a dated version via `python scripts/release.py`.
   another list, is a clean 404 and never a blind write.
 
 ### Changed
+- Recipes: the Dinner card's **Full screen** button is now **Recipes** and opens the native
+  view instead of embedding Mealie (a 15-25 second blank page on a Pi 3). The `open_url`
+  setting is still accepted but no longer used.
 - Meals: the following days now scroll inside the card on the wall (tonight stays
   pinned above), so a full week (`mealie.days` up to 7) no longer makes the
   dashboards column taller than the screen. A list you are scrolling keeps its

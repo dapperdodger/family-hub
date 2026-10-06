@@ -1980,12 +1980,6 @@ function openOverlay(view) {
     recipesReset();
     renderRecipes();
     fetchRecipes();
-  } else if (view === 'meals-full') {
-    // Mealie itself, full screen (recipes, the meal plan, the shopping lists).
-    // The URL comes from the tile (config mealie.open_url, else mealie.base),
-    // never from the page, so there is nothing for a click to inject.
-    const url = mealsData && typeof mealsData.open_url === 'string' ? mealsData.open_url : '';
-    if (/^https?:\/\//.test(url)) content.appendChild(makeIframe(url));
   } else if (view === 'cameras-page') {
     // Full-screen 2x2 live grid — the "camera page" reachable from the wall's
     // Cameras header (the wall has no tab bar). Same tiles as the mobile
@@ -3827,8 +3821,8 @@ function renderMeals(m = mealsData) {
   // the tile still reports available (a partial /api/hub payload) keeps the card.
   const listed = ((hubData && hubData.integrations) || []).some((i) => i.id === 'mealie');
   if (!listed && (m == null || !m.available)) { host.innerHTML = ''; return; }
-  const hasUrl = !!(m && m.available && typeof m.open_url === 'string' && /^https?:\/\//.test(m.open_url));
-  const head = sectionHead('Dinner', hasUrl ? { overlay: 'meals-full', expandLabel: 'Full screen' } : {});
+  // the Recipes view (native, fast on a Pi 3) replaced the old Full screen iframe of Mealie itself
+  const head = sectionHead('Dinner', m && m.available ? { overlay: 'recipes', expandLabel: 'Recipes' } : {});
   const body = m == null
     ? `<div class="card wx-loading" aria-hidden="true"></div>`
     : m.available

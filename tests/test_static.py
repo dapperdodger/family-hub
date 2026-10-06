@@ -2553,3 +2553,26 @@ def test_kiosk_page_is_not_taller_than_its_content_so_a_fitting_wall_never_scrol
     assert re.search(r"body\.is-kiosk \.wrap\s*\{[^}]*padding-bottom:\s*0", CSS),         "the kiosk's .wrap must have no bottom padding"
     assert re.search(r"(?m)^\.wrap\s*\{[^}]*padding:\s*0 24px 40px", CSS),         "the base .wrap keeps its breathing room for ordinary browsers"
 
+
+
+def test_recipes_view_is_wired_and_the_mealie_iframe_is_gone():
+    hub = (STATIC / "hub.js").read_text(encoding="utf-8")
+    assert "view === 'recipes'" in hub and "overlay: 'recipes'" in hub
+    assert "meals-full" not in hub, "the Mealie iframe branch is removed"
+    branch = hub[hub.index("view === 'recipes'"):hub.index("view === 'cameras-page'")]
+    assert "makeIframe" not in branch, "the Recipes branch never embeds Mealie"
+    assert re.search(r'id="recipe-search" class="txt-input', hub), \
+        "the search box carries .txt-input, the class the on-screen keyboard serves"
+    common = (STATIC / "common.js").read_text(encoding="utf-8")
+    assert re.search(r"view === 'recipes'\)\s*return\s+\d{6,}", common), "Recipes gets a long idle timeout"
+
+
+def test_recipes_css_is_light_enough_for_a_pi_3_and_adapts_to_the_phone():
+    rules = re.findall(r"(?m)^[^{}\n/][^{}\n]*\.recipe[^{}]*\{[^}]*\}", CSS)
+    assert len(rules) >= 10, "the Recipes view's rules (a floor so the pattern cannot pass on nothing)"
+    for rule in rules:
+        assert "backdrop-filter" not in rule and "animation" not in rule and "transition" not in rule, rule
+    mobile = _phone_shell_css()
+    assert re.search(r"\.recipe-grid\s*\{[^}]*repeat\(2,", mobile), "two cards across on the phone"
+    assert re.search(r"\.recipe-detail\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)", mobile), "one column on the phone"
+    assert re.search(r"\.recipe-sort,[^{]*\.recipe-back\s*\{[^}]*min-height:\s*44px", mobile), "44px tap targets"
