@@ -14,6 +14,9 @@
      data-season       on | off             (seasonal looks follow the calendar)
      data-look         none | <look id>     (DERIVED from data-season + today's
                                               date; see SEASONS below)
+     data-drift        none | snow | petal | clover | firefly | sparkle
+                                             (DERIVED, like data-look: the painting season's
+                                              registry `drift`, its one gentle kind of motion)
      data-lite         on | off             (Lite: a slower screen keeps the seasonal
                                               photo, drops the glass blur and the moving
                                               leaves/bats/spiders; per device, no house
@@ -290,6 +293,8 @@
     ] },
   ];
   var SEASON_PREFS = ["on", "off"];
+  // The gentle kinds of motion a season may name with `drift` (styles.css draws each one).
+  var DRIFTS = ["snow", "petal", "clover", "firefly", "sparkle"];
   var DEFAULT_SEASON = "off";
 
   function seasonById(id) {
@@ -404,6 +409,8 @@
     var season = root.getAttribute("data-season") === "on" ? seasonFor(d) : null;
     var look = season ? lookFor(season) : "none";
     if (root.getAttribute("data-look") !== look) root.setAttribute("data-look", look);
+    var drift = season && DRIFTS.indexOf(season.drift) !== -1 ? season.drift : "none";
+    if (root.getAttribute("data-drift") !== drift) root.setAttribute("data-drift", drift);
     return look;
   }
   // Did someone on THIS device choose the season pref this session? The house
@@ -451,6 +458,7 @@
   }
 
   window.FH_SEASONS = SEASONS;
+  window.FH_DRIFTS = DRIFTS;
   window.FH_SEASON_TOOLS = {
     nthWeekday: nthWeekday, easterSunday: easterSunday, windows: WINDOWS, windowOf: windowOf,
     inWindow: inWindow, seasonFor: seasonFor, seasonOutlook: seasonOutlook, nextStart: nextStart

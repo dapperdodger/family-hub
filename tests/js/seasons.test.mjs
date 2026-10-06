@@ -133,3 +133,50 @@ test('nextStart: this year\'s start when it is still ahead, else next year\'s, e
   const easter = { window: (y) => T.windows.easter(y) };
   assert.equal(T.nextStart(easter, d('2026-04-20')).toDateString(), d('2027-03-14').toDateString(), 'Easter 2027 Mar 28 minus 14 days');
 });
+
+// ---- drift: a season names one gentle kind of motion; <html data-drift> follows the painting season
+
+const seasonOf = (drift, extra = {}) => ({ id: 'x', name: 'X', from: [12, 1], to: [12, 31], drift,
+  looks: [{ id: 'x-a', name: 'A', blurb: '', default: true }], ...extra });
+
+test('data-drift follows the painting season: its kind, else none', () => {
+  const { win, root } = loadTheme();
+  win.FH_SEASONS.unshift(seasonOf('snow', { id: 'winter', from: [12, 1], to: [2, 29], looks: [{ id: 'winter-test', name: 'T', blurb: '', default: true }] }));
+  win.refreshLook(new Date(2026, 11, 10));
+  assert.equal(root.getAttribute('data-look'), 'winter-test');
+  assert.equal(root.getAttribute('data-drift'), 'snow');
+  win.refreshLook(new Date(2026, 9, 6));                       // Halloween: no drift declared
+  assert.equal(root.getAttribute('data-drift'), 'none');
+  win.refreshLook(new Date(2026, 6, 15));                      // nothing in season
+  assert.equal(root.getAttribute('data-look'), 'none');
+  assert.equal(root.getAttribute('data-drift'), 'none');
+});
+
+test('an unknown drift kind reads as none; every known kind is accepted', () => {
+  const { win, root } = loadTheme();
+  for (const kind of ['snow', 'petal', 'clover', 'firefly', 'sparkle']) {
+    win.FH_SEASONS.unshift(seasonOf(kind));
+    win.refreshLook(new Date(2026, 11, 10));
+    assert.equal(root.getAttribute('data-drift'), kind, kind);
+    win.FH_SEASONS.shift();
+  }
+  win.FH_SEASONS.unshift(seasonOf('confetti'));
+  win.refreshLook(new Date(2026, 11, 10));
+  assert.equal(root.getAttribute('data-drift'), 'none');
+  assert.deepEqual(Array.from(win.FH_DRIFTS), ['snow', 'petal', 'clover', 'firefly', 'sparkle']);
+});
+
+test('turning seasons off clears the drift with the look', () => {
+  const { win, root } = loadTheme();
+  win.FH_SEASONS.unshift(seasonOf('snow'));
+  win.refreshLook(new Date(2026, 11, 10));
+  assert.equal(root.getAttribute('data-drift'), 'snow');
+  win.setSeason('off');
+  win.refreshLook(new Date(2026, 11, 10));
+  assert.equal(root.getAttribute('data-drift'), 'none');
+});
+
+test('a fresh page stamps data-drift none (no season painting yet)', () => {
+  const { root } = loadTheme();
+  assert.equal(root.getAttribute('data-drift'), 'none');
+});
