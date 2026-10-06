@@ -4251,7 +4251,10 @@ async function planRecipe(date) {
     if (seq === recipesState.planSeq) recipesState.planOpen = false;
   } catch (e) {
     // a timeout is the hub's 12 s guard, not Mealie's answer: the write may well have gone through
-    showToast(e && e.name === 'AbortError' ? 'Mealie is slow: check the Dinner card to see whether it went through'
+    // (the hub still holds its write lock), so look at the card again a little later too
+    const slow = !!(e && e.name === 'AbortError');
+    if (slow) { setTimeout(fetchMeals, 5000); setTimeout(fetchMeals, 15000); }
+    showToast(slow ? 'Mealie is slow: check the Dinner card to see whether it went through'
       : (e && e.message) ? e.message : 'That did not work');
   } finally {
     if (seq === recipesState.planSeq) {

@@ -2074,3 +2074,14 @@ def test_an_item_on_the_list_matches_the_list_id_whatever_the_case():
     fake = FakeMealie(items=[item(IID1, "Milk", list_id=RID2.upper())])
     assert check(fake, IID1, True)["ok"] is True
     assert delete(fake, IID1) == {"ok": True}
+
+
+def test_delete_when_mealie_errors_on_the_item_lookup_is_still_an_error_and_sends_no_delete():
+    """Only a real 404 means gone: a 500 or a refused token must never read as success."""
+    for status, needs_auth in ((500, False), (401, True)):
+        fake = FakeMealie(items=[item(IID1, "Milk")])
+        fake.fail[("GET", "/api/households/shopping/items/")] = status
+        out = delete(fake, IID1)
+        assert out["ok"] is False and out.get("gone") is None, status
+        assert out["status"] in (502, 503) and bool(out.get("needs_auth")) is needs_auth
+        assert not [c for c in fake.calls if c["method"] == "DELETE"]

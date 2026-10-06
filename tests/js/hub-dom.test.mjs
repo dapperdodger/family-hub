@@ -11383,3 +11383,39 @@ test('Recipes: a plan that times out says Mealie is slow, not a raw browser mess
   await flush(); await flush();
   assert.equal(r.document.getElementById('toast').textContent, 'Mealie is slow: check the Dinner card to see whether it went through');
 });
+
+
+test('Recipes: after a plan times out the Dinner card is re-read again a few seconds later', async () => {
+  const r = await rcpPlanOpen();
+  const seen = [];
+  const timers = [];
+  r.sandbox.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    seen.push(url);
+    if (url === '/api/mealie/plan') throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    return base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  const later = timers.filter((t) => t.ms === 5000 || t.ms === 15000);
+  assert.ok(later.length >= 1, 'a delayed re-read was scheduled (the server may still be writing)');
+  const before = seen.filter((u) => u === '/api/tiles/mealie').length;
+  later.forEach((t) => t.fn());
+  await flush(); await flush();
+  assert.ok(seen.filter((u) => u === '/api/tiles/mealie').length > before, 'and it re-reads the card');
+});
+
+test('Recipes: an ordinary failure does not schedule delayed re-reads', async () => {
+  const r = await rcpPlanOpen();
+  const timers = [];
+  r.sandbox.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => (url === '/api/mealie/plan'
+    ? { ok: false, status: 502, json: async () => ({ detail: 'no' }) } : base(url, o));
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  assert.equal(timers.filter((t) => t.ms === 5000 || t.ms === 15000).length, 0);
+});

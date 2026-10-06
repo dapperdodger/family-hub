@@ -578,10 +578,11 @@ _GONE = {"gone": True}      # _own_item's answer, when asked, for an item Mealie
 
 
 async def _own_item(client, mc: dict, env: dict, list_id: str, item_id: str, gone=None) -> dict | None:
-    """The item, only if it exists AND sits on the configured list. An id from
-    another list or another household is None: the hub never writes to something it
-    did not just confirm is on its list. An item Mealie has since deleted is None too,
-    unless the caller passes ``gone`` (a delete wants it gone: that is already true)."""
+    """The item, only if it exists AND sits on the configured list. An id from another
+    list is None: the hub never writes to something it did not just confirm is on its
+    list. So is an id Mealie answers 404 for (one it has since deleted, or one it will
+    not show this household), unless the caller passes ``gone``: a delete wants the
+    item gone, and a 404 means there is nothing to delete. Any other error raises."""
     r = await client.get(f"{mc['base']}/api/households/shopping/items/{item_id}",
                          headers=_headers(env), timeout=TIMEOUT)
     if r.status_code == 404:
