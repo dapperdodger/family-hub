@@ -502,3 +502,24 @@ def test_demo_meals_writes_change_nothing_and_never_reach_mealie(demo_client):
     r = demo_client.post("/api/mealie/shopping", json={"recipe_id": "anything"})
     assert r.status_code == 200 and r.json()["demo"] is True
     assert demo_client.get("/api/mealie/image/08481e68-b32a-45db-9f99-f036126dba27").status_code == 404
+
+
+def test_demo_shopping_tile_shows_the_card_best_states(demo_client):
+    """A live-shaped list with open and checked items, no Mealie hit."""
+    t = demo_client.get("/api/mealie/shopping").json()
+    assert t["available"] is True and t["list"]["name"]
+    items = t["items"]
+    assert len(items) >= 8, "enough rows that the card's list scrolls"
+    assert all(set(i) == {"id", "text", "checked"} for i in items), "the shape meals.shopping_tile serves"
+    assert any(i["checked"] for i in items) and any(not i["checked"] for i in items)
+    assert [i["checked"] for i in items] == sorted(i["checked"] for i in items), "unchecked first"
+    assert t["open"] == sum(1 for i in items if not i["checked"])
+
+
+def test_demo_shopping_writes_change_nothing_and_never_reach_mealie(demo_client):
+    before = demo_client.get("/api/mealie/shopping").json()
+    iid = before["items"][0]["id"]
+    assert demo_client.post("/api/mealie/shopping/items", json={"text": "Eggs"}).json() == {"ok": True, "demo": True}
+    assert demo_client.put(f"/api/mealie/shopping/items/{iid}", json={"checked": True}).json() == {"ok": True, "demo": True}
+    assert demo_client.delete(f"/api/mealie/shopping/items/{iid}").json() == {"ok": True, "demo": True}
+    assert demo_client.get("/api/mealie/shopping").json() == before

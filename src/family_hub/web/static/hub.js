@@ -37,6 +37,23 @@ let mealsMenuTimer = null;
 const MEALS_MENU_IDLE_MS = 15000;     // an open menu closes itself after this
 const MEALS_SCROLL_KEEP_MS = 30000;   // keep a hand-scrolled list in place this long, then return to the top
 const mealsBusy = new Set();   // in-flight meal actions (a button is disabled while its key is here)
+let shopData = null;         // last /api/mealie/shopping payload (native Shopping card)
+let shopFails = 0;           // consecutive shopping fetch failures (see fetchShopping)
+let shopSeq = 0;             // numbers shopping fetches so a late older reply never repaints over a newer one
+let shopScrollAt = 0;        // when the list was last scrolled or used by hand
+let shopMenuOpen = null;     // the item id whose action row (delete) is open: one at a time
+let shopMenuTimer = null;
+let shopAddBusy = false;     // one quick add at a time
+let shopCheckAt = 0;         // when the last check was accepted (see SHOP_TAP_GAP_MS)
+const SHOP_MENU_IDLE_MS = 15000;     // an open row menu closes itself after this
+// A check re-sorts the list at once (the ticked row drops to the bottom and the next one
+// slides up under the finger), so a bounce or double tap would tick a DIFFERENT item.
+// Taps on any check this soon after an accepted one are ignored.
+const SHOP_TAP_GAP_MS = 400;
+const SHOP_SCROLL_KEEP_MS = 30000;   // keep a hand-scrolled list in place this long, then return to the top
+const shopBusy = new Set();  // item ids with a write in flight (their check is disabled meanwhile)
+// an HTML attribute, not a class: held in a constant so the static class guard leaves it alone
+const SHOP_LOCK_ATTR = ' disabled';
 let lastIntegrations = [];  // last /api/hub integrations block (settings toggles)
 const TILE_FAIL_LIMIT = 3;   // keep the last good card until this many in a row
 let warnedNoWeatherSlot = false;   // one-time warn: weather_base set, no 'weather' panel
@@ -1780,6 +1797,7 @@ function applyWallLayout(list) {
   const todos = featureEnabled('todos');
   const calAny = has('google_calendar', 'ics_calendar', 'icloud_caldav');
   const cameras = has('cameras');
+  const shopping = has('mealie');
   // panels column: weather/climate/fleet integrations OR any always-on custom
   // dashboard panel (a links.panels entry whose id isn't weather/climate —
   // buildPanels renders those via panelHtml, and they have no toggle of
@@ -1794,7 +1812,8 @@ function applyWallLayout(list) {
   setDisp('.cal', calAny);
   setDisp('.month-slot', calAny);
   setDisp('.todo-slot', todos);
-  setDisp('.col-left', chores || todos);
+  setDisp('.shopping-slot', shopping);
+  setDisp('.col-left', chores || todos || shopping);
   setDisp('.col-mid', calAny);
   setDisp('.tiles', cameras);
   setDisp('.panels', dash);
@@ -3883,6 +3902,7 @@ async function mealsAct(btn) {
     } else if (act === 'shop') {
       const r = await j('/api/mealie/shopping', JSON_POST({ recipe_id: btn.dataset.recipe }));
       showToast(`Added to ${(r && r.list) || 'the shopping list'}`);
+      fetchShopping();            // the Shopping card shows this same list: show the new items now
     }
   } catch (e) {
     showToast((e && e.message) ? e.message : 'That did not work');
@@ -3893,6 +3913,209 @@ async function mealsAct(btn) {
   }
   await fetchMeals();
   mealsRestoreFocus(focus);
+}
+
+/* ---------------------------------------------------- native Shopping card */
+
+/* The Mealie shopping list (operator, 2026-10-05): a card in the wall's left column
+   beside the To-Do card (switch To-Dos off in Settings to give it the room) and a
+   section on the phone's Meals tab. It rides the Meals (Mealie) switch. Check an item
+   off with one tap on its circle; tap its text to open an inline row menu (delete) --
+   inline, not a popover, because the list scrolls inside the card and would clip one.
+   The quick-add field sits ABOVE the scroller so a long list never moves it. */
+
+// unchecked first, then checked, whatever order the payload came in; drops anything unusable
+function shopItems(s) {
+  const raw = s && Array.isArray(s.items) ? s.items : [];
+  const ok = raw.filter((i) => i && typeof i.id === 'string' && typeof i.text === 'string');
+  return ok.filter((i) => !i.checked).concat(ok.filter((i) => i.checked));
+}
+
+function shoppingRowHtml(it) {
+  const t = escapeHtml(it.text);
+  const id = escapeHtml(it.id);
+  const open = shopMenuOpen === it.id;
+  const lock = shopBusy.has(it.id) ? SHOP_LOCK_ATTR : '';
+  const label = it.checked ? 'Mark not bought' : 'Mark bought';
+  return `<div class="shop-row${it.checked ? ' done' : ''}">`
+    + `<button type="button" class="shop-check" data-shop-check="${id}" aria-pressed="${!!it.checked}"`
+    + ` aria-label="${label}: ${t}"${lock}><span class="todo-check">✓</span></button>`
+    + `<button type="button" class="shop-text" data-shop-open="${id}" aria-expanded="${open}"`
+    + `${open ? ' aria-controls="shop-menu"' : ''}>${t}</button></div>`
+    + (open
+      ? `<div class="shop-menu" id="shop-menu" role="group" aria-label="Actions for ${t}">`
+        + `<button type="button" class="meal-btn shop-del" data-shop-del="${id}"${lock}>Delete</button></div>`
+      : '');
+}
+
+function shoppingCardHtml(items) {
+  return `<article class="card shop-card">`
+    + `<form id="shop-add-form" class="shop-add" autocomplete="off">`
+    + `<input id="shop-add-input" class="txt-input" maxlength="120" placeholder="Add an item…"`
+    + ` autocomplete="off" aria-label="Add a shopping item">`
+    + `<button class="cal-nav-btn" type="submit">Add</button></form>`
+    + (items.length
+      ? `<div class="shop-rows">${items.map(shoppingRowHtml).join('')}</div>`
+      : `<div class="shop-empty">Nothing on the list</div>`)
+    + `</article>`;
+}
+
+/* Paint the Shopping card. Header outside the card like every section; never blanks the
+   column (a dead Mealie or a missing token gets a slim note). A repaint replaces the
+   quick-add field, so carry its draft and focus/caret across (a refresh must not dismiss
+   the on-screen keyboard mid-type) and the list's scroll position while it is in use. */
+function renderShopping(s = shopData) {
+  const host = document.getElementById('shopping-slot');
+  if (!host) return;
+  const listed = ((hubData && hubData.integrations) || []).some((i) => i.id === 'mealie');
+  if (!listed && (s == null || !s.available)) { host.innerHTML = ''; return; }
+  const items = shopItems(s);
+  const open = s && Number.isInteger(s.open) ? s.open : items.filter((i) => !i.checked).length;
+  const head = sectionHead('Shopping', open > 0 ? { chip: String(open) } : {});
+  const body = s == null
+    ? `<div class="card wx-loading" aria-hidden="true"></div>`
+    : s.available
+      ? shoppingCardHtml(items)
+      : `<div class="wx-offline">${s.needs_auth ? 'Shopping needs a Mealie token'
+        : (typeof s.reason === 'string' && s.reason ? escapeHtml(s.reason) : 'Shopping unavailable')}</div>`;
+  const prevInput = document.getElementById('shop-add-input');
+  const draft = prevInput ? prevInput.value : '';
+  const hadFocus = !!prevInput && document.activeElement === prevInput;
+  const selStart = hadFocus ? prevInput.selectionStart : null;
+  const selEnd = hadFocus ? prevInput.selectionEnd : null;
+  const prev = typeof host.querySelector === 'function' ? host.querySelector('.shop-rows') : null;
+  const keep = prev && prev.scrollTop > 0 && Date.now() - shopScrollAt < SHOP_SCROLL_KEEP_MS ? prev.scrollTop : 0;
+  host.innerHTML = head + body;
+  const inp = document.getElementById('shop-add-input');
+  if (inp && draft) inp.value = draft;
+  if (inp && hadFocus) {
+    inp.focus();
+    try { inp.setSelectionRange(selStart == null ? inp.value.length : selStart,
+      selEnd == null ? inp.value.length : selEnd); } catch (e) { /* unsupported */ }
+  }
+  if (keep) {
+    const next = host.querySelector('.shop-rows');
+    if (next) next.scrollTop = keep;
+  }
+}
+
+// scroll does not bubble: listen in the capture phase to learn when the list is being used
+document.addEventListener('scroll', (e) => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('shop-rows')) shopScrollAt = Date.now();
+}, true);
+
+async function fetchShopping() {
+  // like fetchMeals: a hub that has loaded its registry and has no Mealie never asks
+  const known = hubData && Array.isArray(hubData.integrations);
+  if (known && !hubData.integrations.some((i) => i.id === 'mealie')) return;
+  const seq = ++shopSeq;
+  try {
+    const s = await j('/api/mealie/shopping');
+    if (seq !== shopSeq) return;
+    if (s && s.available === false && !s.needs_auth && shopData && shopData.available) {
+      // The hub answered but Mealie did not (the server never errors a read): treat it like
+      // a failed fetch, so one blip keeps the last good list until TILE_FAIL_LIMIT in a row.
+      shopFails += 1;
+      if (shopFails >= TILE_FAIL_LIMIT) shopData = s;
+    } else {
+      shopData = s;      // a refused token (needs_auth) is not a blip: shown at once
+      shopFails = 0;
+    }
+  } catch (e) {
+    if (seq !== shopSeq) return;
+    shopFails += 1;
+    if (!shopData || shopFails >= TILE_FAIL_LIMIT) shopData = { available: false };
+  }
+  renderShopping();
+}
+
+const JSON_PUT = (body) => ({ method: 'PUT', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body) });
+
+function shopItemById(id) {
+  return shopData && Array.isArray(shopData.items) ? shopData.items.find((i) => i && i.id === id) : null;
+}
+
+/* Open/close a row's menu. One at a time; it closes by itself, on Escape, on a tap
+   anywhere else (see the click handler) and after an action. */
+function closeShopMenu(render = true) {
+  clearTimeout(shopMenuTimer);
+  shopMenuTimer = null;
+  if (shopMenuOpen === null) return;
+  shopMenuOpen = null;
+  if (render) renderShopping();
+}
+
+function toggleShopMenu(id) {
+  shopScrollAt = Date.now();      // any use of the list counts, not just a scroll: keep its place
+  clearTimeout(shopMenuTimer);
+  shopMenuTimer = null;
+  shopMenuOpen = shopMenuOpen === id ? null : id;
+  renderShopping();
+  if (shopMenuOpen !== null) shopMenuTimer = setTimeout(closeShopMenu, SHOP_MENU_IDLE_MS);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e && e.key === 'Escape' && shopMenuOpen !== null) closeShopMenu();
+});
+
+/* Check or un-check: shown at once (the list is a tap-and-go surface), PUT to the hub,
+   rolled back with the server's reason if it refuses, and re-read either way so the card
+   shows what Mealie actually has. A busy id ignores a second tap (no double toggle). */
+async function shopCheck(id) {
+  const it = shopItemById(id);
+  if (!it || shopBusy.has(id)) return;
+  if (Date.now() - shopCheckAt < SHOP_TAP_GAP_MS) return;
+  shopCheckAt = Date.now();
+  const next = !it.checked;
+  shopScrollAt = Date.now();
+  shopBusy.add(id);
+  it.checked = next;
+  renderShopping();
+  try {
+    await j(`/api/mealie/shopping/items/${encodeURIComponent(id)}`, JSON_PUT({ checked: next }));
+  } catch (e) {
+    it.checked = !next;
+    showToast((e && e.message) ? e.message : 'That did not work');
+  } finally {
+    shopBusy.delete(id);
+    try { renderShopping(); } catch (e) { /* the re-read below repaints */ }
+  }
+  await fetchShopping();
+}
+
+async function shopAdd() {
+  const input = document.getElementById('shop-add-input');
+  const text = ((input && input.value) || '').trim();
+  if (!text || shopAddBusy) return;
+  shopAddBusy = true;
+  try {
+    await j('/api/mealie/shopping/items', JSON_POST({ text }));
+    const now = document.getElementById('shop-add-input');
+    if (now && now.value.trim() === text) now.value = '';   // never clear newer typing
+  } catch (e) {
+    showToast((e && e.message) ? e.message : 'That did not work');
+  } finally {
+    shopAddBusy = false;
+  }
+  await fetchShopping();
+}
+
+async function shopDelete(id) {
+  if (shopBusy.has(id)) return;
+  shopScrollAt = Date.now();
+  shopBusy.add(id);
+  closeShopMenu(false);
+  try {
+    renderShopping();
+    await j(`/api/mealie/shopping/items/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  } catch (e) {
+    showToast((e && e.message) ? e.message : 'That did not work');
+  } finally {
+    shopBusy.delete(id);
+  }
+  await fetchShopping();
 }
 
 let fitDebounce = null;
@@ -4509,6 +4732,8 @@ async function confirmDelete() {
 document.addEventListener('click', (e) => {
   // a tap anywhere outside an open meal menu closes it (and still does whatever it was aimed at)
   if (mealsMenuOpen !== null && !e.target.closest('.meal-menu') && !e.target.closest('[data-meals-menu]')) closeMealsMenu();
+  // a tap anywhere outside an open shopping row menu closes it (and still does what it was aimed at)
+  if (shopMenuOpen !== null && !e.target.closest('.shop-menu') && !e.target.closest('[data-shop-open]')) closeShopMenu();
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn) { setTab(tabBtn.dataset.tab); return; }
   // delete confirm (above everything): Cancel or a backdrop tap dismisses it
@@ -4538,6 +4763,12 @@ document.addEventListener('click', (e) => {
   if (mealMenuBtn) { toggleMealsMenu(mealMenuBtn.dataset.mealsMenu); return; }
   const mealBtnEl = e.target.closest('[data-meals-act]');
   if (mealBtnEl) { mealsAct(mealBtnEl); return; }
+  const shopCheckBtn = e.target.closest('[data-shop-check]');
+  if (shopCheckBtn) { shopCheck(shopCheckBtn.dataset.shopCheck); return; }
+  const shopOpenBtn = e.target.closest('[data-shop-open]');
+  if (shopOpenBtn) { toggleShopMenu(shopOpenBtn.dataset.shopOpen); return; }
+  const shopDelBtn = e.target.closest('[data-shop-del]');
+  if (shopDelBtn) { shopDelete(shopDelBtn.dataset.shopDel); return; }
   const evRow = e.target.closest('[data-eid]');
   if (evRow) { openEventDetail(evRow.dataset.eid); return; }
   // full-calendar controls
@@ -4721,6 +4952,10 @@ document.addEventListener('submit', (e) => {
     e.preventDefault();
     // One add form id, two backends: dispatch by the source the view is showing.
     if (todoState.source === 'icloud') addReminder(); else addTodo();
+  }
+  if (e.target && e.target.id === 'shop-add-form') {
+    e.preventDefault();
+    shopAdd();
   }
 });
 
@@ -5208,9 +5443,10 @@ function renderIntegrations(data) {
   const mealsListed = list.some((i) => i.id === 'mealie');
   if (list.length && mealsListed !== mealsWasListed) {
     mealsWasListed = mealsListed;
-    if (!mealsListed) { mealsData = null; mealsFails = 0; }
+    if (!mealsListed) { mealsData = null; mealsFails = 0; shopData = null; shopFails = 0; }
     renderMeals();
-    if (mealsListed) fetchMeals();
+    renderShopping();
+    if (mealsListed) { fetchMeals(); fetchShopping(); }
   }
   const lnListed = list.some((i) => i.id === 'laundry');
   if (lnListed !== lnWasListed) {
@@ -5988,6 +6224,7 @@ fetchClimate();
 fetchLaundry();
 fetchFleet();
 fetchMeals();
+fetchShopping();
 lnConnect();   // the laundry live stream (fetchLaundry stays as fallback)
 setInterval(scheduledPoll, POLL_MS);
 // the poll beat doubles as the stream's re-arm: lnConnect is idempotent on
@@ -5999,6 +6236,7 @@ setInterval(fetchClimate, POLL_MS);
 setInterval(fetchLaundry, POLL_MS);
 setInterval(fetchFleet, POLL_MS);
 setInterval(fetchMeals, POLL_MS);
+setInterval(fetchShopping, POLL_MS);
 // the countdown + timer arc stay live between polls (in-place, no re-render)
 setInterval(laundryTick, 30000);
 setInterval(scheduledProbeCamera, CAM_PROBE_MS);

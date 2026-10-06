@@ -10,6 +10,42 @@ rolls that section to a dated version via `python scripts/release.py`.
 
 ## [Unreleased]
 
+### Added
+- Shopping: the Mealie shopping list as a native wall card (left column, beside the
+  To-Do card) and a section on the phone's Meals tab. Check items off and un-check
+  them, quick-add an item, delete one. The list scrolls inside the card like the meal
+  plan. It follows the Meals (Mealie) switch; To-Dos can be switched off to give it the
+  room. Backend: `GET /api/mealie/shopping`, `POST /api/mealie/shopping/items`,
+  `PUT`/`DELETE /api/mealie/shopping/items/{id}`.
+- Shopping card (wall): shows the list with the open count in its header, unchecked
+  items first. The quick-add field stays pinned above a list that scrolls inside the
+  card (four rows and a peek, like the meal plan), and a refresh keeps what you were
+  typing, the keyboard and your scroll position.
+- Shopping card controls: tap an item's circle to check or un-check it (shown at once,
+  rolled back with the reason if Mealie refuses), type in the quick-add field (the
+  on-screen keyboard's Done adds it), and tap an item's text for an inline Delete.
+  A second tap while one is in flight does nothing, so nothing is added or toggled twice.
+- Shopping layout: switching To-Dos off lets the Shopping card take its space, the left
+  column stays on screen for Shopping alone, the card gets the same tinted panel in the
+  "wells" look, and on the phone it is a section of the Meals tab (after the Dinner
+  card) with the full list shown and full-size tap targets.
+- Shopping card hardening (from the pre-merge review): a Mealie outage keeps the last
+  list on screen for a few polls instead of replacing it on the first blip (a refused
+  token still shows at once); a mistyped `shopping_list` or a missing list says so, and a
+  reply with no item list reads as unavailable, never as "Nothing on the list"; checking
+  an item sends back everything Mealie returned except its read-only fields, so a
+  recipe-derived item keeps its recipe link, food and unit; "Add to list" on the Meals
+  card refreshes the Shopping card at once; and a second tap on a different row within
+  400 ms of a check is ignored, since the list re-sorts under the finger.
+- Shopping card text is 16px, level with the To-Do rows, so it reads from across the
+  kitchen; the README documents the card and `docs/hub.png` shows it.
+- Shopping: in demo mode the card serves a canned list and its writes are no-ops (they
+  never reach Mealie and never change what the demo shows); real writes are
+  serialized behind one lock so two phones tapping at once cannot interleave.
+- Shopping writes (add, check, delete) confirm the item is on the configured list
+  before touching it: checking or deleting an item Mealie no longer has, or one from
+  another list, is a clean 404 and never a blind write.
+
 ### Changed
 - Meals: the following days now scroll inside the card on the wall (tonight stays
   pinned above), so a full week (`mealie.days` up to 7) no longer makes the

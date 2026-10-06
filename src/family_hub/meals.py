@@ -47,6 +47,9 @@ DESCRIPTION_MAX = 200
 MAX_PLAN_ITEMS = 100
 RANDOM_TRIES = 3                # a re-roll draws again if it lands on the same recipe
 RANDOM_BUDGET_S = 6.0           # stop drawing again past this (the wall's own request gives up at 12s)
+SHOPPING_TTL = 10.0             # a list changes when someone edits it; the card re-reads every minute anyway
+SHOPPING_MAX_ITEMS = 200
+ITEM_TEXT_MAX = 120
 
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
@@ -57,23 +60,36 @@ _cache: dict[tuple, tuple[float, dict]] = {}
 _gen = 0
 # recipe id -> (expiry monotonic, bytes, content type)
 _image_cache: dict[str, tuple[float, bytes, str]] = {}
+# Mealie base -> (expiry monotonic, result). Only good reads are cached.
+_shop_cache: dict[str, tuple[float, dict]] = {}
+# Bumped by every shopping write (even a failed one) and by the wall's refresh; a read
+# that STARTED before it must not cache its pre-write answer after it (same idea as _gen).
+_shop_gen = 0
 
 
 def reset_caches() -> None:
     _cache.clear()
     _image_cache.clear()
+    _shop_cache.clear()
 
 
 def forget_plan() -> None:
-    """Drop the cached meal plan so the next read goes to Mealie (the wall's
-    refresh button). Recipe photos stay cached."""
+    """Drop the cached meal plan and shopping list so the next read goes to Mealie
+    (the wall's refresh button). Recipe photos stay cached."""
     _invalidate()
+    _invalidate_shopping()
 
 
 def _invalidate() -> None:
     global _gen
     _gen += 1
     _cache.clear()
+
+
+def _invalidate_shopping() -> None:
+    global _shop_gen
+    _shop_gen += 1
+    _shop_cache.clear()
 
 
 def _headers(env: dict) -> dict:
@@ -369,7 +385,191 @@ async def add_to_shopping(client, cfg, env: dict, recipe_id: object) -> dict:
     except httpx.HTTPError as e:
         log.warning("meals add-to-shopping failed: %s", e)
         return {**_fail(e), "status": 502}
+    finally:
+        _invalidate_shopping()           # the Shopping card shows this same list: never serve it stale
     return {"ok": True, "list": list_name}
+
+
+def _shopping_item(raw: dict) -> dict | None:
+    """One list entry as the card shows it, or None when it cannot be shown. A
+    recipe-derived item has a computed ``display`` ("2 cups flour"); a free-text one
+    has just a ``note``."""
+    iid = raw.get("id")
+    if not valid_uuid(iid):
+        return None
+    text = raw.get("display")
+    if not isinstance(text, str) or not text.strip():
+        text = raw.get("note")
+    if not isinstance(text, str) or not text.strip():
+        return None
+    return {"id": iid, "text": " ".join(text.split())[:ITEM_TEXT_MAX],
+            "checked": raw.get("checked") is True}
+
+
+async def shopping_tile(client, cfg, env: dict) -> dict:
+    """``{available, needs_auth?, list: {id, name}, items: [{id, text, checked}], open}``.
+
+    Unchecked items first (by Mealie's own order), then checked ones; capped at
+    SHOPPING_MAX_ITEMS, with ``open`` still the true unchecked count. Never raises;
+    errors are never cached. A failing read says nothing about the dinner tile (the
+    shared ``auth_rejected`` flag is the one thing both report)."""
+    mc = getattr(cfg, "mealie", None)
+    if not mc:
+        return {"available": False}
+    if not mealie_token(env):
+        return {"available": False, "needs_auth": True}
+    hit = _shop_cache.get(mc["base"])
+    if hit is not None and hit[0] > time.monotonic():
+        return hit[1]
+    gen = _shop_gen
+    try:
+        list_id, list_name = await _shopping_list(client, mc, env)
+        r = await client.get(f"{mc['base']}/api/households/shopping/lists/{list_id}",
+                             headers=_headers(env), timeout=TIMEOUT)
+        r.raise_for_status()
+        body = r.json()
+    except json.JSONDecodeError as e:     # before ValueError (it is one): Mealie sent junk, not "no list"
+        log.warning("meals shopping unavailable: %s", e)
+        _note_auth(e)
+        return {"available": False, "needs_auth": False}
+    except ValueError as e:
+        # no list yet, or `shopping_list` names none: a configuration problem, said as such
+        # (a mistyped list name must not read as a dead server)
+        log.warning("meals shopping unavailable: %s", e)
+        return {"available": False, "needs_auth": False, "reason": str(e)[:120]}
+    except httpx.HTTPError as e:
+        log.warning("meals shopping unavailable: %s", e)
+        _note_auth(e)
+        return {"available": False, "needs_auth": _auth_failed(e)}
+    raw_items = body.get("listItems") if isinstance(body, dict) else None
+    if not isinstance(raw_items, list):
+        # a changed reply shape (a Mealie upgrade, a paginated endpoint) is not an empty list
+        log.warning("meals shopping: the list reply carries no listItems list")
+        return {"available": False, "needs_auth": False}
+    rows = []
+    for n, raw in enumerate(raw_items):
+        shaped = _shopping_item(raw) if isinstance(raw, dict) else None
+        if shaped is not None:
+            pos = raw.get("position")
+            rows.append((shaped["checked"], pos if _is_int(pos) else n, n, shaped))
+    rows.sort(key=lambda t: t[:3])
+    result = {"available": True, "list": {"id": list_id, "name": list_name},
+              "items": [t[3] for t in rows[:SHOPPING_MAX_ITEMS]],
+              "open": sum(1 for t in rows if not t[0])}
+    if gen == _shop_gen:             # a write landed while we were reading: don't cache the old list
+        _shop_cache[mc["base"]] = (time.monotonic() + SHOPPING_TTL, result)
+    return result
+
+
+# What a check/un-check sends back. Mealie's update REPLACES the item, so everything it
+# returned rides back unchanged (like Mealie's own UI does) except the read-only fields:
+# a deny-list, not an allow-list, so a field we did not think of (recipeReferences, food,
+# unit) is never silently dropped. Still to be confirmed against the real server by the
+# live probe (plan Task 0).
+_ITEM_READONLY = ("id", "createdAt", "updatedAt", "display", "groupId", "householdId", "userId")
+_NOT_ON_LIST = {"ok": False, "error": "that item is not on the list", "status": 404}
+
+
+def _clean_item_text(text: object) -> str | None:
+    """A quick-add as stored: whitespace collapsed, 1 to ITEM_TEXT_MAX characters,
+    else None (including anything that is not text)."""
+    if not isinstance(text, str):
+        return None
+    clean = " ".join(text.split())
+    return clean if 0 < len(clean) <= ITEM_TEXT_MAX else None
+
+
+async def _own_item(client, mc: dict, env: dict, list_id: str, item_id: str) -> dict | None:
+    """The item, only if it exists AND sits on the configured list. An id from
+    another list, another household or one Mealie has since deleted is None: the
+    hub never writes to something it did not just confirm is on its list."""
+    r = await client.get(f"{mc['base']}/api/households/shopping/items/{item_id}",
+                         headers=_headers(env), timeout=TIMEOUT)
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    found = r.json()
+    if not isinstance(found, dict) or str(found.get("shoppingListId", "")).lower() != list_id.lower():
+        return None
+    return found
+
+
+async def _shopping_write(client, cfg, env: dict, run) -> dict:
+    """The shared frame of the three writes: refuse what cannot be tried, resolve the
+    list, run ``run(mc, list_id)``, and turn every failure into the usual
+    ``{ok: False, error, status}`` (never raising). The cache is dropped whatever
+    happens: Mealie may have changed even when a call failed."""
+    mc = getattr(cfg, "mealie", None)
+    if not mc:
+        return {"ok": False, "error": "Meals is not configured", "status": 404}
+    if not mealie_token(env):
+        return {"ok": False, "error": "MEALIE_API_TOKEN is not set", "status": 503,
+                "needs_auth": True}
+    try:
+        list_id, _name = await _shopping_list(client, mc, env)
+        return await run(mc, list_id)
+    except json.JSONDecodeError as e:     # before ValueError (it is one): Mealie sent junk, not "no list"
+        log.warning("meals shopping write: non-JSON reply: %s", e)
+        return {**_fail(e), "status": 502}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)[:120], "status": 409}
+    except httpx.HTTPError as e:
+        log.warning("meals shopping write failed: %s", e)
+        return {**_fail(e), "status": 502}
+    finally:
+        _invalidate_shopping()
+
+
+async def add_shopping_item(client, cfg, env: dict, text: object) -> dict:
+    """Quick add: a free-text item on the configured list."""
+    clean = _clean_item_text(text)
+    if clean is None:
+        return {"ok": False, "error": f"an item is 1 to {ITEM_TEXT_MAX} characters", "status": 422}
+
+    async def run(mc, list_id):
+        r = await client.post(f"{mc['base']}/api/households/shopping/items",
+                              json={"shoppingListId": list_id, "note": clean, "quantity": 1,
+                                    "checked": False},
+                              headers=_headers(env), timeout=TIMEOUT)
+        r.raise_for_status()
+        return {"ok": True}
+    return await _shopping_write(client, cfg, env, run)
+
+
+async def set_shopping_checked(client, cfg, env: dict, item_id: object, checked: object) -> dict:
+    """Check or un-check an item. Mealie's update needs the whole item, so read it,
+    set ``checked``, write it back."""
+    if not valid_uuid(item_id):
+        return {"ok": False, "error": "not an item id", "status": 422}
+    if not isinstance(checked, bool):
+        return {"ok": False, "error": "checked must be true or false", "status": 422}
+
+    async def run(mc, list_id):
+        found = await _own_item(client, mc, env, list_id, item_id)
+        if found is None:
+            return dict(_NOT_ON_LIST)
+        body = {k: v for k, v in found.items() if k not in _ITEM_READONLY}
+        body.update({"shoppingListId": list_id, "checked": checked})
+        r = await client.put(f"{mc['base']}/api/households/shopping/items/{item_id}",
+                             json=body, headers=_headers(env), timeout=TIMEOUT)
+        r.raise_for_status()
+        return {"ok": True}
+    return await _shopping_write(client, cfg, env, run)
+
+
+async def delete_shopping_item(client, cfg, env: dict, item_id: object) -> dict:
+    """Delete an item from the configured list."""
+    if not valid_uuid(item_id):
+        return {"ok": False, "error": "not an item id", "status": 422}
+
+    async def run(mc, list_id):
+        if await _own_item(client, mc, env, list_id, item_id) is None:
+            return dict(_NOT_ON_LIST)
+        r = await client.delete(f"{mc['base']}/api/households/shopping/items/{item_id}",
+                                headers=_headers(env), timeout=TIMEOUT)
+        r.raise_for_status()
+        return {"ok": True}
+    return await _shopping_write(client, cfg, env, run)
 
 
 async def fetch_image(client, cfg, env: dict, recipe_id: object) -> tuple[bytes, str] | None:

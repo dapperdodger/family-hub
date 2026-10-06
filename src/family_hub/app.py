@@ -3114,6 +3114,54 @@ async def mealie_shopping(body: MealsShoppingIn):
     return _meals_reply(await meals.add_to_shopping(_http, cfg, os.environ, body.recipe_id))
 
 
+# --- meals: the shopping list (read, quick add, check/un-check, delete) -------
+#
+# One lock serializes the writes: a check is read-modify-write against Mealie, so two
+# phones tapping the same item at once must not interleave. Single process, so a plain
+# asyncio lock (like _meals_write_lock).
+_shopping_write_lock = asyncio.Lock()
+
+
+class ShoppingAddIn(BaseModel):
+    text: str
+
+
+class ShoppingCheckIn(BaseModel):
+    checked: bool
+
+
+@app.get("/api/mealie/shopping")
+async def mealie_shopping_list():
+    if DEMO:
+        return fdemo.demo_shopping()      # canned list; no Mealie hit
+    return await meals.shopping_tile(_http, cfg, os.environ)
+
+
+@app.post("/api/mealie/shopping/items")
+async def mealie_shopping_add(body: ShoppingAddIn):
+    if DEMO:
+        return {"ok": True, "demo": True}
+    async with _shopping_write_lock:
+        return _meals_reply(await meals.add_shopping_item(_http, cfg, os.environ, body.text))
+
+
+@app.put("/api/mealie/shopping/items/{item_id}")
+async def mealie_shopping_check(item_id: str, body: ShoppingCheckIn):
+    if DEMO:
+        return {"ok": True, "demo": True}
+    async with _shopping_write_lock:
+        return _meals_reply(await meals.set_shopping_checked(
+            _http, cfg, os.environ, item_id, body.checked))
+
+
+@app.delete("/api/mealie/shopping/items/{item_id}")
+async def mealie_shopping_delete(item_id: str):
+    if DEMO:
+        return {"ok": True, "demo": True}
+    async with _shopping_write_lock:
+        return _meals_reply(await meals.delete_shopping_item(_http, cfg, os.environ, item_id))
+
+
 # --- laundry: annotation, background watcher, live stream ------------------
 #
 # The laundry pipeline is PUSH-shaped end to end: LG ThinQ pushes into Home
