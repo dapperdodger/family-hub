@@ -11,6 +11,10 @@ rolls that section to a dated version via `python scripts/release.py`.
 ## [Unreleased]
 
 ### Fixed
+- Kiosk: the wall no longer scrolls when everything fits. The page kept 40px of padding
+  below its columns, so a wall whose tallest column ended at 1062px was 1102px tall on a
+  1080px screen (a phantom 22px scroll). A browser that has latched `?kiosk=1` drops that
+  padding; other browsers keep it.
 - Fonts: the monospace labels (wordmark, clock, day names, count chips) rendered
   invisible in Windows Firefox 157, because its monospace stack offered `ui-monospace` /
   "Cascadia Code". The stack is now SF Mono, Menlo, Consolas, DejaVu Sans Mono, Liberation

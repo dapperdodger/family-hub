@@ -2179,6 +2179,11 @@ body.overlay-open { overflow: hidden; }
 /* The wall (a kiosk that latched ?kiosk=1) is touch-only, but its touchscreen reaches the
    browser as a mouse and leaves a pointer parked mid-screen: hide it, and everything's. */
 body.is-kiosk, body.is-kiosk * { cursor: none !important; }
+/* The wall is exactly one screen. `.wrap` keeps 40px of breathing room below its columns for
+   ordinary browsers, but on the kiosk that made the document 22px taller than a 1080px screen
+   when the tallest column ended at 1062px: a phantom scroll with nothing to scroll to. Drop it
+   there, so content that fits the screen leaves nothing to scroll. */
+body.is-kiosk .wrap { padding-bottom: 0; }
 
 /* ====================== mobile tab bar ======================= */
 /* Hidden on the wall; the mobile block below turns it on. */

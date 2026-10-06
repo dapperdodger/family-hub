@@ -2544,3 +2544,12 @@ def test_mono_font_stack_avoids_the_fonts_that_render_blank_in_firefox():
         assert good in stack, f"{good} should stay in the --mono stack"
     assert stack.rstrip().endswith("monospace"), "ends in the generic family"
 
+
+def test_kiosk_page_is_not_taller_than_its_content_so_a_fitting_wall_never_scrolls():
+    """On the real wall (1920x1080) the tallest column ended at 1062px, inside the screen, but
+    `.wrap`'s 40px bottom padding made the document 1102px tall: a phantom 22px scroll with
+    nothing to scroll to. The kiosk (a browser that latched ?kiosk=1) drops that padding, so
+    content that fits the screen leaves nothing to scroll."""
+    assert re.search(r"body\.is-kiosk \.wrap\s*\{[^}]*padding-bottom:\s*0", CSS),         "the kiosk's .wrap must have no bottom padding"
+    assert re.search(r"(?m)^\.wrap\s*\{[^}]*padding:\s*0 24px 40px", CSS),         "the base .wrap keeps its breathing room for ordinary browsers"
+
