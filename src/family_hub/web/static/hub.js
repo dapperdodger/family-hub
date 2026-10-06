@@ -4132,10 +4132,13 @@ const recipesState = {
   detail: null,      // that recipe's detail, once it has loaded
   detailSeq: 0,
   scroll: 0,         // the grid's scroll position, restored on Back
+  planOpen: false,   // the Plan it day chips are showing on the recipe page
+  planBusy: false,   // a plan write is in flight (chips disabled, a second tap ignored)
 };
 
 function recipesReset() {
-  Object.assign(recipesState, { data: null, q: '', sort: 'name', cat: '', slug: null, detail: null, scroll: 0 });
+  Object.assign(recipesState, { data: null, q: '', sort: 'name', cat: '', slug: null, detail: null, scroll: 0,
+    planOpen: false, planBusy: false });
   recipesState.seq += 1;
   recipesState.detailSeq += 1;
 }
@@ -4200,6 +4203,51 @@ function recipeParasHtml(text) {
   return escapeHtml(String(text || '')).replace(/\n/g, '<br>');
 }
 
+// The days the Dinner card shows, as chips for "Plan it". Empty when the card has no usable days
+// (Meals not loaded or unavailable): the button is then not offered rather than guessing days.
+function planDays() {
+  const md = mealsData;
+  if (!md || !md.available || !Array.isArray(md.days)) return [];
+  const today = data_date || todayISO();
+  return md.days.filter((d) => d && typeof d.date === 'string').map((d) => ({
+    date: d.date,
+    label: mealsDayLabel(d.date, today),
+    now: d.dinner && d.dinner.name ? String(d.dinner.name) : 'Nothing planned',
+  }));
+}
+
+function recipePlanHtml() {
+  const days = planDays();
+  if (!days.length) return '';
+  const button = `<button type="button" class="recipe-plan" data-recipe-plan>🗓 Plan it</button>`;
+  if (!recipesState.planOpen) return `<div class="recipe-planbox">${button}</div>`;
+  const off = recipesState.planBusy ? ' disabled' : '';
+  const chips = days.map((d) => `<button type="button" class="recipe-day" data-recipe-plan-day="${escapeHtml(d.date)}"${off}>`
+    + `<span class="recipe-day-name">${escapeHtml(d.label)}</span>`
+    + `<span class="recipe-day-now">${escapeHtml(d.now)}</span></button>`).join('');
+  return `<div class="recipe-planbox">${button}<div class="recipe-days">${chips}</div></div>`;
+}
+
+// Make this recipe the dinner on `date` (the hub replaces whatever was planned that day).
+async function planRecipe(date) {
+  const d = recipesState.detail;
+  if (!d || recipesState.planBusy) return;
+  const day = planDays().find((x) => x.date === date);
+  recipesState.planBusy = true;
+  renderRecipes();
+  try {
+    await j('/api/mealie/plan', JSON_POST({ recipe_id: d.id, date }));
+    showToast(`Planned ${d.name} for ${day ? day.label : date}`);
+    recipesState.planOpen = false;
+    fetchMeals();               // the Dinner card behind this view shows the new dinner now
+  } catch (e) {
+    showToast((e && e.message) ? e.message : 'That did not work');
+  } finally {
+    recipesState.planBusy = false;
+    if (recipesState.slug && recipesState.detail === d) renderRecipes();
+  }
+}
+
 function recipeDetailHtml() {
   const d = recipesState.detail;
   const back = `<button type="button" class="recipe-back" data-recipe-back>← Recipes</button>`;
@@ -4216,7 +4264,7 @@ function recipeDetailHtml() {
   const notes = (d.notes || []).map((n) => `<div class="recipe-note-item">`
     + `${n.title ? `<strong>${escapeHtml(n.title)}</strong><br>` : ''}${recipeParasHtml(n.text)}</div>`).join('');
   return `<div class="recipes">${back}<article class="recipe-detail">`
-    + `<div class="recipe-side">${photo}${meta ? `<dl class="recipe-meta">${meta}</dl>` : ''}</div>`
+    + `<div class="recipe-side">${photo}${recipePlanHtml()}${meta ? `<dl class="recipe-meta">${meta}</dl>` : ''}</div>`
     + `<div class="recipe-main"><h2>${escapeHtml(d.name)}</h2>`
     + (d.description ? `<p class="recipe-desc">${escapeHtml(d.description)}</p>` : '')
     + (ings ? `<h3>Ingredients</h3><ul class="recipe-ings">${ings}</ul>` : '')
@@ -4294,6 +4342,8 @@ function recipesBack() {
   recipesState.detailSeq += 1;                      // abandon a detail still loading
   recipesState.slug = null;
   recipesState.detail = null;
+  recipesState.planOpen = false;
+  recipesState.planBusy = false;
   renderRecipes();
 }
 
@@ -4966,6 +5016,10 @@ document.addEventListener('click', (e) => {
   if (shopDelBtn) { shopDelete(shopDelBtn.dataset.shopDel); return; }
   const rcOpen = e.target.closest('[data-recipe-open]');
   if (rcOpen) { openRecipe(rcOpen.dataset.recipeOpen); return; }
+  const rcPlanDay = e.target.closest('[data-recipe-plan-day]');
+  if (rcPlanDay) { planRecipe(rcPlanDay.dataset.recipePlanDay); return; }
+  const rcPlan = e.target.closest('[data-recipe-plan]');
+  if (rcPlan) { recipesState.planOpen = !recipesState.planOpen; renderRecipes(); return; }
   const rcBack = e.target.closest('[data-recipe-back]');
   if (rcBack) { recipesBack(); return; }
   const rcSort = e.target.closest('[data-recipe-sort]');

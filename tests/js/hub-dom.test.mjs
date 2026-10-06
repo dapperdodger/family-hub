@@ -11142,3 +11142,103 @@ test('Recipes: a null list reply reads as unreachable, and Try again shows Loadi
   slow.go(); await flush(); await flush();
   assert.deepEqual(rcpCards(r.host), ['apple-pie', 'baked-ziti', 'chili', 'oats']);
 });
+
+// ---- Plan it: put a recipe on a day's dinner
+
+async function rcpPlanOpen(opts = {}) {
+  const r = await rcpOpen(opts);
+  vm.runInContext("data_date = '2026-10-01';", r.sandbox);
+  vm.runInContext(`mealsData = ${JSON.stringify(opts.meals || MEALS_WEEK())};`, r.sandbox);
+  tapRcp(r.fire, r.host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  return r;
+}
+
+test('Recipes: a recipe page offers Plan it; the chips list the shown days with what is planned', async () => {
+  const r = await rcpPlanOpen();
+  assert.match(rcpHtml(r.host), /data-recipe-plan[ >]/);
+  assert.doesNotMatch(rcpHtml(r.host), /data-recipe-plan-day/, 'closed until asked');
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  const html = rcpHtml(r.host);
+  assert.equal(Array.from(vm.runInContext('planDays()', r.sandbox)).length, 4);
+  assert.match(html, /class="recipe-day-name">Tonight</);
+  assert.match(html, /class="recipe-day-name">Tomorrow</);
+  assert.match(html, /class="recipe-day-now">Soup</);
+  assert.match(html, /Nothing planned/, 'an empty day says so');
+});
+
+test('Recipes: no Meals days loaded means no Plan it button at all', async () => {
+  const r = await rcpPlanOpen({ meals: { available: false } });
+  assert.doesNotMatch(rcpHtml(r.host), /data-recipe-plan/);
+});
+
+test('Recipes: tapping a day plans the recipe, toasts, closes the chips and refreshes the Dinner card', async () => {
+  const r = await rcpPlanOpen();
+  const posts = [];
+  const seen = [];
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    seen.push(url);
+    if (url === '/api/mealie/plan') { posts.push(JSON.parse(o.body)); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  const date = r.host.querySelector('[data-recipe-plan-day]').dataset.recipePlanDay;
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  assert.deepEqual(posts, [{ recipe_id: RID_A, date }]);
+  assert.equal(r.document.getElementById('toast').textContent, 'Planned Baked Ziti for Tonight');
+  assert.doesNotMatch(rcpHtml(r.host), /data-recipe-plan-day/, 'the chips close');
+  assert.ok(seen.includes('/api/tiles/mealie'), 'the Dinner card was re-read');
+});
+
+test('Recipes: a failed plan shows the server message and keeps the chips open', async () => {
+  const r = await rcpPlanOpen();
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => (url === '/api/mealie/plan'
+    ? { ok: false, status: 502, json: async () => ({ detail: 'Mealie said no' }) } : base(url, o));
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush(); await flush();
+  assert.equal(r.document.getElementById('toast').textContent, 'Mealie said no');
+  assert.match(rcpHtml(r.host), /data-recipe-plan-day/);
+  assert.doesNotMatch(rcpHtml(r.host), /data-recipe-plan-day="[^"]+" disabled/, 'free to try again');
+});
+
+test('Recipes: while a plan is in flight a second tap does nothing and the chips are disabled', async () => {
+  const r = await rcpPlanOpen();
+  const slow = {}; slow.p = new Promise((res) => { slow.go = res; });
+  let posts = 0;
+  const base = r.sandbox.fetch;
+  r.sandbox.fetch = async (url, o) => {
+    if (url === '/api/mealie/plan') { posts += 1; await slow.p; return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return base(url, o);
+  };
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  tapRcp(r.fire, r.host, '[data-recipe-plan-day]', 'data-recipe-plan-day');
+  await flush();
+  assert.equal(posts, 1);
+  assert.match(rcpHtml(r.host), /data-recipe-plan-day="[^"]+" disabled/);
+  slow.go(); await flush(); await flush();
+});
+
+test('Recipes: Back and reopening a recipe clear the Plan it chips', async () => {
+  const r = await rcpPlanOpen();
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  tapRcp(r.fire, r.host, '[data-recipe-back]', 'data-recipe-back');
+  assert.equal(vm.runInContext('recipesState.planOpen', r.sandbox), false);
+  tapRcp(r.fire, r.host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  assert.doesNotMatch(rcpHtml(r.host), /data-recipe-plan-day/);
+});
+
+test('Recipes: a dinner name from Mealie in a chip is inert text', async () => {
+  const evil = '<img src=x onerror=alert(1)>';
+  const meals = MEALS_WEEK();
+  meals.days[0].dinner = dinner({ name: evil });
+  const r = await rcpPlanOpen({ meals });
+  tapRcp(r.fire, r.host, '[data-recipe-plan]', 'data-recipe-plan');
+  assert.doesNotMatch(rcpHtml(r.host), /<img src=x/);
+  assert.match(rcpHtml(r.host), /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
