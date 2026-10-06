@@ -5304,7 +5304,7 @@ function reflectThemeControls() {
     && typeof nextSeason === 'function' ? nextSeason() : null;
   document.querySelectorAll('.season-idle-note').forEach((n) => {
     n.hidden = !upcoming;
-    n.textContent = upcoming ? `Nothing is in season today. ${upcoming.name} starts ${seasonWindowText(upcoming).split(' to ')[0]}.` : '';
+    n.textContent = upcoming ? `Nothing is in season today. ${upcoming.name} starts ${seasonStartText(upcoming)}.` : '';
   });
   document.querySelectorAll('.theme-ctl').forEach((ctl) => {
     ctl.querySelectorAll('[data-season-set]').forEach((b) =>
@@ -5652,8 +5652,13 @@ async function spiderDrop() {
 
 // "Sep 1 to Nov 30" from a season's [month, day] window.
 function seasonWindowText(s) {
+  if (s.when) return s.when;           // a moving holiday has no fixed dates to print
   const md = ([m, d]) => `${MONTHS[m - 1]} ${d}`;
   return `${md(s.from)} to ${md(s.to)}`;
+}
+// the phrase after "starts": "Sep 1", or "about two weeks before Easter Sunday"
+function seasonStartText(s) {
+  return s.when ? s.when.charAt(0).toLowerCase() + s.when.slice(1) : seasonWindowText(s).split(' to ')[0];
 }
 
 // The Settings "Seasonal looks" card body: the Off/On switch, then each
@@ -5672,15 +5677,31 @@ function seasonalCardHtml() {
     + (look.credit ? `<span class="look-credit">${escapeHtml(look.credit)}</span>` : '')
     + '</span>'
     + '</button>';
-  const groups = seasonList().map((s) => '<div class="look-season">'
+  const block = (s) => '<div class="look-season">'
     + '<div class="look-season-head">'
     + `<span class="look-season-name">${escapeHtml(s.name)}</span>`
-    + `<span class="look-season-when">${seasonWindowText(s)}</span>`
+    + `<span class="look-season-when">${escapeHtml(seasonWindowText(s))}</span>`
     + (s.id === now ? '<span class="look-season-now">In season</span>' : '')
     + '</div>'
     + `<div class="look-tiles" role="group" aria-label="${escapeHtml(s.name)} looks">`
     + s.looks.map(tile).join('')
-    + '</div></div>').join('');
+    + '</div></div>';
+  // With ~15 seasons the list is long: the season(s) holding today stay open, the next few to
+  // start and everything else fold away. Each season is in exactly one group. Without theme.js's
+  // outlook (a page where it did not load) the list stays flat, as it was.
+  let groups;
+  if (typeof seasonOutlook === 'function') {
+    const outlook = seasonOutlook();
+    const section = (title, list, fold) => (!list.length ? ''
+      : fold
+        ? `<details class="look-group look-fold"><summary>${title}</summary>${list.map(block).join('')}</details>`
+        : `<div class="look-group"><div class="look-group-title">${title}</div>${list.map(block).join('')}</div>`);
+    groups = section('In season now', outlook.active, false)
+      + section('Coming up', outlook.upcoming, true)
+      + section('More seasons', outlook.rest, true);
+  } else {
+    groups = seasonList().map(block).join('');
+  }
   return '<div class="settings-row">'
     + '<div class="seg" role="group" aria-label="Seasonal looks">'
     + '<button type="button" data-season-set="off">Off</button>'

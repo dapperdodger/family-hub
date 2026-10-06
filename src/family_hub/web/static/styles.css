@@ -2770,6 +2770,8 @@ body.integ-off-todos .todo-slot { display: none; }
 @media (max-width: 440px) {
   :root:not([data-layout="desktop"]) .tab-btn { font-size: 9px; letter-spacing: 0.08em; padding: 6px 2px; }
 }
+  /* the Seasonal looks picker's fold headings are real tap targets */
+  :root:not([data-layout="desktop"]) .look-fold > summary { min-height: 44px; }
 /* <<< phone shell (max-width:1000px unless forced desktop) <<< */
 
 /* ==================== reduced motion ========================= */
@@ -3361,6 +3363,14 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 
 /* ---- Settings: the Seasonal looks picker ---- */
 .look-picker { min-width: 0; }
+/* the picker's groups: what is in season now stays open, the rest folds (a native <details>, so it
+   works without script and with the keyboard) */
+.look-group + .look-group { margin-top: 22px; }
+.look-group-title, .look-fold > summary { font-size: 13px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.look-group-title { margin-bottom: 12px; }
+.look-fold > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; padding: 4px 0; }
+.look-fold[open] > summary { margin-bottom: 12px; }
+.look-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 .look-season + .look-season { margin-top: 18px; }
 .look-season-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
 .look-season-name { font-size: 15px; font-weight: 650; color: var(--ink); }

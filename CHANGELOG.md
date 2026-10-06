@@ -105,6 +105,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   another list, is a clean 404 and never a blind write.
 
 ### Changed
+- Settings > Seasonal looks groups its seasons (in season now, coming up, more seasons) so the list stays short as seasons are added.
 - Wall: the month grid under the agenda now grows into the screen height that is left, so the week rows are taller and less cramped when today and tomorrow are quiet (up to about 140px a week, never shorter than before); the agenda is unchanged.
 - Recipes: the Dinner card's **Full screen** button is now **Recipes** and opens the native
   view instead of embedding Mealie (a 15-25 second blank page on a Pi 3). The `open_url`

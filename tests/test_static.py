@@ -2743,3 +2743,9 @@ def test_every_moving_season_part_is_known_to_lite_and_nothing_else_moves_in_a_l
     stray = sorted(layers - {l for l in layers if any(l.endswith(x) for x in LITE_LAYER_ANIMATIONS)})
     assert not stray, f"moving rules inside a season layer that name no .sn-* class: {stray}"
     assert "sn-web" not in classes, "the webs are the one thing Lite keeps: they must never move"
+
+
+def test_the_picker_fold_summary_is_a_44px_target_on_the_phone_and_keeps_a_focus_ring():
+    assert re.search(r"\.look-fold > summary\s*\{[^}]*min-height:\s*44px", _phone_shell_css()), "44px fold summary on the phone"
+    assert re.search(r"\.look-fold > summary:focus-visible\s*\{[^}]*outline", CSS), "a visible keyboard focus"
+    assert not re.search(r"\.look-(group|fold)[^{]*\{[^}]*(transition|animation)", CSS), "no motion in the picker groups"
