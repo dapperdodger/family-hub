@@ -1792,6 +1792,7 @@ function applyWallLayout(list) {
   const todos = featureEnabled('todos');
   const calAny = has('google_calendar', 'ics_calendar', 'icloud_caldav');
   const cameras = has('cameras');
+  const shopping = has('mealie');
   // panels column: weather/climate/fleet integrations OR any always-on custom
   // dashboard panel (a links.panels entry whose id isn't weather/climate —
   // buildPanels renders those via panelHtml, and they have no toggle of
@@ -1806,7 +1807,8 @@ function applyWallLayout(list) {
   setDisp('.cal', calAny);
   setDisp('.month-slot', calAny);
   setDisp('.todo-slot', todos);
-  setDisp('.col-left', chores || todos);
+  setDisp('.shopping-slot', shopping);
+  setDisp('.col-left', chores || todos || shopping);
   setDisp('.col-mid', calAny);
   setDisp('.tiles', cameras);
   setDisp('.panels', dash);

@@ -899,7 +899,8 @@ def test_wall_columns_and_month_card_wiring():
     assert re.search(r'\.month-slot\s*\{\s*display:\s*none', mobile), \
         "the always-on month card has no phone home and must be hidden there"
     # JS: the reflow names the wrappers, and the month card hides with the calendar
-    assert "setDisp('.col-left', chores || todos)" in hub
+    # the left column lives while ANY of its cards does (Chores, To-Do, Shopping)
+    assert "setDisp('.col-left', chores || todos || shopping)" in hub
     assert "setDisp('.col-mid', calAny)" in hub
     assert "setDisp('.month-slot', calAny)" in hub
     # a hidden card must not cost a request, and it shares the server-named
@@ -2484,3 +2485,35 @@ def test_shopping_list_scrolls_inside_its_card_on_the_wall():
     hub = (STATIC / "hub.js").read_text(encoding="utf-8")
     card = hub[hub.index("function shoppingCardHtml"):]
     assert card.index('id="shop-add-form"') < card.index('class="shop-rows"'), "the quick-add stays outside the scroller"
+
+
+def test_shopping_phone_rules_show_it_on_the_meals_tab_only_and_lift_the_scroll_cap():
+    """On the phone .col-left is display:contents, so the Shopping slot is a direct flex
+    child of the shell: hidden everywhere by default, shown (after the Dinner card, via
+    order) on the Meals tab; the list lifts its wall height cap (the tab is its own
+    scrolling page) and its controls are full-size tap targets."""
+    mobile = _phone_shell_css()
+    assert re.search(r'\.shopping-slot\s*\{[^}]*display:\s*none', mobile), \
+        "hidden on every phone tab by default (the To-Do slot is hidden the same way)"
+    assert re.search(r'body\[data-tab="meals"\] \.shopping-slot\s*\{[^}]*display:\s*flex[^}]*order:\s*\d', mobile), \
+        "shown on the Meals tab, ordered after the Dinner card"
+    assert re.search(r'\.shop-rows\s*\{\s*max-height:\s*none;\s*overflow:\s*visible', mobile), \
+        "the phone must show the whole list, not a small scroller inside a scrolling page"
+    assert re.search(r'\.shop-row\s*\{\s*min-height:\s*52px', mobile), "phone rows are comfortably tappable"
+    assert re.search(r'\.shop-check\s*\{[^}]*width:\s*48px', mobile) or re.search(r'\.shop-check\s*\{[^}]*min-height:\s*44px', mobile)
+
+
+def test_shopping_slot_follows_the_wells_and_gap_rules_of_its_neighbour_the_todo_slot():
+    assert re.search(r':root\[data-cols="wells"\] \.shopping-slot', CSS), \
+        "in the 'wells' look the Shopping card gets the same tinted panel as the To-Do slot"
+    assert re.search(r'\.todo-slot,\s*\.shopping-slot\s*\{\s*gap:\s*10px', CSS)
+
+
+def test_applywalllayout_keeps_the_left_column_alive_for_shopping_alone():
+    hub = (STATIC / "hub.js").read_text(encoding="utf-8")
+    body = hub[hub.index("function applyWallLayout"):]
+    body = body[:body.index("\n}\n")]
+    assert re.search(r"const shopping = has\('mealie'\)", body)
+    assert re.search(r"setDisp\('\.col-left', chores \|\| todos \|\| shopping\)", body), \
+        "with Chores and To-Dos both off, Shopping alone must still show the left column"
+    assert "setDisp('.shopping-slot', shopping)" in body

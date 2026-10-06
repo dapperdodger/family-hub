@@ -2427,6 +2427,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-cols="wells"] .people-col,
 :root[data-cols="wells"] .cal,
 :root[data-cols="wells"] .todo-slot,
+:root[data-cols="wells"] .shopping-slot,
 :root[data-cols="wells"] .month-slot,
 :root[data-cols="wells"] .tiles,
 :root[data-cols="wells"] .panels {
@@ -2496,7 +2497,7 @@ body.integ-off-todos .todo-slot { display: none; }
   .cal-ev:not(.cal-ev-allday) { padding: 6px 0; }
 
   /* to-dos */
-  .todo-slot { gap: 10px; }
+  .todo-slot, .shopping-slot { gap: 10px; }
   .todo { padding: 4px 16px 8px; }
   .todo-grp-head { padding-top: 8px; }
   .todo-row, .todo-row-full { min-height: 42px; }
@@ -2567,6 +2568,7 @@ body.integ-off-todos .todo-slot { display: none; }
   /* the wall's under-chores to-do card has no phone equivalent — the
      dedicated To-Dos tab already covers phones (operator, 2026-08-14) */
   :root:not([data-layout="desktop"]) .todo-slot { display: none; }
+  :root:not([data-layout="desktop"]) .shopping-slot { display: none; }
   /* the wall's two stacked columns dissolve on the phone so every section is a
      direct flex child of .hub-grid again (the tab rules below target them
      directly), and the always-on month card has no phone home — the Calendar
@@ -2629,6 +2631,15 @@ body.integ-off-todos .todo-slot { display: none; }
   :root:not([data-layout="desktop"]) .meal-row .meal-btn-more { font-size: 20px; }
   :root:not([data-layout="desktop"]) .meal-row { min-height: 52px; }
   :root:not([data-layout="desktop"]) .meal-photo { height: 190px; }
+  /* the Shopping card is a section of the Meals tab: .col-left is display:contents here,
+     so the slot is a direct child of the shell's flex column; order puts it after .panels
+     (the Dinner card). The list lifts its wall height cap, and every control is full size. */
+  :root:not([data-layout="desktop"]) body[data-tab="meals"] .shopping-slot { display: flex; order: 2; }
+  :root:not([data-layout="desktop"]) .shop-rows { max-height: none; overflow: visible; }
+  :root:not([data-layout="desktop"]) .shop-row { min-height: 52px; }
+  :root:not([data-layout="desktop"]) .shop-check { width: 48px; min-height: 44px; }
+  :root:not([data-layout="desktop"]) .shop-text { font-size: 15px; }
+  :root:not([data-layout="desktop"]) .shop-menu .meal-btn { min-height: 44px; }
   :root:not([data-layout="desktop"]) body[data-tab="todos"] .people-col,
   :root:not([data-layout="desktop"]) body[data-tab="todos"] .cal,
   :root:not([data-layout="desktop"]) body[data-tab="todos"] .tiles,
