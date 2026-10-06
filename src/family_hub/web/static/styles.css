@@ -3426,9 +3426,12 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 :root[data-lite="on"][data-look]:not([data-look="none"]) body > .season { animation: none; }
+/* The far scene hides STRUCTURALLY: every layer inside it except the haunt group, and every child of the
+   haunt group except the still webs. A season's new far layer is therefore hidden without anyone having
+   to remember to list it; only the webs (which never move) stay. The near layer goes wholesale. */
 :root[data-lite="on"][data-look]:not([data-look="none"]) body > .season-fx,
-:root[data-lite="on"][data-look]:not([data-look="none"]) body > .season .sn-leaves,
-:root[data-lite="on"][data-look]:not([data-look="none"]) body > .season .sn-bat { display: none; }
+:root[data-lite="on"][data-look]:not([data-look="none"]) body > .season > :not(.sn-haunt),
+:root[data-lite="on"][data-look]:not([data-look="none"]) body > .season .sn-haunt > :not(.sn-web) { display: none; }
 
 /* ---- seasonal looks, reduced motion ----
    Last in the file on purpose: these must beat the animated leaf rules above

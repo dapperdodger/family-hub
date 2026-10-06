@@ -49,9 +49,9 @@ at one URL.
   moves at night or for reduced motion, and the art (public domain, CC0,
   CC-BY and MIT) ships inside the app. A slow screen such as a Raspberry Pi 3
   turns on **Lite** (All settings → Seasonal looks, per device, or add
-  `?lite=1` to that screen's URL to latch it): the photo stays, but the glass
-  becomes a plain card fill instead of a blur and the leaves, bats and
-  spiders never move.
+  `?lite=1` to that screen's URL to latch it; `?lite=0` or the same Settings
+  row turns it off again): the photo stays, but the glass becomes a plain card
+  fill instead of a blur and the leaves, bats and spiders never move.
   Adding a season or holiday follows [`docs/seasonal-looks.md`](docs/seasonal-looks.md).
 
   ![Seasonal looks: fall and Halloween](docs/seasons.jpg)

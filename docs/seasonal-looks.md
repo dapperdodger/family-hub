@@ -422,11 +422,16 @@ CC0), Shenandoah NPS rolling hills.
 
    **Lite (a slow screen such as the wall's Raspberry Pi 3).** Every moving
    thing a season brings must be switched off by Lite: put it in a layer
-   Lite already hides (`body > .season-fx`, `.season .sn-leaves`,
-   `.season .sn-bat`), or add its class to Lite's hide rule in `styles.css`
-   AND to `LITE_COVERS` in `tests/test_static.py`, which fails
-   (`test_every_class_a_season_animates_is_covered_by_lite`) until you do.
-   A still decoration (the webs, the season mark) stays under Lite.
+   Lite already hides: the whole near layer (`body > .season-fx`), and in the
+   far scene every layer except `.sn-haunt` plus every child of `.sn-haunt`
+   except the still `.sn-web`s. So put a new season's far motion in its own
+   layer inside `.season` and it is hidden for free; a still decoration goes
+   in `.sn-haunt` as a `.sn-web`-style child (or outside the layers). Then add
+   each new animated `.sn-*` class to `LITE_COVERS` in `tests/test_static.py`,
+   which fails (`test_every_moving_season_part_is_known_to_lite_and_nothing_else_moves_in_a_layer`)
+   until you do, and also fails for a moving rule inside a season layer that
+   names no `.sn-*` class. The guard reads rules inside `@media`/`@supports`
+   too. Review it by looking at the page with Lite on, not only by the test.
 6. **Check it with your own eyes**, on the demo (`DEMO=1`), at full size:
    - every look × all five themes (Light, Soft, Blue, Grey, Black) at
      1920×1080, and seasons off in all five (it must match main exactly);

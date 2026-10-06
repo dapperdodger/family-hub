@@ -38,6 +38,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Seasonal Lite hides the far scene's motion structurally (every layer but the still webs), so a new season's far motion is hidden without being listed, and the test that guards new seasons now reads rules inside @media blocks and flags a moving rule in a season layer whatever its class is called.
 - Docs: the README and the seasonal-looks standard describe Lite and the rule every new season follows (its moving parts must be covered by Lite).
 - Settings > Seasonal looks has a Lite switch for this screen, and the Halloween spiders stand down under Lite without any layout work.
 - Seasonal Lite: with it on, a look keeps its photo but the glass is a plain 86% fill (no blur) and the leaves, bats and spiders never move or show; a test now fails if a new season animates something Lite does not cover.
