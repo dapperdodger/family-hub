@@ -35,6 +35,10 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Recipes: a native Recipes view (photo grid, search, category chips, four sorts, and a recipe
+  page with ingredients, steps and notes) that opens full screen on the wall and the phone.
+  Typing never repaints the search box, Back restores your place, and a thumbnail that fails to
+  load becomes a placeholder.
 - Recipes: search, category filter and four sorts (A to Z, recently added, recently made, top
   rated) run on the loaded library, so typing never waits on the network; the Recipes view
   stays open 15 minutes without a touch (the wall's default is 90 seconds).

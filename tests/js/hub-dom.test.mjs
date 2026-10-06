@@ -33,7 +33,7 @@ const hubSrc = readFileSync(join(staticDir, 'hub.js'), 'utf8');
 // for anything else (e.g. 'toast'), so hub.js's create-if-missing branches run
 // for real — that's the whole point of the showToast assertions below.
 const SEEDED_IDS = [
-  'conn-word', 'clock-date', 'clock-time', 'cal', 'month-slot', 'meals-slot', 'shopping-slot', 'people', 'todo-slot', 'tiles',
+  'conn-word', 'clock-date', 'clock-time', 'cal', 'month-slot', 'meals-slot', 'shopping-slot', 'recipes-full', 'people', 'todo-slot', 'tiles',
   'camgrid', 'integrations-ctl',
   'panels', 'tabbar', 'overlay', 'overlay-home', 'overlay-content', 'ev-modal',
   'ev-card',
@@ -10829,4 +10829,231 @@ test('renderShopping: a misconfigured list shows its reason, escaped', () => {
   const r = shopHtml({ available: false, reason: 'no shopping list matches <b>x</b>' });
   assert.match(r.html, /no shopping list matches &lt;b&gt;x&lt;\/b&gt;/);
   assert.doesNotMatch(r.html, /<b>x/);
+});
+
+// ---- the Recipes overlay ----
+
+const rcp = (slug, name, o = {}) => ({ slug, id: null, name, time: '30 Minutes', has_image: false,
+  categories: ['Dinner'], tags: [], added: '2026-09-01T00:00:00+00:00', made: null, rating: null, ...o });
+const RCP_LIST = () => ({ available: true, truncated: false, total: 4, recipes: [
+  rcp('apple-pie', 'Apple Pie', { categories: ['Dessert'], added: '2026-10-01T00:00:00+00:00' }),
+  rcp('baked-ziti', 'Baked Ziti', { id: RID_A, has_image: true, made: '2026-10-03', rating: 5 }),
+  rcp('chili', 'Chili', { time: null }),
+  rcp('oats', 'Overnight Oats', { categories: ['Breakfast'] })] });
+const RCP_DETAIL = (over = {}) => ({ available: true, recipe: { slug: 'baked-ziti', id: RID_A, name: 'Baked Ziti',
+  has_image: true, servings: 6, prep: '15 Minutes', cook: '45 Minutes', total: '1 Hour', description: 'Cheesy pasta.',
+  ingredients: [{ heading: 'Sauce' }, { text: '1 can tomatoes' }], steps: [{ title: 'Boil', text: 'Boil the pasta.\nDrain.' }],
+  notes: [{ title: 'Tip', text: 'Use basil.' }], ...over } });
+
+function rcpFetch(sandbox, { list = RCP_LIST(), detail = RCP_DETAIL(), failList = false, failDetail = false } = {}) {
+  const calls = [];
+  sandbox.fetch = async (url) => {
+    calls.push(url);
+    if (url === '/api/mealie/recipes') {
+      return failList ? { ok: false, status: 502, json: async () => ({ detail: 'down' }) } : { ok: true, status: 200, json: async () => list };
+    }
+    if (url.startsWith('/api/mealie/recipes/')) {
+      return failDetail ? { ok: false, status: 404, json: async () => ({ detail: 'no such recipe' }) } : { ok: true, status: 200, json: async () => detail };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  return calls;
+}
+
+async function rcpOpen(opts) {
+  const hub = newHub();
+  vm.runInContext(LISTED, hub.sandbox);
+  const calls = rcpFetch(hub.sandbox, opts);
+  hub.sandbox.openOverlay('recipes');
+  await flush(); await flush();
+  return { ...hub, calls, host: hub.document.getElementById('recipes-full') };
+}
+// The fake DOM does not re-serialize a PARENT's innerHTML when code sets a child's (a real browser
+// does), so read the host's own string plus the two children the view updates in place.
+const rcpHtml = (host) => ['#recipes-controls', '#recipes-grid']
+  .map((sel) => { const n = host.querySelector(sel); return n ? n.innerHTML : ''; }).join('') + host.innerHTML;
+const rcpCards = (host) => host.querySelectorAll('.recipe-card').map((c) => c.dataset.recipeOpen);
+const tapRcp = (fire, host, sel, attr) => {
+  const btn = host.querySelector(sel);
+  assert.ok(btn, `${sel} rendered`);
+  btn.closest = (s) => (s === `[${attr}]` ? btn : null);
+  fire('click', { target: btn, preventDefault() {} });
+  return btn;
+};
+
+test('Recipes: opening the overlay shows the grid A to Z with every control, and fetches the library once', async () => {
+  const { host, calls } = await rcpOpen();
+  assert.deepEqual(rcpCards(host), ['apple-pie', 'baked-ziti', 'chili', 'oats']);
+  assert.equal(calls.filter((u) => u === '/api/mealie/recipes').length, 1);
+  assert.match(rcpHtml(host), /id="recipe-search" class="txt-input recipes-search"/, 'the on-screen keyboard serves .txt-input');
+  assert.equal(host.querySelectorAll('[data-recipe-sort]').length, 4);
+  assert.deepEqual(host.querySelectorAll('[data-recipe-cat]').map((b) => b.dataset.recipeCat), ['', 'Breakfast', 'Dessert', 'Dinner']);
+  assert.match(rcpHtml(host), /data-recipe-sort="name" aria-pressed="true"/);
+});
+
+test('Recipes: a card shows its thumbnail (tiny, lazy), name and time; no photo or no time degrades cleanly', async () => {
+  const { host } = await rcpOpen();
+  assert.match(rcpHtml(host), new RegExp(`<img class="recipe-thumb" src="/api/mealie/image/${RID_A}\\?size=tiny" alt="" loading="lazy" decoding="async">`));
+  assert.match(rcpHtml(host), /recipe-noimg/);
+  assert.match(rcpHtml(host), /<span class="recipe-time">30 Minutes<\/span>/);
+  const chili = host.querySelectorAll('.recipe-card').find((c) => c.dataset.recipeOpen === 'chili');
+  assert.doesNotMatch(chili.innerHTML, /recipe-time/);
+});
+
+test('Recipes: typing filters the cards and NEVER repaints the search box', async () => {
+  const { sandbox, fire, host } = await rcpOpen();
+  const box = host.querySelector('#recipe-search');
+  box.value = 'zit';
+  fire('input', { target: { id: 'recipe-search', value: 'zit' } });
+  assert.deepEqual(rcpCards(host), ['baked-ziti']);
+  assert.strictEqual(host.querySelector('#recipe-search'), box, 'the same input element: focus and keyboard survive');
+  fire('input', { target: { id: 'recipe-search', value: 'nothing matches' } });
+  assert.match(rcpHtml(host), /No recipes match/);
+  assert.equal(vm.runInContext('recipesState.q', sandbox), 'nothing matches');
+});
+
+test('Recipes: a sort button re-orders, the active one is pressed; a chip filters and combines with search', async () => {
+  const { fire, host } = await rcpOpen();
+  tapRcp(fire, host, '[data-recipe-sort="rated"]', 'data-recipe-sort');
+  assert.deepEqual(rcpCards(host).slice(0, 1), ['baked-ziti'], 'top rated first');
+  assert.match(rcpHtml(host), /data-recipe-sort="rated" aria-pressed="true"/);
+  tapRcp(fire, host, '[data-recipe-sort="made"]', 'data-recipe-sort');
+  assert.equal(rcpCards(host)[0], 'baked-ziti', 'recently made first, never-made after');
+  tapRcp(fire, host, '[data-recipe-cat="Dinner"]', 'data-recipe-cat');
+  assert.deepEqual(rcpCards(host), ['baked-ziti', 'chili']);
+  fire('input', { target: { id: 'recipe-search', value: 'chi' } });
+  assert.deepEqual(rcpCards(host), ['chili']);
+  tapRcp(fire, host, '[data-recipe-cat=""]', 'data-recipe-cat');
+  assert.deepEqual(rcpCards(host), ['chili'], 'All keeps the search');
+});
+
+test('Recipes: tapping a card shows the detail; Back restores search, sort, category and scroll', async () => {
+  const { sandbox, fire, host } = await rcpOpen();
+  tapRcp(fire, host, '[data-recipe-sort="added"]', 'data-recipe-sort');
+  tapRcp(fire, host, '[data-recipe-cat="Dinner"]', 'data-recipe-cat');
+  fire('input', { target: { id: 'recipe-search', value: 'ziti' } });
+  host.parentNode = { scrollTop: 340 };
+  tapRcp(fire, host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  assert.match(rcpHtml(host), /<h2>Baked Ziti<\/h2>/);
+  assert.match(rcpHtml(host), /Cheesy pasta\./);
+  assert.match(rcpHtml(host), /class="recipe-ing-head">Sauce</);
+  assert.match(rcpHtml(host), /<li>1 can tomatoes<\/li>/);
+  assert.match(rcpHtml(host), /Boil the pasta\.<br>Drain\./, 'step line breaks are kept');
+  assert.match(rcpHtml(host), /Use basil\./);
+  assert.match(rcpHtml(host), new RegExp(`/api/mealie/image/${RID_A}"`), 'the detail photo is the medium size');
+  tapRcp(fire, host, '[data-recipe-back]', 'data-recipe-back');
+  assert.equal(host.querySelector('#recipe-search').value, 'ziti');
+  assert.deepEqual(rcpCards(host), ['baked-ziti']);
+  assert.match(rcpHtml(host), /data-recipe-sort="added" aria-pressed="true"/);
+  assert.match(rcpHtml(host), /data-recipe-cat="Dinner" aria-pressed="true"/);
+  assert.equal(host.parentNode.scrollTop, 340);
+  assert.equal(vm.runInContext('recipesState.slug', sandbox), null);
+});
+
+test('Recipes: the detail shows only the meta it has', async () => {
+  const { fire, host } = await rcpOpen({ detail: RCP_DETAIL({ prep: null, cook: null, servings: null, total: '1 Hour', notes: [], description: '', has_image: false }) });
+  tapRcp(fire, host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  assert.match(rcpHtml(host), /<dt>Total<\/dt>/);
+  assert.doesNotMatch(rcpHtml(host), /<dt>Prep<\/dt>|<dt>Cook<\/dt>|<dt>Serves<\/dt>|recipe-photo|Notes/);
+});
+
+test('Recipes: everything from Mealie is inert text', async () => {
+  const evil = '<img src=x onerror=alert(1)>';
+  const list = { available: true, truncated: false, total: 1, recipes: [rcp('x', evil, { categories: [evil], tags: [evil], time: evil })] };
+  const { fire, host } = await rcpOpen({ list, detail: RCP_DETAIL({ name: evil, description: evil,
+    ingredients: [{ heading: evil }, { text: evil }], steps: [{ title: evil, text: evil }], notes: [{ title: evil, text: evil }], prep: evil }) });
+  assert.doesNotMatch(rcpHtml(host), /<img src=x/);
+  assert.match(rcpHtml(host), /&lt;img src=x onerror=alert\(1\)&gt;/);
+  tapRcp(fire, host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  assert.doesNotMatch(rcpHtml(host), /<img src=x/);
+  assert.match(rcpHtml(host), /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('Recipes: a recipe that is gone gives a toast and keeps the grid (never a stuck Loading)', async () => {
+  const { document, fire, host } = await rcpOpen({ failDetail: true });
+  tapRcp(fire, host, '.recipe-card', 'data-recipe-open');
+  await flush(); await flush();
+  assert.equal(document.getElementById('toast').textContent, 'no such recipe');
+  assert.deepEqual(rcpCards(host), ['apple-pie', 'baked-ziti', 'chili', 'oats']);
+  assert.doesNotMatch(rcpHtml(host), /Loading/);
+});
+
+test('Recipes: a late older detail reply never overwrites a newer one; Back during a load wins', async () => {
+  const { sandbox, fire, host } = await rcpOpen();
+  const slow = {}; slow.p = new Promise((r) => { slow.release = r; });
+  let n = 0;
+  sandbox.fetch = async (url) => {
+    if (!url.startsWith('/api/mealie/recipes/')) return { ok: true, status: 200, json: async () => RCP_LIST() };
+    n += 1;
+    if (n === 1) { await slow.p; return { ok: true, status: 200, json: async () => RCP_DETAIL({ name: 'OLD' }) }; }
+    return { ok: true, status: 200, json: async () => RCP_DETAIL({ name: 'NEW' }) };
+  };
+  tapRcp(fire, host, '[data-recipe-open="apple-pie"]', 'data-recipe-open');   // first, slow
+  await flush();
+  tapRcp(fire, host, '[data-recipe-back]', 'data-recipe-back');
+  tapRcp(fire, host, '[data-recipe-open="chili"]', 'data-recipe-open');        // second, fast
+  await flush(); await flush();
+  slow.release(); await flush(); await flush();
+  assert.match(rcpHtml(host), />NEW</); assert.doesNotMatch(rcpHtml(host), /OLD/);
+  tapRcp(fire, host, '[data-recipe-back]', 'data-recipe-back');
+  assert.equal(vm.runInContext('recipesState.slug', sandbox), null);
+});
+
+test('Recipes: a late older LIST reply never overwrites a newer one', async () => {
+  const { sandbox, host } = await rcpOpen();
+  const slow = {}; slow.p = new Promise((r) => { slow.release = r; });
+  let n = 0;
+  sandbox.fetch = async () => {
+    n += 1;
+    if (n === 1) { await slow.p; return { ok: true, status: 200, json: async () => ({ ...RCP_LIST(), recipes: [rcp('old-one', 'OLD')] }) }; }
+    return { ok: true, status: 200, json: async () => ({ ...RCP_LIST(), recipes: [rcp('new-one', 'NEW')] }) };
+  };
+  const first = sandbox.fetchRecipes();
+  await sandbox.fetchRecipes();
+  slow.release(); await first;
+  assert.deepEqual(rcpCards(host), ['new-one']);
+});
+
+test('Recipes: Mealie down, a refused token and an empty library each say so; Try again re-reads', async () => {
+  let r = await rcpOpen({ failList: true });
+  assert.match(rcpHtml(r.host), /Mealie isn.t reachable/);
+  assert.ok(r.host.querySelector('[data-recipe-retry]'));
+  r = await rcpOpen({ list: { available: false, needs_auth: true } });
+  assert.match(rcpHtml(r.host), /Needs a Mealie token/);
+  r = await rcpOpen({ list: { available: true, truncated: false, total: 0, recipes: [] } });
+  assert.match(rcpHtml(r.host), /No recipes yet/);
+  r = await rcpOpen({ failList: true });
+  const before = r.calls.length;
+  tapRcp(r.fire, r.host, '[data-recipe-retry]', 'data-recipe-retry');
+  await flush(); await flush();
+  assert.ok(r.calls.length > before, 'a retry asks again');
+});
+
+test('Recipes: a library past the cap says how many are shown', async () => {
+  const { host } = await rcpOpen({ list: { ...RCP_LIST(), truncated: true, total: 340 } });
+  assert.match(rcpHtml(host), /Showing the first 4 of 340/);
+});
+
+test('Recipes: opening the view again starts fresh (no leftover search, sort, category or recipe)', async () => {
+  const { sandbox, fire, host } = await rcpOpen();
+  fire('input', { target: { id: 'recipe-search', value: 'ziti' } });
+  tapRcp(fire, host, '[data-recipe-sort="rated"]', 'data-recipe-sort');
+  sandbox.closeOverlay();
+  sandbox.openOverlay('recipes');
+  await flush(); await flush();
+  assert.equal(vm.runInContext('recipesState.q', sandbox), '');
+  assert.equal(vm.runInContext('recipesState.sort', sandbox), 'name');
+  assert.deepEqual(rcpCards(host), ['apple-pie', 'baked-ziti', 'chili', 'oats']);
+});
+
+test('Recipes: a thumbnail that fails to load is hidden, leaving the placeholder tile', () => {
+  const { fire } = newHub();
+  const img = { tagName: 'IMG', classList: { contains: (c) => c === 'recipe-thumb', add(c) { this.added = c; } } };
+  fire('error', { target: img });
+  assert.equal(img.classList.added, 'is-broken');
+  const other = { tagName: 'IMG', classList: { contains: () => false, add() { throw new Error('touched'); } } };
+  fire('error', { target: other });
 });
