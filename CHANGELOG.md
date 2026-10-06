@@ -15,6 +15,13 @@ rolls that section to a dated version via `python scripts/release.py`.
   prefixes the quantity to its display text). Items you type now show exactly what you
   typed; items that came from a recipe still show Mealie's "2 cups flour".
 
+### Known limits
+- Shopping: checking or un-checking an item that came from a recipe ("Add to list")
+  detaches it from that recipe in Mealie (verified against Mealie 3.28: every way of
+  updating an item clears the link). Nothing shown changes (name, quantity, unit,
+  label and checked state all survive); only Mealie's own "remove this recipe's
+  ingredients from the list" will no longer find that item.
+
 ### Added
 - Shopping: the Mealie shopping list as a native wall card (left column, beside the
   To-Do card) and a section on the phone's Meals tab. Check items off and un-check
