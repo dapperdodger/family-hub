@@ -10729,3 +10729,104 @@ test('a write that fails keeps the last list instead of blanking the card', asyn
   assert.match(host.innerHTML, /data-shop-check/, 'one failed re-read does not blank the card');
   assert.equal(document.getElementById('toast').textContent, 'Mealie answered 500');
 });
+
+// ---- review fixes: Shopping card ----
+
+test('fetchShopping: a Mealie outage (HTTP 200 {available:false}) keeps the last list for a few polls, then gives up; a rejected token shows at once', async () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext(LISTED, sandbox);
+  const slot = () => document.getElementById('shopping-slot').innerHTML;
+  shopFetchLog(sandbox);
+  await sandbox.fetchShopping();
+  shopFetchLog(sandbox, { list: { available: false } });          // what the hub really answers when Mealie is down
+  await sandbox.fetchShopping(); await sandbox.fetchShopping();    // two strikes: the last good list still shows
+  assert.match(slot(), /data-shop-check/);
+  await sandbox.fetchShopping();                                   // the third: give up
+  assert.match(slot(), /Shopping unavailable/);
+  shopFetchLog(sandbox);
+  await sandbox.fetchShopping();
+  assert.match(slot(), /data-shop-check/, 'a good read brings the list back');
+  shopFetchLog(sandbox, { list: { available: false, needs_auth: true } });
+  await sandbox.fetchShopping();                                   // a refused token is not a blip: say so now
+  assert.match(slot(), /Shopping needs a Mealie token/);
+});
+
+test('shopCheck: a tap on a DIFFERENT row right after a check is ignored (the list re-sorts under the finger)', async () => {
+  const { fire, host, calls } = shopSetup();
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  tapShop(fire, host, `[data-shop-check="${IID_B}"]`);            // a bounce or double tap, before the gap passes
+  await flush(); await flush();
+  const puts = calls.filter((c) => c.method === 'PUT');
+  assert.equal(puts.length, 1, 'only the first tap acts');
+  assert.match(puts[0].url, new RegExp(IID_A));
+});
+
+test('shopCheck: a failed write with a failed re-read leaves the row UN-checked (the rollback is visible)', async () => {
+  const { sandbox, fire, host } = shopSetup();
+  sandbox.fetch = async () => ({ ok: false, status: 502, json: async () => ({ detail: 'x' }) });
+  tapShop(fire, host, `[data-shop-check="${IID_A}"]`);
+  await flush(); await flush(); await flush();
+  assert.match(host.innerHTML, new RegExp(`class="shop-row"><button[^>]*data-shop-check="${IID_A}"[^>]*aria-pressed="false"`));
+  assert.doesNotMatch(host.innerHTML, new RegExp(`shop-row done"><button[^>]*data-shop-check="${IID_A}"`));
+});
+
+test('renderShopping: a repaint carries the quick-add draft, its focus and caret, and the list scroll while in use', () => {
+  const { document, sandbox, host } = shopSetup();
+  const seen = { focus: 0, sel: null };
+  const oldInput = { value: 'Mi', selectionStart: 1, selectionEnd: 2 };
+  const newInput = { value: '', focus() { seen.focus += 1; }, setSelectionRange(a, b) { seen.sel = [a, b]; } };
+  document.activeElement = oldInput;
+  const orig = document.getElementById.bind(document);
+  let n = 0;
+  document.getElementById = (id) => (id === 'shop-add-input' ? (++n === 1 ? oldInput : newInput) : orig(id));
+  host.querySelector('.shop-rows').scrollTop = 120;
+  vm.runInContext('shopScrollAt = Date.now();', sandbox);
+  sandbox.renderShopping();
+  assert.equal(newInput.value, 'Mi', 'the half-typed text survives the repaint');
+  assert.equal(seen.focus, 1, 'and so does focus (the on-screen keyboard stays up)');
+  assert.deepEqual(seen.sel, [1, 2], 'and the caret');
+  assert.equal(host.querySelector('.shop-rows').scrollTop, 120, 'the list keeps its place while in use');
+});
+
+test('renderShopping: a list left alone for 30s returns to the top on the next repaint', () => {
+  const { sandbox, host } = shopSetup();
+  host.querySelector('.shop-rows').scrollTop = 120;
+  vm.runInContext('shopScrollAt = Date.now() - 31000;', sandbox);
+  sandbox.renderShopping();
+  assert.ok(!host.querySelector('.shop-rows').scrollTop, 'back to the top');
+});
+
+test('fetchShopping: a late older FAILURE never counts against a newer good read', async () => {
+  const { document, sandbox } = newHub();
+  vm.runInContext(LISTED, sandbox);
+  let release;
+  const slow = new Promise((r) => { release = r; });
+  let n = 0;
+  sandbox.fetch = async () => {
+    n += 1;
+    if (n === 1) { await slow; return { ok: false, status: 502, json: async () => ({ detail: 'late' }) }; }
+    return { ok: true, status: 200, json: async () => SHOP_LIST() };
+  };
+  const first = sandbox.fetchShopping();
+  await sandbox.fetchShopping();
+  release(); await first;
+  assert.equal(vm.runInContext('shopFails', sandbox), 0);
+  assert.match(document.getElementById('shopping-slot').innerHTML, /data-shop-check/);
+});
+
+test('mealsAct: adding a recipe to the shopping list refreshes the Shopping card too', async () => {
+  const { document, sandbox, fire } = newHub();
+  vm.runInContext("data_date = '2026-10-01';" + LISTED + `mealsData = ${JSON.stringify(MEALS_WEEK())};`, sandbox);
+  const calls = mealsFetchLog(sandbox);
+  sandbox.renderMeals();
+  tapMeals(sandbox, fire, document.getElementById('meals-slot'), '[data-meals-act="shop"]');
+  await flush(); await flush(); await flush();
+  assert.ok(calls.some((c) => c.url === '/api/mealie/shopping' && c.method === 'GET'),
+    'the Shopping card re-reads, it does not wait up to a minute for its poll');
+});
+
+test('renderShopping: a misconfigured list shows its reason, escaped', () => {
+  const r = shopHtml({ available: false, reason: 'no shopping list matches <b>x</b>' });
+  assert.match(r.html, /no shopping list matches &lt;b&gt;x&lt;\/b&gt;/);
+  assert.doesNotMatch(r.html, /<b>x/);
+});

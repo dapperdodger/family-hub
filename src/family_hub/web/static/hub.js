@@ -44,7 +44,12 @@ let shopScrollAt = 0;        // when the list was last scrolled or used by hand
 let shopMenuOpen = null;     // the item id whose action row (delete) is open: one at a time
 let shopMenuTimer = null;
 let shopAddBusy = false;     // one quick add at a time
+let shopCheckAt = 0;         // when the last check was accepted (see SHOP_TAP_GAP_MS)
 const SHOP_MENU_IDLE_MS = 15000;     // an open row menu closes itself after this
+// A check re-sorts the list at once (the ticked row drops to the bottom and the next one
+// slides up under the finger), so a bounce or double tap would tick a DIFFERENT item.
+// Taps on any check this soon after an accepted one are ignored.
+const SHOP_TAP_GAP_MS = 400;
 const SHOP_SCROLL_KEEP_MS = 30000;   // keep a hand-scrolled list in place this long, then return to the top
 const shopBusy = new Set();  // item ids with a write in flight (their check is disabled meanwhile)
 // an HTML attribute, not a class: held in a constant so the static class guard leaves it alone
@@ -3897,6 +3902,7 @@ async function mealsAct(btn) {
     } else if (act === 'shop') {
       const r = await j('/api/mealie/shopping', JSON_POST({ recipe_id: btn.dataset.recipe }));
       showToast(`Added to ${(r && r.list) || 'the shopping list'}`);
+      fetchShopping();            // the Shopping card shows this same list: show the new items now
     }
   } catch (e) {
     showToast((e && e.message) ? e.message : 'That did not work');
@@ -3970,7 +3976,8 @@ function renderShopping(s = shopData) {
     ? `<div class="card wx-loading" aria-hidden="true"></div>`
     : s.available
       ? shoppingCardHtml(items)
-      : `<div class="wx-offline">${s.needs_auth ? 'Shopping needs a Mealie token' : 'Shopping unavailable'}</div>`;
+      : `<div class="wx-offline">${s.needs_auth ? 'Shopping needs a Mealie token'
+        : (typeof s.reason === 'string' && s.reason ? escapeHtml(s.reason) : 'Shopping unavailable')}</div>`;
   const prevInput = document.getElementById('shop-add-input');
   const draft = prevInput ? prevInput.value : '';
   const hadFocus = !!prevInput && document.activeElement === prevInput;
@@ -4006,8 +4013,15 @@ async function fetchShopping() {
   try {
     const s = await j('/api/mealie/shopping');
     if (seq !== shopSeq) return;
-    shopData = s;
-    shopFails = 0;
+    if (s && s.available === false && !s.needs_auth && shopData && shopData.available) {
+      // The hub answered but Mealie did not (the server never errors a read): treat it like
+      // a failed fetch, so one blip keeps the last good list until TILE_FAIL_LIMIT in a row.
+      shopFails += 1;
+      if (shopFails >= TILE_FAIL_LIMIT) shopData = s;
+    } else {
+      shopData = s;      // a refused token (needs_auth) is not a blip: shown at once
+      shopFails = 0;
+    }
   } catch (e) {
     if (seq !== shopSeq) return;
     shopFails += 1;
@@ -4052,6 +4066,8 @@ document.addEventListener('keydown', (e) => {
 async function shopCheck(id) {
   const it = shopItemById(id);
   if (!it || shopBusy.has(id)) return;
+  if (Date.now() - shopCheckAt < SHOP_TAP_GAP_MS) return;
+  shopCheckAt = Date.now();
   const next = !it.checked;
   shopScrollAt = Date.now();
   shopBusy.add(id);

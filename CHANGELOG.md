@@ -29,6 +29,14 @@ rolls that section to a dated version via `python scripts/release.py`.
   column stays on screen for Shopping alone, the card gets the same tinted panel in the
   "wells" look, and on the phone it is a section of the Meals tab (after the Dinner
   card) with the full list shown and full-size tap targets.
+- Shopping card hardening (from the pre-merge review): a Mealie outage keeps the last
+  list on screen for a few polls instead of replacing it on the first blip (a refused
+  token still shows at once); a mistyped `shopping_list` or a missing list says so, and a
+  reply with no item list reads as unavailable, never as "Nothing on the list"; checking
+  an item sends back everything Mealie returned except its read-only fields, so a
+  recipe-derived item keeps its recipe link, food and unit; "Add to list" on the Meals
+  card refreshes the Shopping card at once; and a second tap on a different row within
+  400 ms of a check is ignored, since the list re-sorts under the finger.
 - Shopping card text is 16px, level with the To-Do rows, so it reads from across the
   kitchen; the README documents the card and `docs/hub.png` shows it.
 - Shopping: in demo mode the card serves a canned list and its writes are no-ops (they

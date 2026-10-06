@@ -385,6 +385,8 @@ async def add_to_shopping(client, cfg, env: dict, recipe_id: object) -> dict:
     except httpx.HTTPError as e:
         log.warning("meals add-to-shopping failed: %s", e)
         return {**_fail(e), "status": 502}
+    finally:
+        _invalidate_shopping()           # the Shopping card shows this same list: never serve it stale
     return {"ok": True, "list": list_name}
 
 
@@ -426,13 +428,26 @@ async def shopping_tile(client, cfg, env: dict) -> dict:
                              headers=_headers(env), timeout=TIMEOUT)
         r.raise_for_status()
         body = r.json()
-    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
+    except json.JSONDecodeError as e:     # before ValueError (it is one): Mealie sent junk, not "no list"
+        log.warning("meals shopping unavailable: %s", e)
+        _note_auth(e)
+        return {"available": False, "needs_auth": False}
+    except ValueError as e:
+        # no list yet, or `shopping_list` names none: a configuration problem, said as such
+        # (a mistyped list name must not read as a dead server)
+        log.warning("meals shopping unavailable: %s", e)
+        return {"available": False, "needs_auth": False, "reason": str(e)[:120]}
+    except httpx.HTTPError as e:
         log.warning("meals shopping unavailable: %s", e)
         _note_auth(e)
         return {"available": False, "needs_auth": _auth_failed(e)}
     raw_items = body.get("listItems") if isinstance(body, dict) else None
+    if not isinstance(raw_items, list):
+        # a changed reply shape (a Mealie upgrade, a paginated endpoint) is not an empty list
+        log.warning("meals shopping: the list reply carries no listItems list")
+        return {"available": False, "needs_auth": False}
     rows = []
-    for n, raw in enumerate(raw_items if isinstance(raw_items, list) else []):
+    for n, raw in enumerate(raw_items):
         shaped = _shopping_item(raw) if isinstance(raw, dict) else None
         if shaped is not None:
             pos = raw.get("position")
@@ -446,11 +461,12 @@ async def shopping_tile(client, cfg, env: dict) -> dict:
     return result
 
 
-# What a check/un-check sends back. Mealie's update replaces the item, so the fields
-# that define it ride along unchanged; read-only ones (ids, timestamps, the computed
-# display) are left out. PROVISIONAL until the live probe (plan Task 0) confirms
-# Mealie preserves food/unit/quantity through exactly this body.
-_ITEM_KEEP = ("note", "quantity", "position", "foodId", "unitId", "labelId", "extras")
+# What a check/un-check sends back. Mealie's update REPLACES the item, so everything it
+# returned rides back unchanged (like Mealie's own UI does) except the read-only fields:
+# a deny-list, not an allow-list, so a field we did not think of (recipeReferences, food,
+# unit) is never silently dropped. Still to be confirmed against the real server by the
+# live probe (plan Task 0).
+_ITEM_READONLY = ("id", "createdAt", "updatedAt", "display", "groupId", "householdId", "userId")
 _NOT_ON_LIST = {"ok": False, "error": "that item is not on the list", "status": 404}
 
 
@@ -532,7 +548,7 @@ async def set_shopping_checked(client, cfg, env: dict, item_id: object, checked:
         found = await _own_item(client, mc, env, list_id, item_id)
         if found is None:
             return dict(_NOT_ON_LIST)
-        body = {k: found[k] for k in _ITEM_KEEP if k in found}
+        body = {k: v for k, v in found.items() if k not in _ITEM_READONLY}
         body.update({"shoppingListId": list_id, "checked": checked})
         r = await client.put(f"{mc['base']}/api/households/shopping/items/{item_id}",
                              json=body, headers=_headers(env), timeout=TIMEOUT)

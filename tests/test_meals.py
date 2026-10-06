@@ -1063,7 +1063,25 @@ def test_shopping_read_is_capped_but_open_is_the_true_count():
     assert out["open"] == meals.SHOPPING_MAX_ITEMS + 25
 
 
-@pytest.mark.parametrize("body", [[], "x", 5, {"listItems": "x"}, {"listItems": [None, 5]}, {}])
+@pytest.mark.parametrize("body", [[], "x", 5, {"listItems": "x"}, {}])
+def test_shopping_read_with_no_item_list_is_unavailable_never_a_reassuring_empty_list(body):
+    """A changed reply shape (a Mealie upgrade, a paginated endpoint) must read as
+    unavailable, not as 'Nothing on the list': an empty card that is not empty is worse."""
+    fake = FakeMealie()
+    inner = fake.handler
+    def handler(req):
+        if req.url.path == f"/api/households/shopping/lists/{RID2}":
+            return httpx.Response(200, json=body)
+        return inner(req)
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            return await meals.shopping_tile(c, mcfg(), ENV)
+    out = asyncio.run(go())
+    assert out == {"available": False, "needs_auth": False}
+    assert meals._shop_cache == {}
+
+
+@pytest.mark.parametrize("body", [{"listItems": [None, 5]}, {"listItems": []}])
 def test_shopping_read_never_raises_on_a_wrong_shaped_body(body):
     fake = FakeMealie()
     inner = fake.handler
@@ -1352,3 +1370,91 @@ def test_every_shopping_write_route_holds_the_write_lock(app_env):
     appmod, c, fake = app_env
     for fn in (appmod.mealie_shopping_add, appmod.mealie_shopping_check, appmod.mealie_shopping_delete):
         assert "async with _shopping_write_lock" in inspect.getsource(fn), fn.__name__
+
+
+# ------------------------------------------------- review fixes (final review)
+
+def test_shopping_read_cap_keeps_every_open_item_even_when_checked_ones_come_first_in_mealies_order():
+    """The cap must apply AFTER the unchecked-first sort: 50 checked items listed first in
+    Mealie's own order must not push open items out of the capped read."""
+    checked = [item(f"{n:08d}-0000-4000-8000-000000000000", f"Done {n}", checked=True, position=n)
+               for n in range(50)]
+    openn = [item(f"{n:08d}-1111-4111-8111-111111111111", f"Open {n}", position=100 + n)
+             for n in range(meals.SHOPPING_MAX_ITEMS)]
+    out = shop(FakeMealie(items=checked + openn))
+    assert len(out["items"]) == meals.SHOPPING_MAX_ITEMS
+    assert all(not i["checked"] for i in out["items"]), "no open item was cut for a checked one"
+    assert out["open"] == meals.SHOPPING_MAX_ITEMS
+
+
+def test_shopping_read_names_a_misconfigured_list_instead_of_a_generic_outage():
+    out = shop(FakeMealie(lists=[]))
+    assert out["available"] is False and out["needs_auth"] is False
+    assert "no shopping list" in out["reason"]
+    out = shop(FakeMealie(), cfg=mcfg(shopping_list="Grocery"))
+    assert out["available"] is False and "Grocery" in out["reason"]
+
+
+def test_check_keeps_every_field_of_a_recipe_derived_item_that_mealie_returned():
+    """Mealie's update replaces the item, so everything except the read-only fields rides
+    back unchanged: a recipe-derived item must keep its recipe link, food and unit."""
+    refs = [{"recipeId": RID, "recipeQuantity": 1.0, "recipeScale": 1.0, "id": "r1", "shoppingListItemId": IID1}]
+    fake = FakeMealie(items=[item(IID1, "2 cups flour", foodId="f1", unitId="u1", labelId=None,
+                                  recipeReferences=refs, food={"id": "f1", "name": "flour"},
+                                  unit={"id": "u1", "name": "cup"}, createdAt="x", updatedAt="y",
+                                  groupId="g", householdId="h", userId="u")])
+    assert check(fake, IID1, True) == {"ok": True}
+    body = next(c for c in fake.calls if c["method"] == "PUT")["body"]
+    assert body["recipeReferences"] == refs and body["food"] == {"id": "f1", "name": "flour"}
+    assert body["unit"] == {"id": "u1", "name": "cup"} and body["foodId"] == "f1" and body["unitId"] == "u1"
+    assert body["checked"] is True and body["shoppingListId"] == RID2
+    for read_only in ("id", "createdAt", "updatedAt", "display", "groupId", "householdId", "userId"):
+        assert read_only not in body, read_only
+
+
+def test_adding_a_recipes_ingredients_drops_the_cached_shopping_list():
+    """The Meals card's add-to-list changes the same list the Shopping card shows."""
+    fake = FakeMealie(items=[item(IID1, "Milk")])
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)) as c:
+            await meals.shopping_tile(c, mcfg(), ENV)
+            assert meals._shop_cache, "the read was cached"
+            await meals.add_to_shopping(c, mcfg(), ENV, RID)
+            return dict(meals._shop_cache)
+    assert asyncio.run(go()) == {}
+
+
+def test_concurrent_shopping_writes_are_serialized_by_the_route_lock(app_env):
+    """Two phones tapping the same item at once: the second write must not start reading
+    the item until the first has finished writing it."""
+    appmod, c, fake = app_env
+    fake.items.append(item(IID1, "Milk"))
+    inner = fake.handler
+    async def go():
+        gate = asyncio.Event()
+        first = {"held": False}
+        async def handler(req):
+            if (req.method == "GET" and req.url.path == f"/api/households/shopping/items/{IID1}"
+                    and not first["held"]):
+                first["held"] = True
+                await gate.wait()                    # the first write stalls mid-read
+            return inner(req)
+        appmod._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        t1 = asyncio.create_task(appmod.mealie_shopping_check(IID1, appmod.ShoppingCheckIn(checked=True)))
+        for _ in range(5):
+            await asyncio.sleep(0)
+        t2 = asyncio.create_task(appmod.mealie_shopping_check(IID1, appmod.ShoppingCheckIn(checked=False)))
+        for _ in range(20):
+            await asyncio.sleep(0)
+        item_gets_while_first_is_stalled = sum(
+            1 for m, p in fake.log if m == "GET" and p == f"/api/households/shopping/items/{IID1}")
+        gate.set()
+        await asyncio.gather(t1, t2)
+        await appmod._http.aclose()
+        return item_gets_while_first_is_stalled
+    stalled = asyncio.run(go())
+    # the stalled first read is not logged until it is released, so with the lock nothing
+    # has reached Mealie's item endpoint yet; an unlocked second write would already have
+    assert stalled == 0, "the second write read the item while the first was still in flight (no lock)"
+    order = [(m, p.rsplit("/", 1)[-1]) for m, p in fake.log if "/shopping/items/" in p]
+    assert order == [("GET", IID1), ("PUT", IID1), ("GET", IID1), ("PUT", IID1)]
