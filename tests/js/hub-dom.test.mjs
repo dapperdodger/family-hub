@@ -8203,6 +8203,7 @@ function seasonHub() {
     activeSeason: () => 'fall',
     setSeason: (v) => calls.push(['setSeason', v]),
     setSeasonLook: (v) => calls.push(['setSeasonLook', v]),
+    setLite: (v) => calls.push(['setLite', v]),
   });
   return { ...env, calls };
 }
@@ -8326,6 +8327,7 @@ function spiderStage(sandbox, document, opts = {}) {
     };
   }
   document.documentElement.setAttribute('data-look', opts.look || 'halloween-two-lanterns');
+  if (opts.lite) document.documentElement.setAttribute('data-lite', 'on');
   document.hidden = Boolean(opts.hiddenTab);
   document.querySelector = (sel) => (sel.includes('sn-crawl') || sel.includes('sn-dangle') ? el : null);
   sandbox.getComputedStyle = () => ({ display: 'block' });
@@ -8409,9 +8411,10 @@ test('one move: an animation that never settles gives up on a deadline', async (
 
 test('nothing to look at means nothing moves: no look painted, or a hidden tab', async () => {
   // checkVisibility covers night and reduced motion (both hide the layer in
-  // CSS); data-look covers "no season painted" and a hidden tab covers a
-  // backgrounded wall. None of them may walk a spider.
-  for (const opts of [{ visible: false }, { look: 'none' }, { hiddenTab: true }]) {
+  // CSS); data-look covers "no season painted", a hidden tab covers a
+  // backgrounded wall and Lite (a slow screen) has no creatures at all. None of
+  // them may walk a spider.
+  for (const opts of [{ visible: false }, { look: 'none' }, { hiddenTab: true }, { lite: true }]) {
     const { document, sandbox } = newHub();
     const { el, moves } = spiderStage(sandbox, document, opts);
     sandbox.spiderWalk();
@@ -11454,4 +11457,53 @@ test('monthHtml: the grid says how many weeks it drew, so the wall card can cap 
   const five = sandbox.monthHtml(2026, 10, [], '2026-10-06', win, 2, true);
   const rows = (five.match(/class="mg-week"/g) || []).length;
   assert.match(five, new RegExp(`class="mgrid" style="--mg-weeks:${rows}"`));
+});
+
+
+test('Lite stands a spider down before any layout question is asked', async () => {
+  const { document, sandbox } = newHub();
+  const { el } = spiderStage(sandbox, document, { lite: true });
+  let asked = 0;
+  el.checkVisibility = () => { asked += 1; return true; };
+  const m = sandbox.snMotion(el);
+  assert.equal(m.showing(), false);
+  assert.equal(asked, 0, 'the attribute read answers first, so a Lite wall never pays for a layout read');
+});
+
+test('renderSettingsFull: the Seasonal looks card has a Lite row with an Off/On switch', () => {
+  const { document, sandbox } = seasonHub();
+  const host = document.createElement('div');
+  host._id = 'settings-full';
+  document.body.appendChild(host);
+  sandbox.renderSettingsFull();
+  const html = host.innerHTML;
+  assert.match(html, /data-lite-set="off"/);
+  assert.match(html, /data-lite-set="on"/);
+  assert.match(html, /aria-label="Lite mode"/);
+  assert.match(html, /Raspberry Pi 3/);
+});
+
+test('reflectThemeControls marks the Lite switch from data-lite (off when unstamped)', () => {
+  const { document, sandbox } = seasonHub();
+  const host = document.createElement('div');
+  host._id = 'settings-full';
+  document.body.appendChild(host);
+  sandbox.renderSettingsFull();
+  const marked = () => host.querySelectorAll('[data-lite-set]').filter((b) => b.classList.contains('on')).map((b) => b.dataset.liteSet);
+  assert.deepEqual(marked(), ['off']);
+  document.documentElement.setAttribute('data-lite', 'on');
+  sandbox.reflectThemeControls();
+  assert.deepEqual(marked(), ['on']);
+});
+
+test('tapping a Lite button calls setLite with that value', () => {
+  const { document, sandbox, calls, fire } = seasonHub();
+  const host = document.createElement('div');
+  host._id = 'settings-full';
+  document.body.appendChild(host);
+  sandbox.renderSettingsFull();
+  const btn = host.querySelector('[data-lite-set="on"]');
+  btn.closest = (s) => (s === '.theme-ctl [data-lite-set]' ? btn : null);
+  fire('click', { target: btn, preventDefault() {} });
+  assert.deepEqual(calls.filter((c) => c[0] === 'setLite'), [['setLite', 'on']]);
 });

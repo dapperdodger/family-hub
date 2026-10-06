@@ -5294,6 +5294,8 @@ function reflectThemeControls() {
   const idle = el.getAttribute('data-idle-return') === 'off' ? 'off' : 'on';
   // default OFF: an unstamped season reflects as 'off', like theme.js's default
   const season = el.getAttribute('data-season') === 'on' ? 'on' : 'off';
+  // default OFF: Lite is a per-device choice, so an unstamped attribute reads as off
+  const lite = el.getAttribute('data-lite') === 'on' ? 'on' : 'off';
   // each season's chosen look (what it paints on this device when in season)
   const picked = new Set(seasonList().map((s) => pickedLook(s.id)));
   // Season on but nothing in season: say when the next one starts, or the
@@ -5307,6 +5309,8 @@ function reflectThemeControls() {
   document.querySelectorAll('.theme-ctl').forEach((ctl) => {
     ctl.querySelectorAll('[data-season-set]').forEach((b) =>
       b.classList.toggle('on', b.dataset.seasonSet === season));
+    ctl.querySelectorAll('[data-lite-set]').forEach((b) =>
+      b.classList.toggle('on', b.dataset.liteSet === lite));
     // .on marks each season's favourite either way (the CSS softens it while
     // seasons are off); aria-pressed only claims "pressed" while seasons are on
     // (the favourite then paints whenever its season is on the calendar)
@@ -5466,6 +5470,9 @@ function snMotion(el) {
     // getComputedStyle path is the fallback for older browsers.
     showing() {
       if (document.hidden) return false;
+      // Lite: this screen cannot afford the creatures, and the CSS hides their layer; the
+      // attribute is the cheap answer, asked before any layout question
+      if (document.documentElement.getAttribute('data-lite') === 'on') return false;
       const look = document.documentElement.getAttribute('data-look');
       if (!look || look === 'none') return false;
       if (typeof el.checkVisibility === 'function') return el.checkVisibility();
@@ -5681,6 +5688,13 @@ function seasonalCardHtml() {
     + '</div>'
     + '<div class="settings-sub">On follows the calendar. Pick the photo you like for each season. Light and Soft show it bright; the darker themes show it at dusk.</div>'
     + '<div class="season-idle-note" hidden></div>'
+    + '</div>'
+    + '<div class="settings-row">'
+    + '<div class="seg" role="group" aria-label="Lite mode">'
+    + '<button type="button" data-lite-set="off">Lite off</button>'
+    + '<button type="button" data-lite-set="on">Lite on</button>'
+    + '</div>'
+    + '<div class="settings-sub">For a slower screen such as a Raspberry Pi 3: keeps the photo, drops the blur and the moving leaves, bats and spiders. This screen only.</div>'
     + '</div>'
     + `<div class="look-picker">${groups}</div>`;
 }
@@ -6173,6 +6187,8 @@ document.addEventListener('click', (e) => {
   // which picks that season's look and turns seasons on.
   const ss = e.target.closest('.theme-ctl [data-season-set]');
   if (ss) { if (typeof setSeason === 'function') setSeason(ss.dataset.seasonSet); reflectThemeControls(); return; }
+  const lt = e.target.closest('.theme-ctl [data-lite-set]');
+  if (lt) { if (typeof setLite === 'function') setLite(lt.dataset.liteSet); reflectThemeControls(); return; }
   const lp = e.target.closest('.theme-ctl [data-look-pick]');
   if (lp) { if (typeof setSeasonLook === 'function') setSeasonLook(lp.dataset.lookPick); reflectThemeControls(); return; }
   // Integrations switch list: also unscoped now that it only ever renders
