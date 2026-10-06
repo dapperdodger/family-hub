@@ -5384,16 +5384,26 @@ function seasonHauntHtml(depth = 'front') {
     + '</span>';
 }
 
+// The new seasons' one gentle kind of motion (snow, petals, clover leaves, fireflies, sparkle):
+// ten bare bits whose shape, size, speed and colour come from styles.css, keyed on <html>'s
+// data-drift (the wall) or the tile's own data-drift (Settings). One generic layer, so a season
+// is registered with `drift: "snow"` and styled with tokens, never with its own markup. `live`
+// marks the wall's layers, the only ones that animate; a Settings preview rests.
+function seasonDriftHtml(depth = 'front', live = false) {
+  const bit = '<span class="sn-bit"><b></b></span>';
+  return `<span class="sn-drift ${depth}${live ? ' live' : ''}">${bit.repeat(10)}</span>`;
+}
+
 // Everything that moves in a season layer, for every season: CSS shows only
 // the set that belongs to the look being painted.
 function seasonFxHtml(depth = 'front') {
-  return seasonLeavesHtml(depth) + seasonHauntHtml(depth);
+  return seasonLeavesHtml(depth) + seasonHauntHtml(depth) + seasonDriftHtml(depth, true);
 }
 
 // A Settings preview: the look's photo (the .season background, the look's
 // --sn-scene) with its leaves (or webs and bats) resting on it.
 function seasonSceneHtml() {
-  return `<span class="season" aria-hidden="true">${seasonLeavesHtml()}${seasonHauntHtml('back')}</span>`;
+  return `<span class="season" aria-hidden="true">${seasonLeavesHtml()}${seasonHauntHtml('back')}${seasonDriftHtml()}</span>`;
 }
 
 // Mount the wall's scene once, in two layers (CSS shows both only while
@@ -5666,8 +5676,11 @@ function seasonStartText(s) {
 // the look's own tokens). A tile sets that season's look and turns seasons on.
 function seasonalCardHtml() {
   const now = typeof activeSeason === 'function' ? activeSeason() : null;
-  const tile = (look) => `<button class="look-tile" type="button" data-look-pick="${escapeHtml(look.id)}" aria-pressed="false">`
-    + `<span class="look-swatch" data-look="${escapeHtml(look.id)}" aria-hidden="true">`
+  // the season's drift kind rides on its tiles so a preview can show the motion resting; built as a
+  // string here (not inline) so the class guard does not read it as a class list
+  const driftAttr = (drift) => (drift ? ` data-drift="${escapeHtml(drift)}"` : '');
+  const tile = (look, drift) => `<button class="look-tile" type="button" data-look-pick="${escapeHtml(look.id)}" aria-pressed="false">`
+    + `<span class="look-swatch" data-look="${escapeHtml(look.id)}"${driftAttr(drift)} aria-hidden="true">`
     + seasonSceneHtml()
     + '<span class="look-card"><span class="look-mark"></span>'
     + '<span class="look-card-line short"></span><span class="look-card-line"></span></span>'
@@ -5684,7 +5697,7 @@ function seasonalCardHtml() {
     + (s.id === now ? '<span class="look-season-now">In season</span>' : '')
     + '</div>'
     + `<div class="look-tiles" role="group" aria-label="${escapeHtml(s.name)} looks">`
-    + s.looks.map(tile).join('')
+    + s.looks.map((l) => tile(l, s.drift)).join('')
     + '</div></div>';
   // With ~15 seasons the list is long: the season(s) holding today stay open, the next few to
   // start and everything else fold away. Each season is in exactly one group. Without theme.js's

@@ -2728,7 +2728,7 @@ def test_lite_hides_every_moving_layer_except_the_webs_and_drops_the_arrival_fad
 # Every .sn-* class a season ANIMATES is listed here, so adding moving parts means reading the Lite rules
 # above. The far scene hides structurally; the near layer is hidden wholesale; keep both true when you
 # add a layer. (The webs never move, so they are not listed, and are asserted never to animate.)
-LITE_COVERS = {"sn-leaves", "sn-leaf", "sn-bat", "sn-dangle", "sn-crawl"}
+LITE_COVERS = {"sn-leaves", "sn-leaf", "sn-bat", "sn-dangle", "sn-crawl", "sn-drift", "sn-bit"}
 # classes that only group their children: they appear as the parent in selectors like `.sn-haunt .sn-bat`
 LITE_STRUCTURAL = {"sn-haunt"}
 # the one season-layer rule that animates the layer itself: the photo's arrival fade (Lite turns it off)
@@ -2749,3 +2749,46 @@ def test_the_picker_fold_summary_is_a_44px_target_on_the_phone_and_keeps_a_focus
     assert re.search(r"\.look-fold > summary\s*\{[^}]*min-height:\s*44px", _phone_shell_css()), "44px fold summary on the phone"
     assert re.search(r"\.look-fold > summary:focus-visible\s*\{[^}]*outline", CSS), "a visible keyboard focus"
     assert not re.search(r"\.look-(group|fold)[^{]*\{[^}]*(transition|animation)", CSS), "no motion in the picker groups"
+
+
+
+DRIFT_KINDS = ("snow", "petal", "clover", "firefly", "sparkle")
+
+
+def test_every_drift_kind_has_its_shape_motion_and_a_resting_preview():
+    css = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
+    for kind in DRIFT_KINDS:
+        assert re.search(rf'data-drift="{kind}"[^{{]*\.sn-bit[^{{]*\{{', css), f"{kind} styles its bits"
+        assert re.search(rf'\.look-swatch\[data-drift="{kind}"\][^{{]*\.sn-bit[^{{]*\{{[^}}]*animation:\s*none', css), \
+            f"{kind} rests in a Settings preview"
+    assert re.search(r"(?m)^\.sn-drift \{ display: none;", css), "the drift layer is hidden by default"
+    for shape in ("shape-petal.svg", "shape-clover.svg", "shape-spark.svg"):
+        assert (STATIC / "seasons" / shape).is_file(), shape
+
+
+def test_drift_motion_is_compositor_only_and_stops_for_reduced_motion_and_night():
+    css = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
+    for name in ("sn-wander", "sn-glow", "sn-twinkle"):
+        m = re.search(r"@keyframes " + name + r"\s*\{(.*?)\}\s*\}", css, flags=re.S)
+        assert m, f"{name} keyframes exist"
+        props = set(re.findall(r"([a-z-]+)\s*:", m.group(1)))
+        assert props <= {"transform", "opacity"}, f"{name} animates {props - {'transform', 'opacity'}}: transform and opacity only"
+    _, stopped, _ = _last_reduced_motion_selectors()
+    animated = [s for sels, body, pos in _rules() if re.search(r"animation:\s*[^;]*\bsn-(wander|glow|twinkle|fall|sway|rock)", body)
+                and any(".sn-bit" in x for x in sels) for s in sels]
+    assert animated, "found the drift animation rules"
+    assert not [s for s in animated if s not in stopped], "reduced motion stops every drift animation by its exact selector"
+    paused = set()
+    for sels, body, _ in _rules():
+        if "animation-play-state: paused" in body:
+            paused |= {s.strip() for s in sels}
+    # The wall's animation rules are :root[data-drift="K"] .sn-drift.live .sn-bit (specificity 0,5,0); a plain
+    # `.is-night .sn-bit` pause loses to them (and the animation shorthand resets play-state), so the night
+    # rules must be at least as specific. Pin that they exist AND outrank the animation rules.
+    night_bit = [x for x in paused if ".is-night" in x and re.search(r"\.sn-bit$", x.strip())]
+    night_b = [x for x in paused if ".is-night" in x and re.search(r"\.sn-bit b$", x.strip())]
+    assert night_bit and night_b, "night pauses the near and far bits and their inner spans"
+    classes = lambda x: len(re.findall(r"\.[a-z-]+|\[[^\]]+\]|:root", x))
+    assert min(classes(x) for x in night_bit) >= 5 and min(classes(x) for x in night_b) >= 5, \
+        "the night pause must outrank the animation shorthand (it resets play-state)"
+    assert not re.search(r"\.sn-bit[^{]*\{[^}]*filter:", css), "no filters on drift bits (a small GPU re-draws them every frame)"

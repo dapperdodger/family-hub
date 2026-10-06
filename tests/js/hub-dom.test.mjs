@@ -11593,3 +11593,42 @@ test('with nothing in season the note still names a fixed season by its first da
   env.sandbox.reflectThemeControls();
   assert.match(env.document.querySelectorAll('.season-idle-note')[0].textContent, /Winter starts Dec 1\./);
 });
+
+
+// ---- the generic drift layer (snow, petals, clover leaves, fireflies, sparkle)
+
+test('seasonDriftHtml: one layer of ten bits, bare spans, safe inside a tile <button>', () => {
+  const { sandbox } = newHub();
+  const html = sandbox.seasonDriftHtml('front');
+  assert.match(html, /^<span class="sn-drift front">/);
+  assert.equal((html.match(/<span class="sn-bit"><b><\/b><\/span>/g) || []).length, 10);
+  assert.doesNotMatch(html, /<div/);
+  assert.equal((html.match(/<span\b/g) || []).length, (html.match(/<\/span>/g) || []).length);
+});
+
+test('the wall layers carry a LIVE drift layer, a Settings preview carries a resting one', () => {
+  const { sandbox } = newHub();
+  assert.match(sandbox.seasonFxHtml('back'), /sn-drift back live/);
+  assert.match(sandbox.seasonFxHtml(), /sn-drift front live/);
+  const scene = sandbox.seasonSceneHtml();
+  assert.match(scene, /sn-drift front"/);
+  assert.doesNotMatch(scene, /sn-drift[^"]* live/, 'a preview never animates');
+});
+
+test('a Settings tile carries its season\'s drift kind so the preview can show it resting', () => {
+  const env = seasonHub();
+  const winter = { id: 'winter', name: 'Winter', from: [12, 1], to: [2, 29], drift: 'snow',
+    looks: [{ id: 'winter-a', name: 'Frost', blurb: 'B', default: true }] };
+  Object.assign(env.sandbox, { FH_SEASONS: [winter], seasonOutlook: () => ({ active: [winter], upcoming: [], rest: [] }) });
+  const host = env.document.createElement('div');
+  host._id = 'settings-full';
+  env.document.body.appendChild(host);
+  env.sandbox.renderSettingsFull();
+  assert.match(host.innerHTML, /class="look-swatch" data-look="winter-a" data-drift="snow"/);
+  const plain = seasonHub();
+  const host2 = plain.document.createElement('div');
+  host2._id = 'settings-full';
+  plain.document.body.appendChild(host2);
+  plain.sandbox.renderSettingsFull();
+  assert.doesNotMatch(host2.innerHTML, /data-drift=/, 'a season with no drift adds no attribute');
+});

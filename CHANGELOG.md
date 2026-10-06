@@ -38,6 +38,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Seasons: a generic gentle-motion layer (snow, petals, clover leaves, fireflies, sparkle) for the seasons coming next; it is hidden by Lite, stops for reduced motion and at night, and nothing paints it yet.
 - Seasons: each season can name one gentle kind of motion (snow, petals, clover leaves, fireflies or sparkle); the page records which in data-drift. Nothing paints it yet.
 - Seasons: the registry can now hold holidays that move each year (Easter, Mother's Day, Father's Day, MLK Day, Thanksgiving), with the date maths and the whole-calendar overlap rules tested; nothing visible changes yet.
 - Seasonal Lite hides the far scene's motion structurally (every layer but the still webs), so a new season's far motion is hidden without being listed, and the test that guards new seasons now reads rules inside @media blocks and flags a moving rule in a season layer whatever its class is called.

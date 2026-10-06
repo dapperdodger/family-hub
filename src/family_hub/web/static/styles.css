@@ -3418,6 +3418,90 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 :root:not([data-season="on"]) .look-tile.on { box-shadow: none; }
 /* the gear popover: a hairline between "how the hub looks" and "how this screen behaves" */
 .theme-pop .theme-pop-sep { align-self: stretch; height: 1px; background: var(--edge-soft); margin: 16px 0 14px; }
+/* ---- drift: the new seasons' one gentle kind of motion ----
+   A season names a kind in the registry (`drift: "snow"`); theme.js stamps it as <html data-drift>.
+   One generic layer of ten bare bits (hub.js seasonDriftHtml) sits in both season layers (the far
+   one inside the photo layer, behind the glass; the near one over the cards) and in each Settings
+   preview, where it rests. Shape, size, speed and colour come from the tokens below, never from
+   per-season markup, so a season only needs `drift` plus, optionally, its own bit colours
+   (--sn-bit-1/--sn-bit-2). Transform and opacity only; no filters; the near layer is hidden by Lite,
+   reduced motion and night (as for the leaves), and both layers pause/stop with them. Only the wall's
+   own layers (.live) animate. The numbers here were tuned by eye on the demo. */
+.sn-drift { display: none; position: absolute; inset: 0; }
+:root[data-drift]:not([data-drift="none"]) body > .season-fx .sn-drift,
+:root[data-drift]:not([data-drift="none"]) body > .season .sn-drift,
+.look-swatch[data-drift] .sn-drift { display: block; }
+.look-swatch .sn-drift { --sn-k: 1; }
+.sn-bit { position: absolute; left: var(--x); top: var(--y);
+  width: calc(var(--s) * var(--k, 1) * var(--sn-k, 1)); height: calc(var(--s) * var(--k, 1) * var(--sn-k, 1)); }
+.sn-bit b { display: block; width: 100%; height: 100%; opacity: var(--o, 1); }
+.sn-drift.front .sn-bit:nth-child(1) { --x: 6%; --y: 10%; --s: 30px; --d: 30s; --dl: -4s; --drift: 40px; --amp: 20px; --o: 1; }
+.sn-drift.front .sn-bit:nth-child(2) { --x: 18%; --y: 55%; --s: 26px; --d: 36s; --dl: -19s; --drift: -30px; --amp: 18px; --o: 1; }
+.sn-drift.front .sn-bit:nth-child(3) { --x: 31%; --y: 25%; --s: 34px; --d: 33s; --dl: -27s; --drift: 60px; --amp: 24px; --o: 1; }
+.sn-drift.front .sn-bit:nth-child(4) { --x: 44%; --y: 80%; --s: 22px; --d: 39s; --dl: -11s; --drift: -40px; --amp: 16px; --o: 1; }
+.sn-drift.front .sn-bit:nth-child(5) { --x: 57%; --y: 8%; --s: 28px; --d: 45s; --dl: -33s; --drift: 30px; --amp: 20px; --o: 1; }
+.sn-drift.front .sn-bit:nth-child(6) { --x: 69%; --y: 48%; --s: 24px; --d: 31s; --dl: -14s; --drift: -50px; --amp: 18px; --o: 1; }
+.sn-drift.front .sn-bit:nth-child(7) { --x: 80%; --y: 70%; --s: 32px; --d: 41s; --dl: -22s; --drift: 50px; --amp: 22px; --o: 1; }
+.sn-drift.front .sn-bit:nth-child(8) { --x: 91%; --y: 20%; --s: 22px; --d: 52s; --dl: -44s; --drift: -30px; --amp: 14px; --o: 0.85; }
+.sn-drift.front .sn-bit:nth-child(9) { --x: 38%; --y: 40%; --s: 20px; --d: 48s; --dl: -37s; --drift: 20px; --amp: 12px; --o: 0.85; }
+.sn-drift.front .sn-bit:nth-child(10) { --x: 74%; --y: 90%; --s: 26px; --d: 37s; --dl: -8s; --drift: -20px; --amp: 16px; --o: 1; }
+.sn-drift.back .sn-bit:nth-child(1) { --x: 12%; --y: 20%; --s: 16px; --d: 46s; --dl: -9s; --drift: 30px; --amp: 12px; --o: 0.8; }
+.sn-drift.back .sn-bit:nth-child(2) { --x: 24%; --y: 62%; --s: 14px; --d: 54s; --dl: -30s; --drift: -24px; --amp: 10px; --o: 0.75; }
+.sn-drift.back .sn-bit:nth-child(3) { --x: 36%; --y: 34%; --s: 18px; --d: 50s; --dl: -16s; --drift: 40px; --amp: 14px; --o: 0.8; }
+.sn-drift.back .sn-bit:nth-child(4) { --x: 48%; --y: 84%; --s: 15px; --d: 58s; --dl: -38s; --drift: -20px; --amp: 10px; --o: 0.75; }
+.sn-drift.back .sn-bit:nth-child(5) { --x: 60%; --y: 14%; --s: 17px; --d: 52s; --dl: -22s; --drift: 26px; --amp: 12px; --o: 0.8; }
+.sn-drift.back .sn-bit:nth-child(6) { --x: 70%; --y: 56%; --s: 14px; --d: 60s; --dl: -50s; --drift: -30px; --amp: 10px; --o: 0.7; }
+.sn-drift.back .sn-bit:nth-child(7) { --x: 82%; --y: 30%; --s: 18px; --d: 48s; --dl: -12s; --drift: 36px; --amp: 14px; --o: 0.8; }
+.sn-drift.back .sn-bit:nth-child(8) { --x: 90%; --y: 74%; --s: 15px; --d: 56s; --dl: -26s; --drift: -26px; --amp: 10px; --o: 0.7; }
+.sn-drift.back .sn-bit:nth-child(9) { --x: 30%; --y: 6%; --s: 16px; --d: 62s; --dl: -44s; --drift: 20px; --amp: 10px; --o: 0.7; }
+.sn-drift.back .sn-bit:nth-child(10) { --x: 54%; --y: 46%; --s: 14px; --d: 57s; --dl: -33s; --drift: -18px; --amp: 10px; --o: 0.7; }
+:root[data-drift="snow"] .sn-drift,
+.look-swatch[data-drift="snow"] .sn-drift { --k: .3; --dk: .8; }
+:root[data-drift="petal"] .sn-drift,
+.look-swatch[data-drift="petal"] .sn-drift { --k: .5; --dk: 1.1; }
+:root[data-drift="clover"] .sn-drift,
+.look-swatch[data-drift="clover"] .sn-drift { --k: .6; --dk: 1.2; }
+:root[data-drift="firefly"] .sn-drift,
+.look-swatch[data-drift="firefly"] .sn-drift { --k: .32; --dk: .3; }
+:root[data-drift="sparkle"] .sn-drift,
+.look-swatch[data-drift="sparkle"] .sn-drift { --k: .32; --dk: .12; }
+:root[data-drift="snow"] .sn-bit b,
+.look-swatch[data-drift="snow"] .sn-bit b { border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.95) 0 34%, rgba(255,255,255,.4) 58%, rgba(255,255,255,0) 74%); }
+:root[data-drift="firefly"] .sn-bit b,
+.look-swatch[data-drift="firefly"] .sn-bit b { border-radius: 50%; background: radial-gradient(circle, #fff7c8 0 20%, rgba(255,226,120,.6) 44%, rgba(255,226,120,0) 72%); }
+:root[data-drift="petal"] .sn-bit b,
+.look-swatch[data-drift="petal"] .sn-bit b { background: linear-gradient(140deg, var(--sn-bit-1, #f6c9d6), var(--sn-bit-2, #e58fab)); -webkit-mask: url("seasons/shape-petal.svg") center / contain no-repeat; mask: url("seasons/shape-petal.svg") center / contain no-repeat; }
+:root[data-drift="clover"] .sn-bit b,
+.look-swatch[data-drift="clover"] .sn-bit b { background: linear-gradient(140deg, var(--sn-bit-1, #46a869), var(--sn-bit-2, #2f7d4b)); -webkit-mask: url("seasons/shape-clover.svg") center / contain no-repeat; mask: url("seasons/shape-clover.svg") center / contain no-repeat; }
+:root[data-drift="sparkle"] .sn-bit b,
+.look-swatch[data-drift="sparkle"] .sn-bit b { background: linear-gradient(140deg, var(--sn-bit-1, #fff1c1), var(--sn-bit-2, #ffd27a)); -webkit-mask: url("seasons/shape-spark.svg") center / contain no-repeat; mask: url("seasons/shape-spark.svg") center / contain no-repeat; }
+/* falling kinds: the bit falls at a constant speed, its inner span sways (and, for petals and
+   clover leaves, tumbles), the way the leaves do */
+:root[data-drift="snow"] .sn-drift.live .sn-bit,
+:root[data-drift="petal"] .sn-drift.live .sn-bit,
+:root[data-drift="clover"] .sn-drift.live .sn-bit { top: 0; animation: sn-fall calc(var(--d) * var(--dk, 1)) linear var(--dl) infinite; }
+:root[data-drift="snow"] .sn-drift.live .sn-bit b,
+:root[data-drift="petal"] .sn-drift.live .sn-bit b,
+:root[data-drift="clover"] .sn-drift.live .sn-bit b { animation: sn-sway var(--sw, 5.5s) ease-in-out var(--dl) infinite alternate; }
+:root[data-drift="petal"] .sn-drift.live .sn-bit b,
+:root[data-drift="clover"] .sn-drift.live .sn-bit b { animation: sn-sway var(--sw, 5.5s) ease-in-out var(--dl) infinite alternate,
+  sn-rock var(--rk, 3.2s) ease-in-out var(--dl) infinite alternate; }
+/* fireflies wander in place and pulse; sparkle twinkles where it is */
+:root[data-drift="firefly"] .sn-drift.live .sn-bit { animation: sn-wander calc(var(--d) * var(--dk, 1)) ease-in-out var(--dl) infinite alternate; }
+:root[data-drift="firefly"] .sn-drift.live .sn-bit b { animation: sn-glow calc(var(--d) * var(--dk, 1) * .4) ease-in-out var(--dl) infinite; }
+:root[data-drift="sparkle"] .sn-drift.live .sn-bit b { animation: sn-twinkle calc(var(--d) * var(--dk, 1)) ease-in-out var(--dl) infinite; }
+:root[data-drift] .is-night .sn-drift.live .sn-bit,
+:root[data-drift] .is-night .sn-drift.live .sn-bit b { animation-play-state: paused; }
+@keyframes sn-wander { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(var(--drift, 30px), calc(var(--amp, 26px) * -1), 0); } }
+@keyframes sn-glow { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
+@keyframes sn-twinkle { 0%, 100% { opacity: 0; transform: scale(.5); } 50% { opacity: var(--o, 1); transform: scale(1); } }
+/* a Settings preview rests: the same shape, held still at its own spot */
+.look-swatch[data-drift="snow"] .sn-bit, .look-swatch[data-drift="snow"] .sn-bit b { animation: none; top: var(--y); }
+.look-swatch[data-drift="petal"] .sn-bit, .look-swatch[data-drift="petal"] .sn-bit b { animation: none; top: var(--y); }
+.look-swatch[data-drift="clover"] .sn-bit, .look-swatch[data-drift="clover"] .sn-bit b { animation: none; top: var(--y); }
+.look-swatch[data-drift="firefly"] .sn-bit, .look-swatch[data-drift="firefly"] .sn-bit b { animation: none; top: var(--y); }
+.look-swatch[data-drift="sparkle"] .sn-bit, .look-swatch[data-drift="sparkle"] .sn-bit b { animation: none; top: var(--y); }
+
 /* ---- seasonal Lite: a slower screen (the wall's Raspberry Pi 3) keeps the photo ----
    data-lite="on" (theme.js, per device). What the Pi cannot afford while a look paints: the glass
    blur (the browser re-samples the photo under every card whenever anything behind it repaints),
@@ -3452,11 +3536,21 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
    leaves, still, at their own spots. Halloween: every creature animation
    is switched off by its own selector (a hidden element’s animation still
    ticks), the far bats go (frozen at the left edge they looked dropped),
-   and the webs stay: they never moved. */
+   and the webs stay: they never moved. The drift bits (snow, petals, clover leaves, fireflies, sparkle)
+   stop where they are, each by its exact selector. */
 @media (prefers-reduced-motion: reduce) {
   :root[data-look]:not([data-look="none"]) body > .season, .sn-leaf, .sn-leaf.fall, .sn-leaf b, .sn-leaf.fall b { animation: none; }
   .sn-leaf.fall { top: var(--y); }
   .sn-bat, .sn-bat i, .sn-bat b::before, .sn-dangle.visiting i, .sn-crawl.walking b::before, .sn-dangle.walking b::before { animation: none; }
   :root[data-look]:not([data-look="none"]) body > .season .sn-bat { display: none; }
   :root[data-look]:not([data-look="none"]) body > .season-fx { display: none; }
+  :root[data-drift="snow"] .sn-drift.live .sn-bit,
+:root[data-drift="petal"] .sn-drift.live .sn-bit,
+:root[data-drift="clover"] .sn-drift.live .sn-bit,
+:root[data-drift="snow"] .sn-drift.live .sn-bit b,
+:root[data-drift="petal"] .sn-drift.live .sn-bit b,
+:root[data-drift="clover"] .sn-drift.live .sn-bit b,
+:root[data-drift="firefly"] .sn-drift.live .sn-bit,
+:root[data-drift="firefly"] .sn-drift.live .sn-bit b,
+:root[data-drift="sparkle"] .sn-drift.live .sn-bit b { animation: none; top: var(--y); }
 }
