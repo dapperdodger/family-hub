@@ -185,3 +185,62 @@ def test_a_download_that_breaks_half_way_leaves_no_partial_photo(tmp_path, monke
         sps.main(["fetch", "commons:a", "--out", str(tmp_path / "pick.jpg")])
     assert "connection reset" in str(e.value)
     assert not list(tmp_path.glob("pick*")), "neither the photo nor its .part file is left"
+
+
+def test_aic_originals_ask_for_a_size_the_server_allows():
+    """The Art Institute's IIIF server answers 403 to /full/full/; a sized request (2560, wide) is served."""
+    aic = {"data": [{"id": 7, "title": "T", "artist_display": "A", "image_id": "abc", "is_public_domain": True,
+                     "thumbnail": {"width": 3000, "height": 2069}},
+                    {"id": 8, "title": "Small", "artist_display": "B", "image_id": "def", "is_public_domain": True,
+                     "thumbnail": {"width": 1500, "height": 1000}}]}
+    got = sps.parse_aic(aic)
+    assert got[0]["original"].endswith("/iiif/2/abc/full/2560,/0/default.jpg"), got[0]["original"]
+    assert "/full/full/" not in got[0]["original"]
+    assert got[1]["original"].endswith("/iiif/2/def/full/1500,/0/default.jpg"), "never asks for more than the source has"
+    assert sps.parse_aic({"data": [{"id": 9, "image_id": "x", "is_public_domain": False}]}) == []
+
+
+def test_a_rate_limited_search_backs_off_and_retries_but_a_real_error_does_not(monkeypatch):
+    import io
+    import json
+    import urllib.error
+    import urllib.request
+    calls, slept = [], []
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def flaky(req, timeout=None):
+        calls.append(1)
+        if len(calls) <= 2:
+            raise urllib.error.HTTPError("https://x", 429, "Too Many Requests", {}, None)
+        return Resp(json.dumps({"ok": True}).encode())
+    monkeypatch.setattr(urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(sps.time, "sleep", lambda s: slept.append(s))
+    assert sps._get("https://x") == {"ok": True}
+    assert len(calls) == 3 and len(slept) == 2 and slept[0] < slept[1], "two waits, getting longer"
+
+    calls.clear()
+    slept.clear()
+
+    def missing(req, timeout=None):
+        calls.append(1)
+        raise urllib.error.HTTPError("https://x", 404, "Not Found", {}, None)
+    monkeypatch.setattr(urllib.request, "urlopen", missing)
+    import pytest
+    with pytest.raises(urllib.error.HTTPError):
+        sps._get("https://x")
+    assert len(calls) == 1 and not slept, "a 404 is not retried"
+
+    def always(req, timeout=None):
+        calls.append(1)
+        raise urllib.error.HTTPError("https://x", 429, "Too Many Requests", {}, None)
+    calls.clear()
+    monkeypatch.setattr(urllib.request, "urlopen", always)
+    with pytest.raises(urllib.error.HTTPError):
+        sps._get("https://x")
+    assert len(calls) == 4, "three retries, then it gives up and says so"

@@ -17,6 +17,8 @@ import json
 import re
 import shutil
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -41,9 +43,18 @@ def keep(c, min_width, landscape=True, allow_unknown_size=False):
     return (w >= h * 1.3) if landscape else True
 
 
+RETRY_WAITS = (3, 8, 20)      # seconds: Wikimedia answers 429 when searches come too fast
+
+
 def _get(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30) as r:
-        return json.load(r)
+    for wait in (*RETRY_WAITS, None):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as ex:
+            if ex.code not in (429, 503) or wait is None:
+                raise
+            time.sleep(wait)
 
 
 def _plain(text):
@@ -73,21 +84,27 @@ def search_commons(query, limit):
     return parse_commons(_get("https://commons.wikimedia.org/w/api.php?" + urllib.parse.urlencode(p)))
 
 
-def search_aic(query, limit):
-    d = _get("https://api.artic.edu/api/v1/artworks/search?" + urllib.parse.urlencode(
-        {"q": query, "limit": str(limit), "fields": "id,title,artist_display,image_id,is_public_domain,thumbnail",
-         "query[term][is_public_domain]": "true"}))
+def parse_aic(payload):
     out = []
-    for a in d.get("data", []):
+    for a in payload.get("data", []):
         if a.get("is_public_domain") and a.get("image_id"):
             iiif = f"https://www.artic.edu/iiif/2/{a['image_id']}"
             th = a.get("thumbnail") or {}
+            w = th.get("width")
+            # the server answers 403 to /full/full/, so ask for a width: 2560 when the source has it, else its own
+            size = 2560 if (w or 0) >= 2560 else (w or 843)
             out.append({"source": "aic", "id": str(a["id"]), "title": a.get("title", ""),
                         "creator": a.get("artist_display") or "unknown",
-                        "licence": "Public domain (AIC, CC0)", "width": th.get("width"), "height": th.get("height"),
+                        "licence": "Public domain (AIC, CC0)", "width": w, "height": th.get("height"),
                         "thumb": f"{iiif}/full/400,/0/default.jpg", "page": f"https://www.artic.edu/artworks/{a['id']}",
-                        "original": f"{iiif}/full/full/0/default.jpg"})
+                        "original": f"{iiif}/full/{size},/0/default.jpg"})
     return out
+
+
+def search_aic(query, limit):
+    return parse_aic(_get("https://api.artic.edu/api/v1/artworks/search?" + urllib.parse.urlencode(
+        {"q": query, "limit": str(limit), "fields": "id,title,artist_display,image_id,is_public_domain,thumbnail",
+         "query[term][is_public_domain]": "true"})))
 
 
 # The Met's public search endpoint answers 410 Gone (checked 2026-10-06), so it is not searched; add a source here
