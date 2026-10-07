@@ -47,7 +47,16 @@ at one URL.
   Sky**, and **Halloween** takes October with **Lantern Night** (the
   default), **Witching Hour**, **Haunted Pines**, **Moonrise** and **Bare
   Branches** — bats cross the sky, a spider lets itself down on its thread,
-  another lives on the glass, and webs hang in the corners. Each look is
+  another lives on the glass, and webs hang in the corners. Ten holidays sit on
+  top of those and win over the season they fall in: **New Year's** (Dec 27 to
+  Jan 2, a slow gold sparkle), **Christmas** (Dec 1 to 26, snow), **Martin
+  Luther King Jr. Day** (its long weekend), **Valentine's Day** (Feb 1 to 14,
+  petals), **St Patrick's Day** (Mar 1 to 17, drifting clovers), **Easter**
+  (the two weeks before it), **Mother's Day** and **Father's Day** (their
+  weeks), the **Fourth of July** (Jun 25 to Jul 4) and **Thanksgiving** (the
+  ten days before it, with the falling leaves), 29 looks in all. A device
+  remembers one pick per season, so Thanksgiving week shows Thanksgiving's own
+  default even if you picked a Fall look. Each look is
   picked per device under **All settings → Seasonal looks** from
   live preview tiles. Each of the five themes keeps its own glass: Light and
   Soft show the photo bright and airy, Blue, Grey and Black at dusk. Nothing
@@ -61,6 +70,8 @@ at one URL.
   Adding a season or holiday follows [`docs/seasonal-looks.md`](docs/seasonal-looks.md).
 
   ![Seasonal looks: Halloween, winter, spring, summer and fall](docs/seasons.jpg)
+
+  ![Seasonal looks: six of the holidays](docs/holidays.jpg)
 - **Phone / tablet (≤1000px):** the same page reflows to bottom tabs —
   Chores / To-Dos / Calendar / Cameras / Weather / Laundry / Meals. On iPhone, open the
   hub in **Safari** and use Share → **Add to Home Screen** for a full-screen
