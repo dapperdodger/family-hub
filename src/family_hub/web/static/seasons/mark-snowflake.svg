@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="none" stroke="#000" stroke-width="7" stroke-linecap="round"><path id="a" d="M50 8V92M50 24 38 14M50 24 62 14M50 76 38 86M50 76 62 86"/><use href="#a" transform="rotate(60 50 50)"/><use href="#a" transform="rotate(120 50 50)"/></g></svg>

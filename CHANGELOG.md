@@ -39,6 +39,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Seasons: Winter (Dec 1 to Feb 29), Spring (Mar 1 to May 31) and Summer (Jun 1 to Aug 31) with three looks each, each with its own accent and a season mark; snow, petals and fireflies drift over them. Turn Seasonal looks on in Settings and pick the photos you like.
 - Seasons: the artwork for Winter, Spring and Summer (nine photos and paintings, all public domain or CC0, credited); nothing paints them yet.
 - Docs: the seasonal-looks standard describes moving-date windows, the `drift` kinds, the registry order and the Settings grouping for the seasons coming next.
 - Dev: scripts/season-photo-search.py finds public-domain and CC0 photo candidates (Wikimedia Commons, the Art Institute of Chicago) and writes a contact sheet for choosing seasonal looks; the seasonal-looks standard explains how to use it.

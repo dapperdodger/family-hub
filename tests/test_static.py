@@ -1786,11 +1786,17 @@ _LOOK_TOKENS = ["--accent", "--accent-ink", "--accent-soft", "--sn-scene", "--sn
 # Each season's moving things are coloured once for the whole season, on its
 # own block: fall's leaves are per-look (they were picked out of each photo),
 # Halloween's bats, spiders and webs are one palette for all five looks.
+# Winter's snow and Summer's fireflies need no colours of their own (white, warm glow); Spring's
+# petals are tinted per look to match each photo.
 _SEASON_SHAPE_TOKENS = {
     "fall-": ["--sn-leaf-1", "--sn-leaf-2", "--sn-leaf-3", "--sn-leaf-4"],
+    "winter-": [],
+    "spring-": ["--sn-bit-1", "--sn-bit-2"],
+    "summer-": [],
     "halloween-": ["--sn-bat", "--sn-bat-glow", "--sn-spider", "--sn-spider-glow",
                    "--sn-web", "--sn-haze"],
 }
+_PER_LOOK_SHAPES = ("fall-", "spring-")   # seasons whose moving things are coloured look by look
 _THEME_OWNED = ["--ground", "--surface", "--surface-2", "--edge", "--edge-soft",
                 "--ink", "--dim", "--faint", "--shadow", "--glass", "--glass-edge", "--sn-wash"]
 
@@ -1814,10 +1820,10 @@ def test_every_look_sets_its_photo_and_accent_and_leaves_the_theme_alone(look):
         assert re.search(rf"{re.escape(tok)}\s*:", body), f"{eve} never sets {tok}"
     prefix = next(pre for pre in _SEASON_SHAPE_TOKENS if look.startswith(pre))
     shapes = _SEASON_SHAPE_TOKENS[prefix]
-    if prefix == "fall-":
+    if prefix in _PER_LOOK_SHAPES:
         for tok in shapes:
             assert re.search(rf"{re.escape(tok)}\s*:", body), f"{eve} never sets {tok}"
-    else:
+    elif shapes:
         block = _block_after(f':root[data-look^="{prefix}"]')
         for tok in shapes:
             assert re.search(rf"{re.escape(tok)}\s*:", block), \
@@ -2271,7 +2277,7 @@ def test_every_creature_token_a_season_declares_is_actually_used():
     reference (var(--sn-bat-nope)) leaves the bats invisible and every other
     guard still green."""
     for prefix, tokens in _SEASON_SHAPE_TOKENS.items():
-        if prefix == "fall-":
+        if prefix in _PER_LOOK_SHAPES:
             continue
         for tok in tokens:
             assert re.search(rf"var\({re.escape(tok)}[,)]", CSS), \

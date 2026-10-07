@@ -51,6 +51,7 @@
   --sn-wash: linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 36%, rgba(255,255,255,.06) 100%);
   --glass: rgba(255,255,255,.66); --glass-edge: rgba(255,255,255,.50);
   --sn-leaf-1: #F58A2E; --sn-leaf-2: #F7B733; --sn-leaf-3: #EE6446; --sn-leaf-4: #FFD56B;
+  --sn-bit-1: #F6C9D6; --sn-bit-2: #E58FAB;
 }
 :root[data-accent="violet"] { --accent:#7A5AF0; --accent-soft:rgba(122,90,240,.12); }
 :root[data-accent="amber"]  { --accent:#D98A15; --accent-soft:rgba(217,138,21,.14); }
@@ -2999,6 +3000,108 @@ body.integ-off-todos .todo-slot { display: none; }
   --accent:#CC4F16; --accent-ink:#FFFFFF; --accent-soft:rgba(204,79,22,.12);
 }
 
+/* ---- Snowy Firs: snow-laden firs under a deep blue sky (U.S. Forest Service, public domain) ---- */
+:root[data-look="winter-mthood"][data-theme][data-accent],
+.look-swatch[data-look="winter-mthood"] {
+  --accent:#9BD6F5; --accent-ink:#04141F; --accent-soft:rgba(155,214,245,.18);
+  --sn-scene:url("seasons/winter-mthood.webp"); --sn-pos:center 40%;
+}
+:root[data-look="winter-mthood"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="winter-mthood"] {
+  --accent:#1B6C96; --accent-ink:#FFFFFF; --accent-soft:rgba(27,108,150,.13);
+}
+
+/* ---- Alpenglow: pink evening light on snowy dunes and peaks (NPS, public domain) ---- */
+:root[data-look="winter-alpenglow"][data-theme][data-accent],
+.look-swatch[data-look="winter-alpenglow"] {
+  --accent:#FF9E8F; --accent-ink:#2A0C08; --accent-soft:rgba(255,158,143,.18);
+  --sn-scene:url("seasons/winter-alpenglow.webp"); --sn-pos:center 40%;
+}
+:root[data-look="winter-alpenglow"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="winter-alpenglow"] {
+  --accent:#B23A48; --accent-ink:#FFFFFF; --accent-soft:rgba(178,58,72,.13);
+}
+
+/* ---- Winter Cabin: a cabin among the snowy forest (Gérôme Bruneau, CC0) ---- */
+:root[data-look="winter-cabin"][data-theme][data-accent],
+.look-swatch[data-look="winter-cabin"] {
+  --accent:#FF8A66; --accent-ink:#2A0D05; --accent-soft:rgba(255,138,102,.18);
+  --sn-scene:url("seasons/winter-cabin.webp"); --sn-pos:center 55%;
+}
+:root[data-look="winter-cabin"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="winter-cabin"] {
+  --accent:#B8431F; --accent-ink:#FFFFFF; --accent-soft:rgba(184,67,31,.13);
+}
+
+/* ---- Redbud Bloom: redbud branches in full bloom (Cbaile19, CC0) ---- */
+:root[data-look="spring-redbud"][data-theme][data-accent],
+.look-swatch[data-look="spring-redbud"] {
+  --accent:#E58FD9; --accent-ink:#2A0828; --accent-soft:rgba(229,143,217,.18);
+  --sn-scene:url("seasons/spring-redbud.webp"); --sn-pos:center 40%;
+  --sn-bit-1:#F6C9E4; --sn-bit-2:#E58FC4;
+}
+:root[data-look="spring-redbud"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="spring-redbud"] {
+  --accent:#9C2A8E; --accent-ink:#FFFFFF; --accent-soft:rgba(156,42,142,.13);
+}
+
+/* ---- Bluebonnet Hills: a Texas Hill Country field (Carol M. Highsmith, public domain) ---- */
+:root[data-look="spring-bluebonnets"][data-theme][data-accent],
+.look-swatch[data-look="spring-bluebonnets"] {
+  --accent:#9AA8FF; --accent-ink:#0A0F33; --accent-soft:rgba(154,168,255,.18);
+  --sn-scene:url("seasons/spring-bluebonnets.webp"); --sn-pos:center 65%;
+  --sn-bit-1:#D3DAFF; --sn-bit-2:#8D9CFF;
+}
+:root[data-look="spring-bluebonnets"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="spring-bluebonnets"] {
+  --accent:#3B4AB8; --accent-ink:#FFFFFF; --accent-soft:rgba(59,74,184,.13);
+}
+
+/* ---- Spring in France: a painted spring meadow, 1890 (Robert William Vonnoh, public domain) ---- */
+:root[data-look="spring-france"][data-theme][data-accent],
+.look-swatch[data-look="spring-france"] {
+  --accent:#6CCFA0; --accent-ink:#052015; --accent-soft:rgba(108,207,160,.18);
+  --sn-scene:url("seasons/spring-france.webp"); --sn-pos:center 55%;
+  --sn-bit-1:#FFFFFF; --sn-bit-2:#F6D9DF;
+}
+:root[data-look="spring-france"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="spring-france"] {
+  --accent:#1F7A55; --accent-ink:#FFFFFF; --accent-soft:rgba(31,122,85,.13);
+}
+
+/* ---- Sunflower Fields: sunflowers under a summer sky (Wenchieh Yang, CC0) ---- */
+:root[data-look="summer-sunflowers"][data-theme][data-accent],
+.look-swatch[data-look="summer-sunflowers"] {
+  --accent:#FFD23F; --accent-ink:#241B00; --accent-soft:rgba(255,210,63,.18);
+  --sn-scene:url("seasons/summer-sunflowers.webp"); --sn-pos:center 45%;
+}
+:root[data-look="summer-sunflowers"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="summer-sunflowers"] {
+  --accent:#8C6000; --accent-ink:#FFFFFF; --accent-soft:rgba(140,96,0,.13);
+}
+
+/* ---- Lone Ranch Sunset: the sun going down over an Oregon beach (Bonnie Moreland, CC0) ---- */
+:root[data-look="summer-lone-ranch"][data-theme][data-accent],
+.look-swatch[data-look="summer-lone-ranch"] {
+  --accent:#FFA040; --accent-ink:#2A1200; --accent-soft:rgba(255,160,64,.18);
+  --sn-scene:url("seasons/summer-lone-ranch.webp"); --sn-pos:center 25%;
+}
+:root[data-look="summer-lone-ranch"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="summer-lone-ranch"] {
+  --accent:#A25200; --accent-ink:#FFFFFF; --accent-soft:rgba(162,82,0,.13);
+}
+
+/* ---- Coastal Wildflowers: purple wildflowers above the Oregon coast (BLM, public domain) ---- */
+:root[data-look="summer-wildflowers"][data-theme][data-accent],
+.look-swatch[data-look="summer-wildflowers"] {
+  --accent:#5CB8F0; --accent-ink:#04182A; --accent-soft:rgba(92,184,240,.18);
+  --sn-scene:url("seasons/summer-wildflowers.webp"); --sn-pos:center 50%;
+}
+:root[data-look="summer-wildflowers"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="summer-wildflowers"] {
+  --accent:#0F6AA8; --accent-ink:#FFFFFF; --accent-soft:rgba(15,106,168,.13);
+}
+
 /* ---- Halloween: shared by every halloween-* look ----
    Bats and spiders are near-black with a coloured rim (a purple glow on the
    bats, a green one on the spiders) so they read on a night photo and on
@@ -3353,6 +3456,12 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 .look-swatch[data-look="fall-misty-road"] .look-mark { --mark: url("seasons/leaf-maple.svg"); }
 [data-look="fall-maple-sky"] .season-mark,
 .look-swatch[data-look="fall-maple-sky"] .look-mark { --mark: url("seasons/leaf-maple.svg"); }
+[data-look^="winter-"] .season-mark,
+.look-swatch[data-look^="winter-"] .look-mark { --mark: url("seasons/mark-snowflake.svg"); }
+[data-look^="spring-"] .season-mark,
+.look-swatch[data-look^="spring-"] .look-mark { --mark: url("seasons/mark-blossom.svg"); }
+[data-look^="summer-"] .season-mark,
+.look-swatch[data-look^="summer-"] .look-mark { --mark: url("seasons/mark-sun.svg"); }
 [data-look^="halloween-"] .season-mark,
 .look-swatch[data-look^="halloween-"] .look-mark { --mark: url("seasons/bat.svg"); }
 

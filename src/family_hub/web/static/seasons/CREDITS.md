@@ -39,7 +39,10 @@ Each photo was resized to 2560px wide, converted to sRGB and re-encoded by
 | `spider-web.svg` | "Spiders web", tom, [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Spiders_web.svg). Changed: optimised; the strands keep one hairline width at any size | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `shape-petal.svg` | Self-made abstract petal (a pointed teardrop path), no source image | CC0 |
 | `shape-clover.svg` | Self-made abstract four-leaf clover (four heart lobes around a centre), no source image | CC0 |
-| `shape-spark.svg` | Self-made abstract four-point star (a sparkle), no source image | CC0 |
+| `shape-spark.svg` | Self-made abstract four-point star (a sparkle), no source image | CC0 |
+| `mark-snowflake.svg` | Self-made abstract snowflake (six barbed arms), no source image | CC0 |
+| `mark-blossom.svg` | Self-made abstract blossom (five round petals around a centre), no source image | CC0 |
+| `mark-sun.svg` | Self-made abstract sun (a disc with eight rays), no source image | CC0 |
 
 Every shape is used as a CSS mask, so each look paints it in its own colours.
 

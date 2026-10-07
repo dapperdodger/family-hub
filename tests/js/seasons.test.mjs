@@ -102,7 +102,7 @@ test('every day of several years belongs to some season (no gaps), including lea
 test('seasonFor on the real registry still answers Halloween then Fall as before', () => {
   assert.equal(T.seasonFor(d('2026-10-06')).id, 'halloween');
   assert.equal(T.seasonFor(d('2026-11-05')).id, 'fall');
-  assert.equal(T.seasonFor(d('2026-07-15')), null, 'nothing is in season in July yet');
+  assert.equal(T.seasonFor(d('2026-07-15')).id, 'summer', 'July is Summer now that the broad seasons are in');
 });
 
 test('seasonOutlook groups the picker: what is in season, what comes next by date, the rest', () => {
@@ -140,13 +140,17 @@ const seasonOf = (drift, extra = {}) => ({ id: 'x', name: 'X', from: [12, 1], to
 
 test('data-drift follows the painting season: its kind, else none', () => {
   const { win, root } = loadTheme();
-  win.FH_SEASONS.unshift(seasonOf('snow', { id: 'winter', from: [12, 1], to: [2, 29], looks: [{ id: 'winter-test', name: 'T', blurb: '', default: true }] }));
   win.refreshLook(new Date(2026, 11, 10));
-  assert.equal(root.getAttribute('data-look'), 'winter-test');
+  assert.equal(root.getAttribute('data-look'), 'winter-mthood');
   assert.equal(root.getAttribute('data-drift'), 'snow');
+  win.refreshLook(new Date(2026, 3, 10));
+  assert.equal(root.getAttribute('data-drift'), 'petal');
+  win.refreshLook(new Date(2026, 6, 15));
+  assert.equal(root.getAttribute('data-drift'), 'firefly');
   win.refreshLook(new Date(2026, 9, 6));                       // Halloween: no drift declared
   assert.equal(root.getAttribute('data-drift'), 'none');
-  win.refreshLook(new Date(2026, 6, 15));                      // nothing in season
+  win.FH_SEASONS.splice(0);                                    // nothing in season
+  win.refreshLook(new Date(2026, 6, 15));
   assert.equal(root.getAttribute('data-look'), 'none');
   assert.equal(root.getAttribute('data-drift'), 'none');
 });
