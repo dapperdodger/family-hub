@@ -325,8 +325,17 @@ test('setSeason(on) persists and paints the season\'s default look inside its wi
   assert.equal(root.getAttribute('data-look'), 'fall-aspen-grove');
 });
 
+// The real registry now covers the whole year; the tests below that need a day with NO season
+// (or a registry of their own) keep just Halloween and Fall.
+function onlyFall(win) {
+  for (let i = win.FH_SEASONS.length - 1; i >= 0; i--) {
+    if (!['halloween', 'fall'].includes(win.FH_SEASONS[i].id)) win.FH_SEASONS.splice(i, 1);
+  }
+}
+
 test('outside every season window the look is none even with seasons on', () => {
   const { root, win } = loadTheme({ storage: { 'fh.season': 'on' } });
+  onlyFall(win);
   win.refreshLook(day(1, 15));
   assert.equal(root.getAttribute('data-look'), 'none');
   win.refreshLook(day(7, 4));
@@ -335,6 +344,7 @@ test('outside every season window the look is none even with seasons on', () => 
 
 test('the fall window is inclusive at both ends: Sep 1 and Nov 30 in, Aug 31 and Dec 1 out', () => {
   const { win } = loadTheme({ storage: { 'fh.season': 'on' } });
+  onlyFall(win);
   assert.equal(win.refreshLook(day(8, 31)), 'none');
   assert.equal(win.refreshLook(day(9, 1)), 'fall-aspen-grove');
   assert.equal(win.refreshLook(day(11, 30)), 'fall-aspen-grove');
@@ -400,6 +410,7 @@ test('a window may wrap the new year, and the FIRST matching season wins', () =>
   // Dec->Feb window works, and a short holiday listed before its broad
   // season takes precedence inside it.
   const { win } = loadTheme({ storage: { 'fh.season': 'on' } });
+  onlyFall(win);
   win.FH_SEASONS.push({ id: 'winter', name: 'Winter', from: [12, 1], to: [2, 28],
     looks: [{ id: 'winter-snow', name: 'Snow' }] });
   win.FH_SEASONS.unshift({ id: 'harvest', name: 'Harvest', from: [11, 20], to: [11, 27],
@@ -519,6 +530,7 @@ test('seasonChoiceMade: false until someone on this device picks, then true', ()
 
 test('nextSeason names the season that opens soonest, wrapping the year', () => {
   const { win } = loadTheme();
+  onlyFall(win);
   assert.equal(win.nextSeason(day(1, 15)).id, 'fall');
   assert.equal(win.nextSeason(day(12, 20)).id, 'fall', 'after fall ends, next fall');
   win.FH_SEASONS.push({ id: 'winter', name: 'Winter', from: [12, 1], to: [2, 28], looks: [{ id: 'winter-snow', name: 'Snow' }] });
@@ -543,6 +555,7 @@ test('setSeason(on) repaints immediately in season, and stays none out of season
   inFall.win.setSeason('on');
   assert.equal(inFall.root.getAttribute('data-look'), 'fall-aspen-grove');
   const inJuly = loadTheme({ now: day(7, 4) });
+  onlyFall(inJuly.win);
   inJuly.win.setSeason('on');
   assert.equal(inJuly.root.getAttribute('data-look'), 'none');
 });

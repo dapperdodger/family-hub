@@ -19,6 +19,15 @@ Each photo was resized to 2560px wide, converted to sRGB and re-encoded by
 | `halloween-purple-sky.webp` | "Sublime purple night sky", Vincentiu Solomon | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Sublime_purple_night_sky_(Unsplash).jpg) (from Unsplash, 2016) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
 | `halloween-purple-pines.webp` | "Trees against purple night sky", Ryan Hutton | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Trees_against_purple_night_sky_(Unsplash).jpg) (from Unsplash, 2016) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
 | `halloween-branches.webp` | "Dark branches at dusk", Vladimir Agafonkin | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Dark_branches_at_dusk_(Unsplash).jpg) (from Unsplash, 2016) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
+| `winter-mthood.webp` | "Snow Covered Trees, Mt Hood National Forest", U.S. Forest Service, Pacific Northwest Region | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Snow_Covered_Trees,_Mt_Hood_National_Forest_(36795929710).jpg) | Public domain (work of the US federal government) |
+| `winter-alpenglow.webp` | "Alpenglow on Snowy Star Dune and Crestone Peaks", Great Sand Dunes National Park and Preserve (National Park Service) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Alpenglow_on_Snowy_Star_Dune_and_Crestone_Peaks_(31601451293).jpg) | Public domain (work of the US federal government) |
+| `winter-cabin.webp` | "A cabin among the snowy forest", Gérôme Bruneau | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:A_cabin_among_the_snowy_forest_(Unsplash).jpg) (from Unsplash, 2016; the Unsplash page was archived on 2017-05-03, before the June 2017 licence change) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
+| `spring-redbud.webp` | "Redbuds, Chatham University", Cbaile19 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Redbuds,_Chatham_University,_2023-04-20,_01.jpg) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `spring-bluebonnets.webp` | "Bluebonnet field near Marble Falls in the Hill Country of Texas", Carol M. Highsmith, Library of Congress | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Bluebonnet_field_near_Marble_Falls_in_the_Hill_Country_of_Texas_LCCN2014633112.tif) | Public domain (the photographer gave her work to the public domain) |
+| `spring-france.webp` | "Spring in France" (1890, oil on canvas), Robert William Vonnoh | [Art Institute of Chicago](https://www.artic.edu/artworks/97292) | Public domain (Art Institute of Chicago open access, CC0) |
+| `summer-sunflowers.webp` | "Sunflower Fields", Wenchieh Yang | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Sunflower_Fields.jpg) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `summer-lone-ranch.webp` | "Sunset, Lone Ranch Beach, Oregon", Bonnie Moreland | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Sunset,_Lone_Ranch_Beach,_Oregon.jpg) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `summer-wildflowers.webp` | "Summer wildflowers at Yaquina Head", Alyssa Uhen, Bureau of Land Management Oregon & Washington | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Summer_wildflowers_at_Yaquina_Head_(48302262812).jpg) | Public domain (work of a US federal government employee; the Flickr original is also offered under CC-BY 2.0) |
 
 ## Shapes
 
@@ -31,6 +40,9 @@ Each photo was resized to 2560px wide, converted to sRGB and re-encoded by
 | `shape-petal.svg` | Self-made abstract petal (a pointed teardrop path), no source image | CC0 |
 | `shape-clover.svg` | Self-made abstract four-leaf clover (four heart lobes around a centre), no source image | CC0 |
 | `shape-spark.svg` | Self-made abstract four-point star (a sparkle), no source image | CC0 |
+| `mark-snowflake.svg` | Self-made abstract snowflake (six barbed arms), no source image | CC0 |
+| `mark-blossom.svg` | Self-made abstract blossom (five round petals around a centre), no source image | CC0 |
+| `mark-sun.svg` | Self-made abstract sun (a disc with eight rays), no source image | CC0 |
 
 Every shape is used as a CSS mask, so each look paints it in its own colours.
 

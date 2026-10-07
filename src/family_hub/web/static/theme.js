@@ -311,6 +311,21 @@
     // `credit` is shown on the Settings tile (full attribution lives in
     // static/seasons/CREDITS.md). Ids are storage keys and image file names:
     // renaming a look is free, changing its id resets that choice everywhere.
+    { id: "winter", name: "Winter", from: [12, 1], to: [2, 29], drift: "snow", looks: [
+      { id: "winter-mthood", name: "Snowy Firs", blurb: "Snow-laden firs under a deep blue sky", credit: "Photo by the U.S. Forest Service", default: true },
+      { id: "winter-alpenglow", name: "Alpenglow", blurb: "Pink evening light on snowy dunes and peaks", credit: "Photo by the National Park Service" },
+      { id: "winter-cabin", name: "Winter Cabin", blurb: "A cabin among the snowy forest", credit: "Photo by Gérôme Bruneau" },
+    ] },
+    { id: "spring", name: "Spring", from: [3, 1], to: [5, 31], drift: "petal", looks: [
+      { id: "spring-redbud", name: "Redbud Bloom", blurb: "Redbud branches in full bloom", credit: "Photo by Cbaile19", default: true },
+      { id: "spring-bluebonnets", name: "Bluebonnet Hills", blurb: "A bluebonnet field in the Texas Hill Country", credit: "Photo by Carol M. Highsmith" },
+      { id: "spring-france", name: "Spring in France", blurb: "A painted spring meadow, 1890", credit: "Painting by Robert William Vonnoh" },
+    ] },
+    { id: "summer", name: "Summer", from: [6, 1], to: [8, 31], drift: "firefly", looks: [
+      { id: "summer-sunflowers", name: "Sunflower Fields", blurb: "Sunflowers under a summer sky", credit: "Photo by Wenchieh Yang", default: true },
+      { id: "summer-lone-ranch", name: "Lone Ranch Sunset", blurb: "The sun going down over an Oregon beach", credit: "Photo by Bonnie Moreland" },
+      { id: "summer-wildflowers", name: "Coastal Wildflowers", blurb: "Purple wildflowers above the Oregon coast", credit: "Photo by the Bureau of Land Management" },
+    ] },
     { id: "halloween", name: "Halloween", from: [10, 1], to: [10, 31], looks: [
       { id: "halloween-two-lanterns", name: "Lantern Night", blurb: "Two carved pumpkins glowing in the dark", credit: "Photo by Beth Teutschmann", default: true },
       { id: "halloween-purple-sky", name: "Witching Hour", blurb: "The Milky Way over a violet horizon", credit: "Photo by Vincentiu Solomon" },

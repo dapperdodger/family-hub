@@ -102,7 +102,7 @@ test('every day of several years belongs to some season (no gaps), including lea
 test('seasonFor on the real registry still answers Halloween then Fall as before', () => {
   assert.equal(T.seasonFor(d('2026-10-06')).id, 'halloween');
   assert.equal(T.seasonFor(d('2026-11-05')).id, 'fall');
-  assert.equal(T.seasonFor(d('2026-07-15')), null, 'nothing is in season in July yet');
+  assert.equal(T.seasonFor(d('2026-07-15')).id, 'summer', 'July is Summer now that the broad seasons are in');
 });
 
 test('seasonOutlook groups the picker: what is in season, what comes next by date, the rest', () => {
@@ -140,13 +140,17 @@ const seasonOf = (drift, extra = {}) => ({ id: 'x', name: 'X', from: [12, 1], to
 
 test('data-drift follows the painting season: its kind, else none', () => {
   const { win, root } = loadTheme();
-  win.FH_SEASONS.unshift(seasonOf('snow', { id: 'winter', from: [12, 1], to: [2, 29], looks: [{ id: 'winter-test', name: 'T', blurb: '', default: true }] }));
   win.refreshLook(new Date(2026, 11, 10));
-  assert.equal(root.getAttribute('data-look'), 'winter-test');
+  assert.equal(root.getAttribute('data-look'), 'winter-mthood');
   assert.equal(root.getAttribute('data-drift'), 'snow');
+  win.refreshLook(new Date(2026, 3, 10));
+  assert.equal(root.getAttribute('data-drift'), 'petal');
+  win.refreshLook(new Date(2026, 6, 15));
+  assert.equal(root.getAttribute('data-drift'), 'firefly');
   win.refreshLook(new Date(2026, 9, 6));                       // Halloween: no drift declared
   assert.equal(root.getAttribute('data-drift'), 'none');
-  win.refreshLook(new Date(2026, 6, 15));                      // nothing in season
+  win.FH_SEASONS.splice(0);                                    // nothing in season
+  win.refreshLook(new Date(2026, 6, 15));
   assert.equal(root.getAttribute('data-look'), 'none');
   assert.equal(root.getAttribute('data-drift'), 'none');
 });
@@ -209,4 +213,42 @@ test('a season written as window: WINDOWS.easter in the registry loads and paint
 test('the date helpers and WINDOWS are defined before the registry that uses them', () => {
   assert.ok(themeSrc.indexOf('var WINDOWS = {') < themeSrc.indexOf('var SEASONS = ['), 'WINDOWS comes first');
   assert.ok(themeSrc.indexOf('function windowOf(') < themeSrc.indexOf('var SEASONS = ['));
+});
+
+test('the real registry: every day of the year paints the season the calendar says', () => {
+  const want = (m, day) => {
+    if (m === 10) return 'halloween';
+    if (m === 9 || m === 11) return 'fall';
+    if (m === 12 || m <= 2) return 'winter';
+    if (m <= 5) return 'spring';
+    return 'summer';
+  };
+  for (const year of [2026, 2027, 2028]) {          // 2028 is a leap year: Feb 29 is still Winter
+    for (let t = new Date(year, 0, 1); t.getFullYear() === year; t = new Date(year, t.getMonth(), t.getDate() + 1)) {
+      assert.equal(T.seasonFor(t).id, want(t.getMonth() + 1, t.getDate()), t.toDateString());
+    }
+  }
+});
+
+test('the real registry: October lists Halloween and Fall now, then Winter, Spring and Summer to come', () => {
+  const o = T.seasonOutlook(d('2026-10-06'));
+  assert.deepEqual(Array.from(o.active.map((s) => s.id)), ['halloween', 'fall']);
+  assert.deepEqual(Array.from(o.upcoming.map((s) => s.id)), ['winter', 'spring', 'summer']);
+  assert.deepEqual(Array.from(o.rest), []);
+});
+
+test('the real registry: look ids are unique, prefixed by their season, and each season has one default', () => {
+  const { win } = loadTheme();
+  const seen = new Set();
+  for (const s of win.FH_SEASONS) {
+    assert.equal(Array.from(s.looks).filter((l) => l.default).length, 1, `${s.id} has exactly one default look`);
+    for (const l of s.looks) {
+      assert.ok(l.id.startsWith(s.id + '-'), `${l.id} starts with ${s.id}-`);
+      assert.ok(!seen.has(l.id), `${l.id} is unique`);
+      seen.add(l.id);
+    }
+  }
+  const ids = Array.from(win.FH_SEASONS.map((s) => s.id));
+  assert.deepEqual(ids, ['winter', 'spring', 'summer', 'halloween', 'fall']);
+  assert.equal(seen.size, 3 + 3 + 3 + 5 + 3);
 });

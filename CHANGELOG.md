@@ -11,6 +11,7 @@ rolls that section to a dated version via `python scripts/release.py`.
 ## [Unreleased]
 
 ### Fixed
+- Seasons review: the credits table for the new photos renders on GitHub (it had picked up stray carriage returns), the wildflower credit names its photographer and licence, and the petal colours no longer sit on the generic drift tokens, so a later clover or sparkle season keeps its own colours.
 - Seasons groundwork review: a season written with a moving window no longer breaks the page's theme at load, Settings copes with a moving season that has no words, the Settings previews keep their own drift kind when the wall paints another, the photo helper's download uses the Wikimedia-friendly User-Agent with a timeout and leaves no partial file, and Juneteenth (whose window hid Father's Day) is dropped from the plan.
 - Plan it: after a timeout the Dinner card is re-read again 5 and 15 seconds later (the hub may still be writing), and a delete only treats a real 404 as already gone, never a server or token error.
 - Plan it: a plan request finishing late no longer unlocks or closes a newer one on another recipe, a timeout says Mealie is slow instead of a raw browser message, and a database hiccup after the plan went through no longer turns it into an error.
@@ -39,6 +40,10 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Docs: the README and the seasonal-looks standard describe Winter, Spring and Summer, and the showcase image shows the new looks beside Halloween and Fall.
+- Seasons: tests pin which season paints on every day of the year with Winter, Spring and Summer in the registry.
+- Seasons: Winter (Dec 1 to Feb 29), Spring (Mar 1 to May 31) and Summer (Jun 1 to Aug 31) with three looks each, each with its own accent and a season mark; snow, petals and fireflies drift over them. Turn Seasonal looks on in Settings and pick the photos you like.
+- Seasons: the artwork for Winter, Spring and Summer (nine photos and paintings, all public domain or CC0, credited); nothing paints them yet.
 - Docs: the seasonal-looks standard describes moving-date windows, the `drift` kinds, the registry order and the Settings grouping for the seasons coming next.
 - Dev: scripts/season-photo-search.py finds public-domain and CC0 photo candidates (Wikimedia Commons, the Art Institute of Chicago) and writes a contact sheet for choosing seasonal looks; the seasonal-looks standard explains how to use it.
 - Seasons: a generic gentle-motion layer (snow, petals, clover leaves, fireflies, sparkle) for the seasons coming next; it is hidden by Lite, stops for reduced motion and at night, and nothing paints it yet.

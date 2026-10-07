@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="20" fill="#000"/><g stroke="#000" stroke-width="8" stroke-linecap="round"><path id="r" d="M50 8V20M50 80V92"/><use href="#r" transform="rotate(45 50 50)"/><use href="#r" transform="rotate(90 50 50)"/><use href="#r" transform="rotate(135 50 50)"/></g></svg>
