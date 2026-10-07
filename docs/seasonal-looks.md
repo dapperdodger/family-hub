@@ -11,14 +11,16 @@ This document is the standard every look is held to. It exists because the
 first three attempts at fall missed, for reasons worth not repeating. Read it
 before adding Halloween, Christmas, winter, spring, or anything else.
 
-**Shipped so far:** fall (Sep 1 to Nov 30, three looks) and Halloween (Oct 1
-to Oct 31, five looks). **What's next, in the owner's order:** Thanksgiving,
-then Christmas. Thanksgiving sits inside fall's Sep 1 to Nov 30 window, so
+**Shipped so far:** fall (Sep 1 to Nov 30, three looks), Halloween (Oct 1
+to Oct 31, five looks), and the three broad seasons: winter (Dec 1 to Feb 29),
+spring (Mar 1 to May 31) and summer (Jun 1 to Aug 31), three looks each, so
+every day of the year paints something. **What's next, in the owner's order:**
+the holidays, Thanksgiving and Christmas first. Thanksgiving sits inside fall's Sep 1 to Nov 30 window, so
 list it in `SEASONS` before fall, since the first matching window wins.
 Windows are month/day and inclusive; a window ending [2, 28] leaves out
 Feb 29, so a winter look should end on [2, 29].
 Each gets its own photos, its own moving things (leaves for fall, bats and
-spiders for Halloween, snow for Christmas, never cartoon props) and a
+spiders for Halloween, snow for winter and Christmas, never cartoon props) and a
 matching accent.
 
 ---

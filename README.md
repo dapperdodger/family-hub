@@ -35,9 +35,14 @@ at one URL.
   separation, set from the wall itself or any phone and remembered per device.
 - **Seasonal looks:** turn **Season** on in the gear menu and the wall follows
   the calendar: a real photograph fills the screen and the dashboard floats
-  on it as frosted glass in your theme's colours, leaves fall at two depths
-  (over the cards and softly behind them), and a matching accent and a small
-  mark sit beside the wordmark. Fall (Sep 1 to
+  on it as frosted glass in your theme's colours, something gentle drifts at
+  two depths (over the cards and softly behind them: leaves in fall, snow in
+  winter, petals in spring, fireflies in summer), and a matching accent and a
+  small mark sit beside the wordmark. **Winter** (Dec 1 to Feb 29) offers
+  **Snowy Firs** (the default), **Alpenglow** and **Winter Cabin**; **Spring**
+  (Mar 1 to May 31) offers **Redbud Bloom**, **Bluebonnet Hills** and a painted
+  **Spring in France**; **Summer** (Jun 1 to Aug 31) offers **Sunflower
+  Fields**, **Lone Ranch Sunset** and **Coastal Wildflowers**. Fall (Sep 1 to
   Nov 30) offers **Aspen Grove** (the default), **Misty Road** and **Maple
   Sky**, and **Halloween** takes October with **Lantern Night** (the
   default), **Witching Hour**, **Haunted Pines**, **Moonrise** and **Bare
@@ -51,11 +56,11 @@ at one URL.
   turns on **Lite** (All settings → Seasonal looks, per device, or add
   `?lite=1` to that screen's URL to latch it; `?lite=0` or the same Settings
   row turns it off again): the photo stays, but the glass becomes a plain card
-  fill instead of a blur and the leaves, bats and spiders never move.
+  fill instead of a blur and the leaves, snow, petals, fireflies, bats and spiders never move.
   The Settings picker groups the seasons (in season now, coming up, more seasons).
   Adding a season or holiday follows [`docs/seasonal-looks.md`](docs/seasonal-looks.md).
 
-  ![Seasonal looks: fall and Halloween](docs/seasons.jpg)
+  ![Seasonal looks: Halloween, winter, spring, summer and fall](docs/seasons.jpg)
 - **Phone / tablet (≤1000px):** the same page reflows to bottom tabs —
   Chores / To-Dos / Calendar / Cameras / Weather / Laundry / Meals. On iPhone, open the
   hub in **Safari** and use Share → **Add to Home Screen** for a full-screen
