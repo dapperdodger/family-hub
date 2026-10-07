@@ -5805,8 +5805,14 @@ function renderIntegrations(data) {
     // 404s harmlessly if this hub never set GOOGLE_OAUTH_CLIENT_ID/SECRET/
     // REDIRECT_URI (the desktop scripts/google-auth.py path still works
     // either way — this is an alternative, not a replacement).
+    // The wall itself (body.is-kiosk) gets instructions instead: Google's sign-in
+    // page is not ours, so the wall's on-screen keyboard is not there to type
+    // with, and the OAuth callback only resolves from a tailnet device anyway.
+    const onWall = !!(document.body && document.body.classList.contains('is-kiosk'));
     const reconnectLink = (it.id === 'google_calendar' && it.status === 'needs_auth')
-      ? `<a class="integ-reconnect" href="/oauth/google/start">Reconnect Google Calendar</a>`
+      ? (onWall
+        ? `<div class="integ-reconnect integ-reconnect-note">Sign-in can't be typed on this screen. On a phone, open the hub, then Settings, then Reconnect Google Calendar.</div>`
+        : `<a class="integ-reconnect" href="/oauth/google/start">Reconnect Google Calendar</a>`)
       : '';
     return `<button class="integ-row" type="button" role="switch"`
       + ` aria-checked="${it.enabled ? 'true' : 'false'}"`
