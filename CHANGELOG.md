@@ -40,6 +40,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Seasons: the artwork for the ten holidays (29 photos, all public domain or CC0, each licence checked and credited); nothing paints them yet.
 - Docs: the README and the seasonal-looks standard describe Winter, Spring and Summer, and the showcase image shows the new looks beside Halloween and Fall.
 - Seasons: tests pin which season paints on every day of the year with Winter, Spring and Summer in the registry.
 - Seasons: Winter (Dec 1 to Feb 29), Spring (Mar 1 to May 31) and Summer (Jun 1 to Aug 31) with three looks each, each with its own accent and a season mark; snow, petals and fireflies drift over them. Turn Seasonal looks on in Settings and pick the photos you like.
