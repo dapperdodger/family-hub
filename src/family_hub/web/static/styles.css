@@ -3166,7 +3166,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="christmas-santa"][data-theme][data-accent],
 .look-swatch[data-look="christmas-santa"] {
   --accent:#DD737E; --accent-ink:#1B1405; --accent-soft:rgba(221,115,126,.18);
-  --sn-scene:url("seasons/christmas-santa.webp"); --sn-pos:center 45%;
+  --sn-scene:url("seasons/christmas-santa.webp"); --sn-pos:95% 45%;
 }
 :root[data-look="christmas-santa"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-santa"] {
@@ -3232,7 +3232,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="mlkday-march"][data-theme][data-accent],
 .look-swatch[data-look="mlkday-march"] {
   --accent:#E5BC6C; --accent-ink:#1B1405; --accent-soft:rgba(229,188,108,.18);
-  --sn-scene:url("seasons/mlkday-march.webp"); --sn-pos:center 40%;
+  --sn-scene:url("seasons/mlkday-march.webp"); --sn-pos:85% 40%;
 }
 :root[data-look="mlkday-march"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="mlkday-march"] {
@@ -3298,7 +3298,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="stpatricks-clover"][data-theme][data-accent],
 .look-swatch[data-look="stpatricks-clover"] {
   --accent:#9CD879; --accent-ink:#1B1405; --accent-soft:rgba(156,216,121,.18);
-  --sn-scene:url("seasons/stpatricks-clover.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/stpatricks-clover.webp"); --sn-pos:74% 50%;
 }
 :root[data-look="stpatricks-clover"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="stpatricks-clover"] {
@@ -3331,7 +3331,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="easter-rabbit"][data-theme][data-accent],
 .look-swatch[data-look="easter-rabbit"] {
   --accent:#AED879; --accent-ink:#1B1405; --accent-soft:rgba(174,216,121,.18);
-  --sn-scene:url("seasons/easter-rabbit.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/easter-rabbit.webp"); --sn-pos:76% 50%;
 }
 :root[data-look="easter-rabbit"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="easter-rabbit"] {
@@ -3386,7 +3386,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="fathersday-jeep"][data-theme][data-accent],
 .look-swatch[data-look="fathersday-jeep"] {
   --accent:#DB9B75; --accent-ink:#1B1405; --accent-soft:rgba(219,155,117,.18);
-  --sn-scene:url("seasons/fathersday-jeep.webp"); --sn-pos:center 70%;
+  --sn-scene:url("seasons/fathersday-jeep.webp"); --sn-pos:72% 70%;
 }
 :root[data-look="fathersday-jeep"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="fathersday-jeep"] {
@@ -3430,7 +3430,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="julyfourth-flag"][data-theme][data-accent],
 .look-swatch[data-look="julyfourth-flag"] {
   --accent:#79BCD8; --accent-ink:#1B1405; --accent-soft:rgba(121,188,216,.18);
-  --sn-scene:url("seasons/julyfourth-flag.webp"); --sn-pos:center 40%;
+  --sn-scene:url("seasons/julyfourth-flag.webp"); --sn-pos:74% 40%;
 }
 :root[data-look="julyfourth-flag"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="julyfourth-flag"] {

@@ -2885,3 +2885,15 @@ def test_every_holiday_look_is_styled_before_the_registry_lists_it():
         assert f':root[data-look="{look}"][data-accent]:is([data-theme="light"],[data-theme="soft"])' in CSS, f"{look} has no light-theme block"
         assert f'--sn-scene:url("seasons/{look}.webp")' in CSS, f"{look} never paints its photo"
         assert (STATIC / "seasons" / f"{look}.webp").is_file(), f"missing {look}.webp"
+
+
+# A phone shows only about 31 percent of a 3:2 photo's width (the wall shows all of it), so a subject that sits off
+# the photo's middle needs its own horizontal focal point or the phone shows only background.
+PHONE_FOCAL_X = {'christmas-santa': 95, 'mlkday-march': 85, 'stpatricks-clover': 74, 'easter-rabbit': 76, 'fathersday-jeep': 72, 'julyfourth-flag': 74}
+
+
+def test_holiday_looks_with_an_off_centre_subject_keep_it_on_the_phone():
+    for look, want in PHONE_FOCAL_X.items():
+        m = re.search(rf'--sn-scene:url\("seasons/{re.escape(look)}\.webp"\); --sn-pos:(\d+)% (\d+)%', CSS)
+        assert m, f"{look} has no x/y focal point (an x of 'center' leaves the subject off the phone)"
+        assert abs(int(m.group(1)) - want) <= 3, f"{look}: --sn-pos x is {m.group(1)}, the subject is at about {want}"
