@@ -47,14 +47,13 @@ at one URL.
   Sky**, and **Halloween** takes October with **Lantern Night** (the
   default), **Witching Hour**, **Haunted Pines**, **Moonrise** and **Bare
   Branches** — bats cross the sky, a spider lets itself down on its thread,
-  another lives on the glass, and webs hang in the corners. Ten holidays sit on
+  another lives on the glass, and webs hang in the corners. Nine holidays sit on
   top of those and win over the season they fall in: **New Year's** (Dec 27 to
-  Jan 2, a slow gold sparkle), **Christmas** (Dec 1 to 26, snow), **Martin
-  Luther King Jr. Day** (its long weekend), **Valentine's Day** (Feb 1 to 14,
+  Jan 2, a slow gold sparkle), **Christmas** (Dec 1 to 26, snow), **Valentine's Day** (Feb 1 to 14,
   petals), **St Patrick's Day** (Mar 1 to 17, drifting clovers), **Easter**
   (the two weeks before it), **Mother's Day** and **Father's Day** (their
   weeks), the **Fourth of July** (Jun 25 to Jul 4) and **Thanksgiving** (the
-  ten days before it, with the falling leaves), 29 looks in all. A device
+  ten days before it, with the falling leaves), 28 looks in all. A device
   remembers one pick per season, so Thanksgiving week shows Thanksgiving's own
   default even if you picked a Fall look. Each look is
   picked per device under **All settings → Seasonal looks** from

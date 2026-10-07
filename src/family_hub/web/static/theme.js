@@ -321,9 +321,6 @@
       { id: "christmas-village", name: "Gingerbread Village", blurb: "A tiny gingerbread village glowing in the dark", credit: "Photo by Nathan Anderson" },
       { id: "christmas-snowmen", name: "Snowmen", blurb: "Two snowmen among warm lights", credit: "Photo by Jeffrey Wegrzyn" },
     ] },
-    { id: "mlkday", name: "Martin Luther King Jr. Day", window: WINDOWS.mlkDay, when: "The long weekend of Martin Luther King Jr. Day", looks: [
-      { id: "mlkday-march", name: "March on Washington", blurb: "Dr. King greeting the crowd, 28 August 1963", credit: "Photo from the National Park Service archive", default: true },
-    ] },
     { id: "valentines", name: "Valentine's Day", from: [2, 1], to: [2, 14], drift: "petal", looks: [
       { id: "valentines-bouquet", name: "Pink Bouquet", blurb: "A bouquet of pale pink roses", credit: "Photo by Caroline Attwood", default: true },
       { id: "valentines-tulips", name: "Red Tulips", blurb: "Red tulips in warm, dim light", credit: "Photo by Benny Jackson" },

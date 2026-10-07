@@ -1796,7 +1796,6 @@ _SEASON_SHAPE_TOKENS = {
     "thanksgiving-": ["--sn-leaf-1", "--sn-leaf-2", "--sn-leaf-3", "--sn-leaf-4"],
     "christmas-": [],                     # white snow
     "newyears-": [],                      # gold sparkle (the drift's own colours)
-    "mlkday-": [],                        # photo only
     "valentines-": ["--sn-petal-1", "--sn-petal-2"],
     "stpatricks-": [],                    # green clovers (the drift's own colours)
     "easter-": ["--sn-petal-1", "--sn-petal-2"],
@@ -2866,7 +2865,6 @@ HOLIDAY_LOOKS = [
     "thanksgiving-pumpkins", "thanksgiving-cranberries", "thanksgiving-pumpkin-bowl", "thanksgiving-turkey",
     "christmas-santa", "christmas-village", "christmas-snowmen",
     "newyears-sparkler", "newyears-fireworks", "newyears-champagne",
-    "mlkday-march",
     "valentines-bouquet", "valentines-tulips", "valentines-rose",
     "stpatricks-countryside", "stpatricks-bay", "stpatricks-clover",
     "easter-eggs", "easter-ducklings", "easter-rabbit",
@@ -2877,9 +2875,9 @@ HOLIDAY_LOOKS = [
 
 
 def test_every_holiday_look_is_styled_before_the_registry_lists_it():
-    """The registry-driven guards only look at looks theme.js lists; this one pins the 29 holiday looks'
+    """The registry-driven guards only look at looks theme.js lists; this one pins the 28 holiday looks'
     CSS and photos on their own, so a block can never go missing between the art and the registry."""
-    assert len(HOLIDAY_LOOKS) == 29
+    assert len(HOLIDAY_LOOKS) == 28
     for look in HOLIDAY_LOOKS:
         assert f':root[data-look="{look}"][data-theme][data-accent]' in CSS, f"{look} has no dark-theme block"
         assert f':root[data-look="{look}"][data-accent]:is([data-theme="light"],[data-theme="soft"])' in CSS, f"{look} has no light-theme block"
@@ -2889,7 +2887,7 @@ def test_every_holiday_look_is_styled_before_the_registry_lists_it():
 
 # A phone shows only about 31 percent of a 3:2 photo's width (the wall shows all of it), so a subject that sits off
 # the photo's middle needs its own horizontal focal point or the phone shows only background.
-PHONE_FOCAL_X = {'christmas-santa': 95, 'mlkday-march': 85, 'stpatricks-clover': 74, 'easter-rabbit': 76, 'fathersday-jeep': 72, 'julyfourth-flag': 74}
+PHONE_FOCAL_X = {'christmas-santa': 95, 'stpatricks-clover': 74, 'easter-rabbit': 76, 'fathersday-jeep': 72, 'julyfourth-flag': 74}
 
 
 def test_holiday_looks_with_an_off_centre_subject_keep_it_on_the_phone():

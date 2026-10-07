@@ -38,7 +38,6 @@ Each photo was resized to 2560px wide, converted to sRGB and re-encoded by
 | `newyears-sparkler.webp` | "Mumbai sparkler", Bhushan Sadani | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Mumbai_sparkler_(Unsplash).jpg) (from Unsplash, 2016) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
 | `newyears-fireworks.webp` | "Fireworks over water", Adam Whitlock | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Fireworks_over_water_(Unsplash).jpg) (from Unsplash, 2017) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
 | `newyears-champagne.webp` | "Champagne glasses", Myriam Zilles | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Champagne-glasses-1940262_1920.jpg) (from Pixabay, published 2017-01-02, when Pixabay images were CC0) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
-| `mlkday-march.webp` | "Martin Luther King Jr National Historic Site (March on Washington, 28 August 1963)", National Park Service | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Martin_Luther_King_Jr_National_Historic_Site_(36233249121).jpg) | Public domain (published in 1963 without a copyright notice, so it entered the public domain; posted by the National Park Service) |
 | `valentines-bouquet.webp` | "Pink rose bouquet", Caroline Attwood | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Pink_rose_bouquet_(Unsplash).jpg) (from Unsplash, 2017) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
 | `valentines-tulips.webp` | "Luxurious red tulips", Benny Jackson | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Luxurious_red_tulips_(Unsplash).jpg) (from Unsplash, 2016) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
 | `valentines-rose.webp` | "Red rose in macro", Meredith Whitman | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Red_rose_in_macro_(Unsplash).jpg) (from Unsplash, 2015) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (published under Unsplash's CC0 terms, before its 2017 licence change) |
@@ -76,7 +75,6 @@ Each photo was resized to 2560px wide, converted to sRGB and re-encoded by
 | `mark-egg.svg` | Self-made abstract egg (an oval with a zig-zag band), no source image | CC0 |
 | `mark-mountain.svg` | Self-made abstract mountain (two peaks), no source image | CC0 |
 | `mark-star.svg` | Self-made abstract five-point star, no source image | CC0 |
-| `mark-candle.svg` | Self-made abstract candle (a flame over a stem), no source image | CC0 |
 
 Every shape is used as a CSS mask, so each look paints it in its own colours.
 

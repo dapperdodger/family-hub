@@ -3228,17 +3228,6 @@ body.integ-off-todos .todo-slot { display: none; }
   --accent:#826926; --accent-ink:#FFFFFF; --accent-soft:rgba(130,105,38,.13);
 }
 
-/* ---- March on Washington: Dr. King greeting the crowd, 28 August 1963 (National Park Service, public domain) ---- */
-:root[data-look="mlkday-march"][data-theme][data-accent],
-.look-swatch[data-look="mlkday-march"] {
-  --accent:#E5BC6C; --accent-ink:#1B1405; --accent-soft:rgba(229,188,108,.18);
-  --sn-scene:url("seasons/mlkday-march.webp"); --sn-pos:85% 40%;
-}
-:root[data-look="mlkday-march"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
-:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="mlkday-march"] {
-  --accent:#8F6719; --accent-ink:#FFFFFF; --accent-soft:rgba(143,103,25,.13);
-}
-
 /* ---- Pink Bouquet: pale pink roses (Caroline Attwood, CC0) ---- */
 :root[data-look="valentines-bouquet"][data-theme][data-accent],
 .look-swatch[data-look="valentines-bouquet"] {
@@ -3806,8 +3795,6 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 .look-swatch[data-look^="christmas-"] .look-mark { --mark: url("seasons/mark-snowflake.svg"); }
 [data-look^="newyears-"] .season-mark,
 .look-swatch[data-look^="newyears-"] .look-mark { --mark: url("seasons/shape-spark.svg"); }
-[data-look^="mlkday-"] .season-mark,
-.look-swatch[data-look^="mlkday-"] .look-mark { --mark: url("seasons/mark-candle.svg"); }
 [data-look^="valentines-"] .season-mark,
 .look-swatch[data-look^="valentines-"] .look-mark { --mark: url("seasons/mark-heart.svg"); }
 [data-look^="stpatricks-"] .season-mark,

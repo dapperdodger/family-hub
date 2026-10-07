@@ -11,12 +11,12 @@ This document is the standard every look is held to. It exists because the
 first three attempts at fall missed, for reasons worth not repeating. Read it
 before adding a season, a holiday, or anything else.
 
-**Shipped so far:** 15 seasons and 46 looks. The broad ones: fall (Sep 1 to
+**Shipped so far:** 14 seasons and 45 looks. The broad ones: fall (Sep 1 to
 Nov 30), Halloween (October), winter (Dec 1 to Feb 29), spring (Mar 1 to May
 31) and summer (Jun 1 to Aug 31), so every day of the year paints something.
-On top of them ten holidays: New Year's, Christmas, Martin Luther King Jr.
-Day, Valentine's Day, St Patrick's Day, Easter, Mother's Day, Father's Day, the
-Fourth of July and Thanksgiving. A holiday is listed in `SEASONS` before the
+On top of them nine holidays: New Year's, Christmas, Valentine's Day, St
+Patrick's Day, Easter, Mother's Day, Father's Day, the Fourth of July and
+Thanksgiving. A holiday is listed in `SEASONS` before the
 broad season it sits in, because the first matching window wins (the order is
 tested day by day in `tests/js/fixtures/season-calendar.json`, which an
 independent Python script regenerates). Windows are month/day and inclusive; a
@@ -26,8 +26,9 @@ Thanksgiving, bats and spiders for Halloween, snow for winter and Christmas,
 petals, clovers, fireflies or a slow sparkle; none for the solemn days; never
 cartoon props) and a matching accent.
 
-**What's next:** other days (Memorial Day, Labor Day, Veterans Day, Presidents'
-Day) are out of scope until asked; they follow the same recipe. A look is picked
+**What's next:** Martin Luther King Jr. Day waits for a photograph that is clearly
+public domain (the date window, `WINDOWS.mlkDay`, already exists); other days
+(Memorial Day, Labor Day, Veterans Day, Presidents' Day) are out of scope until asked; they follow the same recipe. A look is picked
 per season, so a device that picked a Fall look still gets Thanksgiving's own
 default in Thanksgiving week.
 

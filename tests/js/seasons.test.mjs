@@ -140,7 +140,7 @@ const seasonOf = (drift, extra = {}) => ({ id: 'x', name: 'X', from: [12, 1], to
 
 test('data-drift follows the painting season: its kind, else none', () => {
   const { win, root } = loadTheme();
-  win.refreshLook(new Date(2026, 0, 15));                      // Jan 15: Winter (MLK Day starts Jan 16)
+  win.refreshLook(new Date(2026, 0, 15));                      // Jan 15: Winter
   assert.equal(root.getAttribute('data-look'), 'winter-mthood');
   assert.equal(root.getAttribute('data-drift'), 'snow');
   win.refreshLook(new Date(2026, 11, 10));                     // Dec 10: Christmas owns December
@@ -238,13 +238,13 @@ test('the real registry: October lists Halloween and Fall now, then the next thr
   assert.deepEqual(Array.from(o.active.map((s) => s.id)), ['halloween', 'fall']);
   assert.deepEqual(Array.from(o.upcoming.map((s) => s.id)), ['thanksgiving', 'christmas', 'winter']);   // Winter also starts Dec 1; a tie goes to registry order
   assert.deepEqual(Array.from(o.rest.map((s) => s.id)),
-    ['newyears', 'mlkday', 'valentines', 'stpatricks', 'easter', 'mothersday', 'spring', 'fathersday', 'julyfourth', 'summer']);
+    ['newyears', 'valentines', 'stpatricks', 'easter', 'mothersday', 'spring', 'fathersday', 'julyfourth', 'summer']);
 });
 
 test('the real registry: season and look ids, defaults, prefixes and the words moving seasons need', () => {
   const { win } = loadTheme();
   assert.deepEqual(Array.from(win.FH_SEASONS.map((s) => s.id)),
-    ['newyears', 'christmas', 'mlkday', 'valentines', 'winter', 'stpatricks', 'easter', 'mothersday', 'spring',
+    ['newyears', 'christmas', 'valentines', 'winter', 'stpatricks', 'easter', 'mothersday', 'spring',
      'fathersday', 'julyfourth', 'summer', 'halloween', 'thanksgiving', 'fall']);
   const seen = new Set();
   for (const s of win.FH_SEASONS) {
@@ -256,12 +256,12 @@ test('the real registry: season and look ids, defaults, prefixes and the words m
       seen.add(l.id);
     }
   }
-  assert.equal(seen.size, 46);
+  assert.equal(seen.size, 45);
   const counts = Object.fromEntries(win.FH_SEASONS.map((s) => [s.id, s.looks.length]));
-  assert.deepEqual(counts, { newyears: 3, christmas: 3, mlkday: 1, valentines: 3, winter: 3, stpatricks: 3, easter: 3,
+  assert.deepEqual(counts, { newyears: 3, christmas: 3, valentines: 3, winter: 3, stpatricks: 3, easter: 3,
     mothersday: 3, spring: 3, fathersday: 3, julyfourth: 3, summer: 3, halloween: 5, thanksgiving: 4, fall: 3 });
   const drifts = Object.fromEntries(win.FH_SEASONS.map((s) => [s.id, s.drift || null]));
-  assert.deepEqual(drifts, { newyears: 'sparkle', christmas: 'snow', mlkday: null, valentines: 'petal', winter: 'snow',
+  assert.deepEqual(drifts, { newyears: 'sparkle', christmas: 'snow', valentines: 'petal', winter: 'snow',
     stpatricks: 'clover', easter: 'petal', mothersday: 'petal', spring: 'petal', fathersday: null, julyfourth: 'sparkle',
     summer: 'firefly', halloween: null, thanksgiving: null, fall: null });
 });

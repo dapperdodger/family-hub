@@ -11,7 +11,7 @@ from pathlib import Path
 
 D = dt.timedelta
 YEARS = (2008, 2026, 2027, 2028, 2030, 2038)   # 2008/2038 are the earliest/latest Easters; 2028 is a leap year; 2030's Thanksgiving touches Dec 1
-ORDER = ["newyears", "christmas", "mlkday", "valentines", "winter", "stpatricks", "easter", "mothersday", "spring",
+ORDER = ["newyears", "christmas", "valentines", "winter", "stpatricks", "easter", "mothersday", "spring",
          "fathersday", "julyfourth", "summer", "halloween", "thanksgiving", "fall"]
 
 
@@ -33,7 +33,7 @@ def nth(y, month, weekday_sunday0, n):
 
 
 def window(sid, y):
-    mom, dad, mlk, thx = nth(y, 5, 0, 2), nth(y, 6, 0, 3), nth(y, 1, 1, 3), nth(y, 11, 4, 4)
+    mom, dad, thx = nth(y, 5, 0, 2), nth(y, 6, 0, 3), nth(y, 11, 4, 4)
     return {
         "christmas": (dt.date(y, 12, 1), dt.date(y, 12, 26)),
         "valentines": (dt.date(y, 2, 1), dt.date(y, 2, 14)),
@@ -46,7 +46,6 @@ def window(sid, y):
         "easter": (easter(y) - D(14), easter(y) + D(1)),
         "mothersday": (mom - D(6), mom),
         "fathersday": (dad - D(3), dad),
-        "mlkday": (mlk - D(3), mlk),
         "thanksgiving": (thx - D(10), thx + D(3)),
     }[sid]
 
@@ -67,11 +66,11 @@ def season(d):
 def rows():
     out = set()
     for y in YEARS:
-        for sid in ("christmas", "mlkday", "valentines", "stpatricks", "easter", "mothersday", "fathersday", "julyfourth", "thanksgiving"):
+        for sid in ("christmas", "valentines", "stpatricks", "easter", "mothersday", "fathersday", "julyfourth", "thanksgiving"):
             a, b = window(sid, y)
             for d in (a - D(1), a, b, b + D(1)):
                 out.add((d.isoformat(), season(d)))
-        for md in ((12, 26), (12, 27), (12, 31), (1, 1), (1, 2), (1, 3), (2, 28), (3, 1), (5, 31), (6, 1), (8, 31),
+        for md in ((12, 26), (12, 27), (12, 31), (1, 1), (1, 2), (1, 3), (1, 15), (1, 16), (1, 18), (1, 19), (1, 20), (2, 28), (3, 1), (5, 31), (6, 1), (8, 31),
                    (9, 1), (9, 30), (10, 1), (10, 31), (11, 1), (11, 30)):
             d = dt.date(y, *md)
             out.add((d.isoformat(), season(d)))
