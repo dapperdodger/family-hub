@@ -40,6 +40,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Seasons: the ten holidays: New Year's (Dec 27 to Jan 2), Christmas (Dec 1 to 26), Martin Luther King Jr. Day, Valentine's Day (Feb 1 to 14), St Patrick's Day (Mar 1 to 17), Easter, Mother's Day, Father's Day, the Fourth of July (Jun 25 to Jul 4) and Thanksgiving, with 29 looks between them. Each one wins over the broad season it sits in. Turn Seasonal looks on in Settings and pick the photos you like.
 - Seasons: Thanksgiving looks drift the same falling leaves as Fall (and Lite keeps them still, like Fall's).
 - Seasons: the colours for the ten holiday seasons' 29 looks (a photo focal point and an accent taken from each photo, a deeper accent for Light and Soft, per-photo leaf colours for Thanksgiving and shared petal tints for Valentine's, Easter and Mother's Day); nothing paints them until the calendar lists them.
 - Seasons: five new season marks (heart, egg, mountain, star, candle) for the holidays coming next; nothing uses them yet.

@@ -311,15 +311,58 @@
     // `credit` is shown on the Settings tile (full attribution lives in
     // static/seasons/CREDITS.md). Ids are storage keys and image file names:
     // renaming a look is free, changing its id resets that choice everywhere.
+    { id: "newyears", name: "New Year's", from: [12, 27], to: [1, 2], drift: "sparkle", looks: [
+      { id: "newyears-sparkler", name: "Sparkler", blurb: "A sparkler throwing light in the dark", credit: "Photo by Bhushan Sadani", default: true },
+      { id: "newyears-fireworks", name: "Fireworks over Water", blurb: "Fireworks over dark water", credit: "Photo by Adam Whitlock" },
+      { id: "newyears-champagne", name: "Champagne", blurb: "Two champagne coupes on black", credit: "Photo by Myriam Zilles" },
+    ] },
+    { id: "christmas", name: "Christmas", from: [12, 1], to: [12, 26], drift: "snow", looks: [
+      { id: "christmas-santa", name: "Santa Lights", blurb: "A Santa figure among coloured lights", credit: "Photo by Caleb Woods", default: true },
+      { id: "christmas-village", name: "Gingerbread Village", blurb: "A tiny gingerbread village glowing in the dark", credit: "Photo by Nathan Anderson" },
+      { id: "christmas-snowmen", name: "Snowmen", blurb: "Two snowmen among warm lights", credit: "Photo by Jeffrey Wegrzyn" },
+    ] },
+    { id: "mlkday", name: "Martin Luther King Jr. Day", window: WINDOWS.mlkDay, when: "The long weekend of Martin Luther King Jr. Day", looks: [
+      { id: "mlkday-march", name: "March on Washington", blurb: "Dr. King greeting the crowd, 28 August 1963", credit: "Photo from the National Park Service archive", default: true },
+    ] },
+    { id: "valentines", name: "Valentine's Day", from: [2, 1], to: [2, 14], drift: "petal", looks: [
+      { id: "valentines-bouquet", name: "Pink Bouquet", blurb: "A bouquet of pale pink roses", credit: "Photo by Caroline Attwood", default: true },
+      { id: "valentines-tulips", name: "Red Tulips", blurb: "Red tulips in warm, dim light", credit: "Photo by Benny Jackson" },
+      { id: "valentines-rose", name: "Red Rose", blurb: "A single red rose up close", credit: "Photo by Meredith Whitman" },
+    ] },
     { id: "winter", name: "Winter", from: [12, 1], to: [2, 29], drift: "snow", looks: [
       { id: "winter-mthood", name: "Snowy Firs", blurb: "Snow-laden firs under a deep blue sky", credit: "Photo by the U.S. Forest Service", default: true },
       { id: "winter-alpenglow", name: "Alpenglow", blurb: "Pink evening light on snowy dunes and peaks", credit: "Photo by the National Park Service" },
       { id: "winter-cabin", name: "Winter Cabin", blurb: "A cabin among the snowy forest", credit: "Photo by Gérôme Bruneau" },
     ] },
+    { id: "stpatricks", name: "St Patrick's Day", from: [3, 1], to: [3, 17], drift: "clover", looks: [
+      { id: "stpatricks-countryside", name: "Green Countryside", blurb: "Bright green fields and two big trees", credit: "Photo by Oliver Olah", default: true },
+      { id: "stpatricks-bay", name: "Coastal Bay", blurb: "Green cliffs around a quiet bay", credit: "Photo by Thomas Kelley" },
+      { id: "stpatricks-clover", name: "Four-Leaf Clover", blurb: "A four-leaf clover in a patch of clover", credit: "Photo by KEBman" },
+    ] },
+    { id: "easter", name: "Easter", window: WINDOWS.easter, when: "The two weeks before Easter, through Easter Monday", drift: "petal", looks: [
+      { id: "easter-eggs", name: "Easter Eggs", blurb: "Foil-wrapped chocolate eggs in every colour", credit: "Photo by Tim Gouw", default: true },
+      { id: "easter-ducklings", name: "Ducklings", blurb: "A huddle of yellow ducklings", credit: "Photo by Roksolana Zasiadko" },
+      { id: "easter-rabbit", name: "Brown Rabbit", blurb: "A brown rabbit in green grass", credit: "Photo by Ray Hennessy" },
+    ] },
+    { id: "mothersday", name: "Mother's Day", window: WINDOWS.mothersDay, when: "The week of Mother's Day", drift: "petal", looks: [
+      { id: "mothersday-tulips", name: "Tulip Bouquet", blurb: "A mass of tulips in every colour", credit: "Photo by Gábor Juhász", default: true },
+      { id: "mothersday-blossom", name: "Spring Blossom", blurb: "Pink blossom against a blue sky", credit: "Photo by Markus Clemens" },
+      { id: "mothersday-wildflowers", name: "Wildflower Bouquet", blurb: "A loose bouquet of wildflowers", credit: "Photo by Gerda Arendt" },
+    ] },
     { id: "spring", name: "Spring", from: [3, 1], to: [5, 31], drift: "petal", looks: [
       { id: "spring-redbud", name: "Redbud Bloom", blurb: "Redbud branches in full bloom", credit: "Photo by Cbaile19", default: true },
       { id: "spring-bluebonnets", name: "Bluebonnet Hills", blurb: "A bluebonnet field in the Texas Hill Country", credit: "Photo by Carol M. Highsmith" },
       { id: "spring-france", name: "Spring in France", blurb: "A painted spring meadow, 1890", credit: "Painting by Robert William Vonnoh" },
+    ] },
+    { id: "fathersday", name: "Father's Day", window: WINDOWS.fathersDay, when: "The days leading up to Father's Day", looks: [
+      { id: "fathersday-fjord", name: "Fjord Sunset", blurb: "A river at sunset in Nordfjordeid", credit: "Photo by Steinar Engeland", default: true },
+      { id: "fathersday-jeep", name: "Road Trip", blurb: "A retro jeep with a canoe on the roof", credit: "Photo by Quinn Nietfeld" },
+      { id: "fathersday-campfire", name: "Campfire Cooking", blurb: "A hot dog over a campfire at sunset", credit: "Photo by Evan Kirby" },
+    ] },
+    { id: "julyfourth", name: "Fourth of July", from: [6, 25], to: [7, 4], drift: "sparkle", looks: [
+      { id: "julyfourth-fireworks", name: "National Mall Fireworks", blurb: "Fireworks over the National Mall", credit: "Photo by the National Park Service", default: true },
+      { id: "julyfourth-sparkler", name: "Flag and Sparkler", blurb: "A sparkler in front of the flag", credit: "Photo by Trent Yarnell" },
+      { id: "julyfourth-flag", name: "Flag on a Pole", blurb: "A flag against a blue sky", credit: "Photo by Caleb Woods" },
     ] },
     { id: "summer", name: "Summer", from: [6, 1], to: [8, 31], drift: "firefly", looks: [
       { id: "summer-sunflowers", name: "Sunflower Fields", blurb: "Sunflowers under a summer sky", credit: "Photo by Wenchieh Yang", default: true },
@@ -332,6 +375,12 @@
       { id: "halloween-purple-pines", name: "Haunted Pines", blurb: "Black pines against a purple night sky", credit: "Photo by Ryan Hutton" },
       { id: "halloween-moonrise", name: "Moonrise", blurb: "A full moon through the trees", credit: "Photo by the National Park Service" },
       { id: "halloween-branches", name: "Bare Branches", blurb: "A stand of bare trees at deep dusk", credit: "Photo by Vladimir Agafonkin" },
+    ] },
+    { id: "thanksgiving", name: "Thanksgiving", window: WINDOWS.thanksgiving, when: "The ten days before Thanksgiving, through the Sunday after", looks: [
+      { id: "thanksgiving-pumpkins", name: "Heirloom Pumpkins", blurb: "Blue, grey and orange pumpkins on the grass", credit: "Photo by George Chernilevsky", default: true },
+      { id: "thanksgiving-cranberries", name: "Cranberry Harvest", blurb: "A cranberry bog turned red at harvest", credit: "Photo by Keith Weller, USDA" },
+      { id: "thanksgiving-pumpkin-bowl", name: "Pumpkin Bowl", blurb: "A warm bowl of pumpkin at the farmers market", credit: "Photo by USDA" },
+      { id: "thanksgiving-turkey", name: "Wild Turkey", blurb: "A wild turkey on the rocks", credit: "Photo by the U.S. Fish and Wildlife Service" },
     ] },
     { id: "fall", name: "Fall", from: [9, 1], to: [11, 30], looks: [
       { id: "fall-aspen-grove", name: "Aspen Grove", blurb: "Sunlit gold under a blue sky", credit: "Photo by Patrick Myers, NPS", default: true },

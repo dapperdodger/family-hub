@@ -140,8 +140,11 @@ const seasonOf = (drift, extra = {}) => ({ id: 'x', name: 'X', from: [12, 1], to
 
 test('data-drift follows the painting season: its kind, else none', () => {
   const { win, root } = loadTheme();
-  win.refreshLook(new Date(2026, 11, 10));
+  win.refreshLook(new Date(2026, 0, 15));                      // Jan 15: Winter (MLK Day starts Jan 16)
   assert.equal(root.getAttribute('data-look'), 'winter-mthood');
+  assert.equal(root.getAttribute('data-drift'), 'snow');
+  win.refreshLook(new Date(2026, 11, 10));                     // Dec 10: Christmas owns December
+  assert.equal(root.getAttribute('data-look'), 'christmas-santa');
   assert.equal(root.getAttribute('data-drift'), 'snow');
   win.refreshLook(new Date(2026, 3, 10));
   assert.equal(root.getAttribute('data-drift'), 'petal');
@@ -215,40 +218,50 @@ test('the date helpers and WINDOWS are defined before the registry that uses the
   assert.ok(themeSrc.indexOf('function windowOf(') < themeSrc.indexOf('var SEASONS = ['));
 });
 
-test('the real registry: every day of the year paints the season the calendar says', () => {
-  const want = (m, day) => {
-    if (m === 10) return 'halloween';
-    if (m === 9 || m === 11) return 'fall';
-    if (m === 12 || m <= 2) return 'winter';
-    if (m <= 5) return 'spring';
-    return 'summer';
-  };
-  for (const year of [2026, 2027, 2028]) {          // 2028 is a leap year: Feb 29 is still Winter
+const CAL = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'season-calendar.json'), 'utf8'));
+
+test('the real registry: every edge of every window paints the season the calendar says', () => {
+  assert.ok(CAL.length > 200, 'the fixture covers many edges');
+  for (const [iso, want] of CAL) assert.equal(T.seasonFor(d(iso)).id, want, iso);
+});
+
+test('the real registry: no day of 2026 to 2028 is without a season', () => {
+  for (const year of [2026, 2027, 2028]) {
     for (let t = new Date(year, 0, 1); t.getFullYear() === year; t = new Date(year, t.getMonth(), t.getDate() + 1)) {
-      assert.equal(T.seasonFor(t).id, want(t.getMonth() + 1, t.getDate()), t.toDateString());
+      assert.ok(T.seasonFor(t), `${t.toDateString()} has a season`);
     }
   }
 });
 
-test('the real registry: October lists Halloween and Fall now, then Winter, Spring and Summer to come', () => {
+test('the real registry: October lists Halloween and Fall now, then the next three to start, then the rest', () => {
   const o = T.seasonOutlook(d('2026-10-06'));
   assert.deepEqual(Array.from(o.active.map((s) => s.id)), ['halloween', 'fall']);
-  assert.deepEqual(Array.from(o.upcoming.map((s) => s.id)), ['winter', 'spring', 'summer']);
-  assert.deepEqual(Array.from(o.rest), []);
+  assert.deepEqual(Array.from(o.upcoming.map((s) => s.id)), ['thanksgiving', 'christmas', 'winter']);   // Winter also starts Dec 1; a tie goes to registry order
+  assert.deepEqual(Array.from(o.rest.map((s) => s.id)),
+    ['newyears', 'mlkday', 'valentines', 'stpatricks', 'easter', 'mothersday', 'spring', 'fathersday', 'julyfourth', 'summer']);
 });
 
-test('the real registry: look ids are unique, prefixed by their season, and each season has one default', () => {
+test('the real registry: season and look ids, defaults, prefixes and the words moving seasons need', () => {
   const { win } = loadTheme();
+  assert.deepEqual(Array.from(win.FH_SEASONS.map((s) => s.id)),
+    ['newyears', 'christmas', 'mlkday', 'valentines', 'winter', 'stpatricks', 'easter', 'mothersday', 'spring',
+     'fathersday', 'julyfourth', 'summer', 'halloween', 'thanksgiving', 'fall']);
   const seen = new Set();
   for (const s of win.FH_SEASONS) {
     assert.equal(Array.from(s.looks).filter((l) => l.default).length, 1, `${s.id} has exactly one default look`);
+    if (typeof s.window === 'function') assert.ok(s.when && s.when.length > 10, `${s.id} moves each year, so it needs a when text`);
     for (const l of s.looks) {
       assert.ok(l.id.startsWith(s.id + '-'), `${l.id} starts with ${s.id}-`);
       assert.ok(!seen.has(l.id), `${l.id} is unique`);
       seen.add(l.id);
     }
   }
-  const ids = Array.from(win.FH_SEASONS.map((s) => s.id));
-  assert.deepEqual(ids, ['winter', 'spring', 'summer', 'halloween', 'fall']);
-  assert.equal(seen.size, 3 + 3 + 3 + 5 + 3);
+  assert.equal(seen.size, 46);
+  const counts = Object.fromEntries(win.FH_SEASONS.map((s) => [s.id, s.looks.length]));
+  assert.deepEqual(counts, { newyears: 3, christmas: 3, mlkday: 1, valentines: 3, winter: 3, stpatricks: 3, easter: 3,
+    mothersday: 3, spring: 3, fathersday: 3, julyfourth: 3, summer: 3, halloween: 5, thanksgiving: 4, fall: 3 });
+  const drifts = Object.fromEntries(win.FH_SEASONS.map((s) => [s.id, s.drift || null]));
+  assert.deepEqual(drifts, { newyears: 'sparkle', christmas: 'snow', mlkday: null, valentines: 'petal', winter: 'snow',
+    stpatricks: 'clover', easter: 'petal', mothersday: 'petal', spring: 'petal', fathersday: null, julyfourth: 'sparkle',
+    summer: 'firefly', halloween: null, thanksgiving: null, fall: null });
 });
