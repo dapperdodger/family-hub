@@ -2131,9 +2131,11 @@ def test_leaves_fall_at_two_depths():
     """Both leaf layers are shown, the far set has its own six lanes (not the
     near leaves' paths), and the far set carries no shadow."""
     shown = {s for sels, body, _ in _rules() if "display: block" in body for s in sels}
-    for sel in (':root[data-look^="fall-"] body > .season .sn-leaves',
-                ':root[data-look^="fall-"] body > .season-fx .sn-leaves'):
-        assert sel in shown, f"{sel} is never shown"
+    for pre in ("fall-", "thanksgiving-"):
+        for sel in (f':root[data-look^="{pre}"] body > .season .sn-leaves',
+                    f':root[data-look^="{pre}"] body > .season-fx .sn-leaves',
+                    f'.look-swatch[data-look^="{pre}"] .sn-leaves'):
+            assert sel in shown, f"{sel} is never shown"
     near = dict(re.findall(r"(?m)^\.sn-leaf:nth-child\((\d)\) \{ --x: ([\d.]+%)", CSS))
     far = dict(re.findall(r"(?m)^\.sn-leaves\.back \.sn-leaf:nth-child\((\d)\) \{ --x: ([\d.]+%)", CSS))
     assert sorted(near) == sorted(far) == [str(i) for i in range(1, 7)], "six near and six far leaves"
