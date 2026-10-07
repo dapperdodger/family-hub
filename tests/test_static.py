@@ -1793,10 +1793,20 @@ _SEASON_SHAPE_TOKENS = {
     "winter-": [],
     "spring-": ["--sn-petal-1", "--sn-petal-2"],
     "summer-": [],
+    "thanksgiving-": ["--sn-leaf-1", "--sn-leaf-2", "--sn-leaf-3", "--sn-leaf-4"],
+    "christmas-": [],                     # white snow
+    "newyears-": [],                      # gold sparkle (the drift's own colours)
+    "mlkday-": [],                        # photo only
+    "valentines-": ["--sn-petal-1", "--sn-petal-2"],
+    "stpatricks-": [],                    # green clovers (the drift's own colours)
+    "easter-": ["--sn-petal-1", "--sn-petal-2"],
+    "mothersday-": ["--sn-petal-1", "--sn-petal-2"],
+    "fathersday-": [],                    # photo only
+    "julyfourth-": [],                    # gold sparkle
     "halloween-": ["--sn-bat", "--sn-bat-glow", "--sn-spider", "--sn-spider-glow",
                    "--sn-web", "--sn-haze"],
 }
-_PER_LOOK_SHAPES = ("fall-", "spring-")   # seasons whose moving things are coloured look by look
+_PER_LOOK_SHAPES = ("fall-", "spring-", "thanksgiving-")   # seasons whose moving things are coloured look by look
 _THEME_OWNED = ["--ground", "--surface", "--surface-2", "--edge", "--edge-soft",
                 "--ink", "--dim", "--faint", "--shadow", "--glass", "--glass-edge", "--sn-wash"]
 
@@ -2848,3 +2858,28 @@ def test_the_root_does_not_define_the_generic_drift_bit_colours():
     root = _root_tokens()
     assert not {"--sn-bit-1", "--sn-bit-2"} & root, "the bare :root must leave --sn-bit-1/2 undefined"
     assert re.search(r"var\(--sn-petal-1,", CSS) and re.search(r"var\(--sn-petal-2,", CSS), "petals read --sn-petal-1/2"
+
+
+HOLIDAY_LOOKS = [
+    "thanksgiving-pumpkins", "thanksgiving-cranberries", "thanksgiving-pumpkin-bowl", "thanksgiving-turkey",
+    "christmas-santa", "christmas-village", "christmas-snowmen",
+    "newyears-sparkler", "newyears-fireworks", "newyears-champagne",
+    "mlkday-march",
+    "valentines-bouquet", "valentines-tulips", "valentines-rose",
+    "stpatricks-countryside", "stpatricks-bay", "stpatricks-clover",
+    "easter-eggs", "easter-ducklings", "easter-rabbit",
+    "mothersday-tulips", "mothersday-blossom", "mothersday-wildflowers",
+    "fathersday-fjord", "fathersday-jeep", "fathersday-campfire",
+    "julyfourth-fireworks", "julyfourth-sparkler", "julyfourth-flag",
+]
+
+
+def test_every_holiday_look_is_styled_before_the_registry_lists_it():
+    """The registry-driven guards only look at looks theme.js lists; this one pins the 29 holiday looks'
+    CSS and photos on their own, so a block can never go missing between the art and the registry."""
+    assert len(HOLIDAY_LOOKS) == 29
+    for look in HOLIDAY_LOOKS:
+        assert f':root[data-look="{look}"][data-theme][data-accent]' in CSS, f"{look} has no dark-theme block"
+        assert f':root[data-look="{look}"][data-accent]:is([data-theme="light"],[data-theme="soft"])' in CSS, f"{look} has no light-theme block"
+        assert f'--sn-scene:url("seasons/{look}.webp")' in CSS, f"{look} never paints its photo"
+        assert (STATIC / "seasons" / f"{look}.webp").is_file(), f"missing {look}.webp"

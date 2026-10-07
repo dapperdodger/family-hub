@@ -40,6 +40,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Seasons: the colours for the ten holiday seasons' 29 looks (a photo focal point and an accent taken from each photo, a deeper accent for Light and Soft, per-photo leaf colours for Thanksgiving and shared petal tints for Valentine's, Easter and Mother's Day); nothing paints them until the calendar lists them.
 - Seasons: five new season marks (heart, egg, mountain, star, candle) for the holidays coming next; nothing uses them yet.
 - Seasons: the artwork for the ten holidays (29 photos, all public domain or CC0, each licence checked and credited); nothing paints them yet.
 - Docs: the README and the seasonal-looks standard describe Winter, Spring and Summer, and the showcase image shows the new looks beside Halloween and Fall.
