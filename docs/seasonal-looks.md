@@ -443,7 +443,7 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
    of motion with `drift: "snow" | "petal" | "clover" | "firefly" | "sparkle"`:
    the page stamps it as `data-drift` and `styles.css` already draws every
    kind (shape, size, speed, resting preview), so a season needs no motion CSS
-   of its own, only, optionally, its bit colours (`--sn-bit-1`/`--sn-bit-2`)
+   of its own, only, optionally, its bit colours (`--sn-bit-1`/`--sn-bit-2`; the petals use `--sn-petal-1`/`--sn-petal-2`, which `:root` must define because spring sets them per look, so leave `--sn-bit-1/2` undefined on `:root`: clover and sparkle fall back to their own colours through them)
    in its token block. Leave `drift` out for a photo-only season.
 5. **Style it** in `styles.css`. Copy an existing look's two blocks: the
    dark-theme block first (photo `--sn-scene`, focal point `--sn-pos`, leaf

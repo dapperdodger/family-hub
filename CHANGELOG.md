@@ -11,6 +11,7 @@ rolls that section to a dated version via `python scripts/release.py`.
 ## [Unreleased]
 
 ### Fixed
+- Seasons review: the credits table for the new photos renders on GitHub (it had picked up stray carriage returns), the wildflower credit names its photographer and licence, and the petal colours no longer sit on the generic drift tokens, so a later clover or sparkle season keeps its own colours.
 - Seasons groundwork review: a season written with a moving window no longer breaks the page's theme at load, Settings copes with a moving season that has no words, the Settings previews keep their own drift kind when the wall paints another, the photo helper's download uses the Wikimedia-friendly User-Agent with a timeout and leaves no partial file, and Juneteenth (whose window hid Father's Day) is dropped from the plan.
 - Plan it: after a timeout the Dinner card is re-read again 5 and 15 seconds later (the hub may still be writing), and a delete only treats a real 404 as already gone, never a server or token error.
 - Plan it: a plan request finishing late no longer unlocks or closes a newer one on another recipe, a timeout says Mealie is slow instead of a raw browser message, and a database hiccup after the plan went through no longer turns it into an error.

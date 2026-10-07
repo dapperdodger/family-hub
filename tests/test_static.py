@@ -1791,7 +1791,7 @@ _LOOK_TOKENS = ["--accent", "--accent-ink", "--accent-soft", "--sn-scene", "--sn
 _SEASON_SHAPE_TOKENS = {
     "fall-": ["--sn-leaf-1", "--sn-leaf-2", "--sn-leaf-3", "--sn-leaf-4"],
     "winter-": [],
-    "spring-": ["--sn-bit-1", "--sn-bit-2"],
+    "spring-": ["--sn-petal-1", "--sn-petal-2"],
     "summer-": [],
     "halloween-": ["--sn-bat", "--sn-bat-glow", "--sn-spider", "--sn-spider-glow",
                    "--sn-web", "--sn-haze"],
@@ -2830,3 +2830,19 @@ def test_the_night_pause_outranks_the_wall_animation_rules():
             for s in sels if ".sn-bit" in s and ".live" in s]
     assert night and live
     assert min(_classish(x) for x in night) > max(_classish(x) for x in live), "the pause must be MORE specific than the animation"
+
+
+def test_credits_file_has_plain_line_endings():
+    """A stray carriage return (CRLF, or the \r\r\n an edit on Windows leaves) ends a markdown table
+    on GitHub, so the attribution rows below it render as a run of pipes instead of a table."""
+    raw = (STATIC / "seasons" / "CREDITS.md").read_bytes()
+    assert b"\r" not in raw, "CREDITS.md must use LF line endings only"
+
+
+def test_the_root_does_not_define_the_generic_drift_bit_colours():
+    """clover and sparkle fall back to their own green and gold through var(--sn-bit-1, ...); a --sn-bit-1
+    defined on :root would make that fallback unreachable and paint them blush pink. Each season that
+    tints its bits uses a token named for its kind (petals: --sn-petal-1/2)."""
+    root = _root_tokens()
+    assert not {"--sn-bit-1", "--sn-bit-2"} & root, "the bare :root must leave --sn-bit-1/2 undefined"
+    assert re.search(r"var\(--sn-petal-1,", CSS) and re.search(r"var\(--sn-petal-2,", CSS), "petals read --sn-petal-1/2"
