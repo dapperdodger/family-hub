@@ -3462,6 +3462,26 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 .look-swatch[data-look^="spring-"] .look-mark { --mark: url("seasons/mark-blossom.svg"); }
 [data-look^="summer-"] .season-mark,
 .look-swatch[data-look^="summer-"] .look-mark { --mark: url("seasons/mark-sun.svg"); }
+[data-look^="thanksgiving-"] .season-mark,
+.look-swatch[data-look^="thanksgiving-"] .look-mark { --mark: url("seasons/leaf-maple.svg"); }
+[data-look^="christmas-"] .season-mark,
+.look-swatch[data-look^="christmas-"] .look-mark { --mark: url("seasons/mark-snowflake.svg"); }
+[data-look^="newyears-"] .season-mark,
+.look-swatch[data-look^="newyears-"] .look-mark { --mark: url("seasons/shape-spark.svg"); }
+[data-look^="mlkday-"] .season-mark,
+.look-swatch[data-look^="mlkday-"] .look-mark { --mark: url("seasons/mark-candle.svg"); }
+[data-look^="valentines-"] .season-mark,
+.look-swatch[data-look^="valentines-"] .look-mark { --mark: url("seasons/mark-heart.svg"); }
+[data-look^="stpatricks-"] .season-mark,
+.look-swatch[data-look^="stpatricks-"] .look-mark { --mark: url("seasons/shape-clover.svg"); }
+[data-look^="easter-"] .season-mark,
+.look-swatch[data-look^="easter-"] .look-mark { --mark: url("seasons/mark-egg.svg"); }
+[data-look^="mothersday-"] .season-mark,
+.look-swatch[data-look^="mothersday-"] .look-mark { --mark: url("seasons/mark-blossom.svg"); }
+[data-look^="fathersday-"] .season-mark,
+.look-swatch[data-look^="fathersday-"] .look-mark { --mark: url("seasons/mark-mountain.svg"); }
+[data-look^="julyfourth-"] .season-mark,
+.look-swatch[data-look^="julyfourth-"] .look-mark { --mark: url("seasons/mark-star.svg"); }
 [data-look^="halloween-"] .season-mark,
 .look-swatch[data-look^="halloween-"] .look-mark { --mark: url("seasons/bat.svg"); }
 

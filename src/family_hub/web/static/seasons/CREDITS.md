@@ -72,6 +72,11 @@ Each photo was resized to 2560px wide, converted to sRGB and re-encoded by
 | `mark-snowflake.svg` | Self-made abstract snowflake (six barbed arms), no source image | CC0 |
 | `mark-blossom.svg` | Self-made abstract blossom (five round petals around a centre), no source image | CC0 |
 | `mark-sun.svg` | Self-made abstract sun (a disc with eight rays), no source image | CC0 |
+| `mark-heart.svg` | Self-made abstract heart (two lobes and a point), no source image | CC0 |
+| `mark-egg.svg` | Self-made abstract egg (an oval with a zig-zag band), no source image | CC0 |
+| `mark-mountain.svg` | Self-made abstract mountain (two peaks), no source image | CC0 |
+| `mark-star.svg` | Self-made abstract five-point star, no source image | CC0 |
+| `mark-candle.svg` | Self-made abstract candle (a flame over a stem), no source image | CC0 |
 
 Every shape is used as a CSS mask, so each look paints it in its own colours.
 
