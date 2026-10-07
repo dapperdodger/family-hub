@@ -2836,7 +2836,9 @@ def test_credits_file_has_plain_line_endings():
     """A stray carriage return (CRLF, or the \r\r\n an edit on Windows leaves) ends a markdown table
     on GitHub, so the attribution rows below it render as a run of pipes instead of a table."""
     raw = (STATIC / "seasons" / "CREDITS.md").read_bytes()
-    assert b"\r" not in raw, "CREDITS.md must use LF line endings only"
+    # CRLF alone is fine (a Windows checkout with autocrlf turns every LF into one); a bare \r, as in
+    # \r\r\n, is the line break that splits the table.
+    assert not re.search(rb"\r(?!\n)", raw), "CREDITS.md has a carriage return that is not part of a CRLF"
 
 
 def test_the_root_does_not_define_the_generic_drift_bit_colours():
