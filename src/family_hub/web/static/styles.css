@@ -3102,6 +3102,330 @@ body.integ-off-todos .todo-slot { display: none; }
   --accent:#0F6AA8; --accent-ink:#FFFFFF; --accent-soft:rgba(15,106,168,.13);
 }
 
+/* ---- valentines: the petals every valentines-* look drifts ---- */
+:root[data-look^="valentines-"],
+.look-swatch[data-look^="valentines-"] { --sn-petal-1:#F9B4C2; --sn-petal-2:#D83A55; }
+
+/* ---- easter: the petals every easter-* look drifts ---- */
+:root[data-look^="easter-"],
+.look-swatch[data-look^="easter-"] { --sn-petal-1:#FFF1A8; --sn-petal-2:#F4A7D0; }
+
+/* ---- mothersday: the petals every mothersday-* look drifts ---- */
+:root[data-look^="mothersday-"],
+.look-swatch[data-look^="mothersday-"] { --sn-petal-1:#FBD0DE; --sn-petal-2:#EE8DB0; }
+
+/* ---- Heirloom Pumpkins: blue, grey and orange pumpkins on the grass (George Chernilevsky, public domain) ---- */
+:root[data-look="thanksgiving-pumpkins"][data-theme][data-accent],
+.look-swatch[data-look="thanksgiving-pumpkins"] {
+  --accent:#D8A279; --accent-ink:#1B1405; --accent-soft:rgba(216,162,121,.18);
+  --sn-scene:url("seasons/thanksgiving-pumpkins.webp"); --sn-pos:center 50%;
+  --sn-leaf-1:#CB844D; --sn-leaf-2:#D6AF71; --sn-leaf-3:#BE5A37; --sn-leaf-4:#DFCF90;
+}
+:root[data-look="thanksgiving-pumpkins"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-pumpkins"] {
+  --accent:#9A5D2D; --accent-ink:#FFFFFF; --accent-soft:rgba(154,93,45,.13);
+}
+
+/* ---- Cranberry Harvest: a cranberry bog at harvest (Keith Weller, USDA-ARS, public domain) ---- */
+:root[data-look="thanksgiving-cranberries"][data-theme][data-accent],
+.look-swatch[data-look="thanksgiving-cranberries"] {
+  --accent:#EA6668; --accent-ink:#1B1405; --accent-soft:rgba(234,102,104,.18);
+  --sn-scene:url("seasons/thanksgiving-cranberries.webp"); --sn-pos:center 45%;
+  --sn-leaf-1:#E43537; --sn-leaf-2:#E9745D; --sn-leaf-3:#D81D42; --sn-leaf-4:#EEA781;
+}
+:root[data-look="thanksgiving-cranberries"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-cranberries"] {
+  --accent:#CA1B1E; --accent-ink:#FFFFFF; --accent-soft:rgba(202,27,30,.13);
+}
+
+/* ---- Pumpkin Bowl: a bowl of pumpkin at the farmers market (USDA, public domain) ---- */
+:root[data-look="thanksgiving-pumpkin-bowl"][data-theme][data-accent],
+.look-swatch[data-look="thanksgiving-pumpkin-bowl"] {
+  --accent:#F4B35D; --accent-ink:#1B1405; --accent-soft:rgba(244,179,93,.18);
+  --sn-scene:url("seasons/thanksgiving-pumpkin-bowl.webp"); --sn-pos:center 55%;
+  --sn-leaf-1:#F09B29; --sn-leaf-2:#F3CC53; --sn-leaf-3:#E56410; --sn-leaf-4:#F6ED7A;
+}
+:root[data-look="thanksgiving-pumpkin-bowl"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-pumpkin-bowl"] {
+  --accent:#9D5F0B; --accent-ink:#FFFFFF; --accent-soft:rgba(157,95,11,.13);
+}
+
+/* ---- Wild Turkey: a wild turkey on the rocks (U.S. Fish and Wildlife Service, public domain) ---- */
+:root[data-look="thanksgiving-turkey"][data-theme][data-accent],
+.look-swatch[data-look="thanksgiving-turkey"] {
+  --accent:#D8BD79; --accent-ink:#1B1405; --accent-soft:rgba(216,189,121,.18);
+  --sn-scene:url("seasons/thanksgiving-turkey.webp"); --sn-pos:center 40%;
+  --sn-leaf-1:#CBA84D; --sn-leaf-2:#D6CC71; --sn-leaf-3:#BE8037; --sn-leaf-4:#D9DF90;
+}
+:root[data-look="thanksgiving-turkey"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-turkey"] {
+  --accent:#826926; --accent-ink:#FFFFFF; --accent-soft:rgba(130,105,38,.13);
+}
+
+/* ---- Santa Lights: a Santa figure among coloured lights (Caleb Woods, CC0) ---- */
+:root[data-look="christmas-santa"][data-theme][data-accent],
+.look-swatch[data-look="christmas-santa"] {
+  --accent:#DD737E; --accent-ink:#1B1405; --accent-soft:rgba(221,115,126,.18);
+  --sn-scene:url("seasons/christmas-santa.webp"); --sn-pos:95% 45%;
+}
+:root[data-look="christmas-santa"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-santa"] {
+  --accent:#B92C3B; --accent-ink:#FFFFFF; --accent-soft:rgba(185,44,59,.13);
+}
+
+/* ---- Gingerbread Village: a tiny gingerbread village glowing in the dark (Nathan Anderson, CC0) ---- */
+:root[data-look="christmas-village"][data-theme][data-accent],
+.look-swatch[data-look="christmas-village"] {
+  --accent:#D8797B; --accent-ink:#1B1405; --accent-soft:rgba(216,121,123,.18);
+  --sn-scene:url("seasons/christmas-village.webp"); --sn-pos:center 45%;
+}
+:root[data-look="christmas-village"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-village"] {
+  --accent:#B23437; --accent-ink:#FFFFFF; --accent-soft:rgba(178,52,55,.13);
+}
+
+/* ---- Snowmen: two snowmen among warm lights (Jeffrey Wegrzyn, CC0) ---- */
+:root[data-look="christmas-snowmen"][data-theme][data-accent],
+.look-swatch[data-look="christmas-snowmen"] {
+  --accent:#D8AB79; --accent-ink:#1B1405; --accent-soft:rgba(216,171,121,.18);
+  --sn-scene:url("seasons/christmas-snowmen.webp"); --sn-pos:center 55%;
+}
+:root[data-look="christmas-snowmen"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-snowmen"] {
+  --accent:#92612A; --accent-ink:#FFFFFF; --accent-soft:rgba(146,97,42,.13);
+}
+
+/* ---- Sparkler: a sparkler throwing light in the dark (Bhushan Sadani, CC0) ---- */
+:root[data-look="newyears-sparkler"][data-theme][data-accent],
+.look-swatch[data-look="newyears-sparkler"] {
+  --accent:#D8A879; --accent-ink:#1B1405; --accent-soft:rgba(216,168,121,.18);
+  --sn-scene:url("seasons/newyears-sparkler.webp"); --sn-pos:center 40%;
+}
+:root[data-look="newyears-sparkler"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="newyears-sparkler"] {
+  --accent:#96612C; --accent-ink:#FFFFFF; --accent-soft:rgba(150,97,44,.13);
+}
+
+/* ---- Fireworks over Water: fireworks over dark water (Adam Whitlock, CC0) ---- */
+:root[data-look="newyears-fireworks"][data-theme][data-accent],
+.look-swatch[data-look="newyears-fireworks"] {
+  --accent:#E5B46C; --accent-ink:#1B1405; --accent-soft:rgba(229,180,108,.18);
+  --sn-scene:url("seasons/newyears-fireworks.webp"); --sn-pos:center 45%;
+}
+:root[data-look="newyears-fireworks"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="newyears-fireworks"] {
+  --accent:#93631A; --accent-ink:#FFFFFF; --accent-soft:rgba(147,99,26,.13);
+}
+
+/* ---- Champagne: two champagne coupes on black (Myriam Zilles, CC0) ---- */
+:root[data-look="newyears-champagne"][data-theme][data-accent],
+.look-swatch[data-look="newyears-champagne"] {
+  --accent:#D8BE79; --accent-ink:#1B1405; --accent-soft:rgba(216,190,121,.18);
+  --sn-scene:url("seasons/newyears-champagne.webp"); --sn-pos:center 50%;
+}
+:root[data-look="newyears-champagne"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="newyears-champagne"] {
+  --accent:#826926; --accent-ink:#FFFFFF; --accent-soft:rgba(130,105,38,.13);
+}
+
+/* ---- Pink Bouquet: pale pink roses (Caroline Attwood, CC0) ---- */
+:root[data-look="valentines-bouquet"][data-theme][data-accent],
+.look-swatch[data-look="valentines-bouquet"] {
+  --accent:#D87980; --accent-ink:#1B1405; --accent-soft:rgba(216,121,128,.18);
+  --sn-scene:url("seasons/valentines-bouquet.webp"); --sn-pos:center 45%;
+}
+:root[data-look="valentines-bouquet"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="valentines-bouquet"] {
+  --accent:#B2343E; --accent-ink:#FFFFFF; --accent-soft:rgba(178,52,62,.13);
+}
+
+/* ---- Red Tulips: red tulips in warm dim light (Benny Jackson, CC0) ---- */
+:root[data-look="valentines-tulips"][data-theme][data-accent],
+.look-swatch[data-look="valentines-tulips"] {
+  --accent:#E66A78; --accent-ink:#1B1405; --accent-soft:rgba(230,106,120,.18);
+  --sn-scene:url("seasons/valentines-tulips.webp"); --sn-pos:center 50%;
+}
+:root[data-look="valentines-tulips"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="valentines-tulips"] {
+  --accent:#C52133; --accent-ink:#FFFFFF; --accent-soft:rgba(197,33,51,.13);
+}
+
+/* ---- Red Rose: a single red rose up close (Meredith Whitman, CC0) ---- */
+:root[data-look="valentines-rose"][data-theme][data-accent],
+.look-swatch[data-look="valentines-rose"] {
+  --accent:#F65A6F; --accent-ink:#1B1405; --accent-soft:rgba(246,90,111,.18);
+  --sn-scene:url("seasons/valentines-rose.webp"); --sn-pos:center 50%;
+}
+:root[data-look="valentines-rose"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="valentines-rose"] {
+  --accent:#DA0B26; --accent-ink:#FFFFFF; --accent-soft:rgba(218,11,38,.13);
+}
+
+/* ---- Green Countryside: bright green fields and two big trees (Oliver Olah, CC0) ---- */
+:root[data-look="stpatricks-countryside"][data-theme][data-accent],
+.look-swatch[data-look="stpatricks-countryside"] {
+  --accent:#ADDA76; --accent-ink:#1B1405; --accent-soft:rgba(173,218,118,.18);
+  --sn-scene:url("seasons/stpatricks-countryside.webp"); --sn-pos:center 55%;
+}
+:root[data-look="stpatricks-countryside"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="stpatricks-countryside"] {
+  --accent:#517920; --accent-ink:#FFFFFF; --accent-soft:rgba(81,121,32,.13);
+}
+
+/* ---- Coastal Bay: green cliffs around a quiet bay (Thomas Kelley, CC0) ---- */
+:root[data-look="stpatricks-bay"][data-theme][data-accent],
+.look-swatch[data-look="stpatricks-bay"] {
+  --accent:#79ABD8; --accent-ink:#1B1405; --accent-soft:rgba(121,171,216,.18);
+  --sn-scene:url("seasons/stpatricks-bay.webp"); --sn-pos:center 55%;
+}
+:root[data-look="stpatricks-bay"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="stpatricks-bay"] {
+  --accent:#3171AA; --accent-ink:#FFFFFF; --accent-soft:rgba(49,113,170,.13);
+}
+
+/* ---- Four-Leaf Clover: a four-leaf clover in a patch of clover (KEBman, public domain) ---- */
+:root[data-look="stpatricks-clover"][data-theme][data-accent],
+.look-swatch[data-look="stpatricks-clover"] {
+  --accent:#9CD879; --accent-ink:#1B1405; --accent-soft:rgba(156,216,121,.18);
+  --sn-scene:url("seasons/stpatricks-clover.webp"); --sn-pos:74% 50%;
+}
+:root[data-look="stpatricks-clover"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="stpatricks-clover"] {
+  --accent:#447B24; --accent-ink:#FFFFFF; --accent-soft:rgba(68,123,36,.13);
+}
+
+/* ---- Easter Eggs: foil-wrapped chocolate eggs (Tim Gouw, CC0) ---- */
+:root[data-look="easter-eggs"][data-theme][data-accent],
+.look-swatch[data-look="easter-eggs"] {
+  --accent:#F45C98; --accent-ink:#1B1405; --accent-soft:rgba(244,92,152,.18);
+  --sn-scene:url("seasons/easter-eggs.webp"); --sn-pos:center 50%;
+}
+:root[data-look="easter-eggs"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="easter-eggs"] {
+  --accent:#D70E5D; --accent-ink:#FFFFFF; --accent-soft:rgba(215,14,93,.13);
+}
+
+/* ---- Ducklings: a huddle of yellow ducklings (Roksolana Zasiadko, CC0) ---- */
+:root[data-look="easter-ducklings"][data-theme][data-accent],
+.look-swatch[data-look="easter-ducklings"] {
+  --accent:#E2B76F; --accent-ink:#1B1405; --accent-soft:rgba(226,183,111,.18);
+  --sn-scene:url("seasons/easter-ducklings.webp"); --sn-pos:center 50%;
+}
+:root[data-look="easter-ducklings"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="easter-ducklings"] {
+  --accent:#90651D; --accent-ink:#FFFFFF; --accent-soft:rgba(144,101,29,.13);
+}
+
+/* ---- Brown Rabbit: a brown rabbit in green grass (Ray Hennessy, CC0) ---- */
+:root[data-look="easter-rabbit"][data-theme][data-accent],
+.look-swatch[data-look="easter-rabbit"] {
+  --accent:#AED879; --accent-ink:#1B1405; --accent-soft:rgba(174,216,121,.18);
+  --sn-scene:url("seasons/easter-rabbit.webp"); --sn-pos:76% 50%;
+}
+:root[data-look="easter-rabbit"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="easter-rabbit"] {
+  --accent:#527722; --accent-ink:#FFFFFF; --accent-soft:rgba(82,119,34,.13);
+}
+
+/* ---- Tulip Bouquet: a mass of tulips in every colour (Gabor Juhasz, CC0) ---- */
+:root[data-look="mothersday-tulips"][data-theme][data-accent],
+.look-swatch[data-look="mothersday-tulips"] {
+  --accent:#F1608D; --accent-ink:#1B1405; --accent-soft:rgba(241,96,141,.18);
+  --sn-scene:url("seasons/mothersday-tulips.webp"); --sn-pos:center 50%;
+}
+:root[data-look="mothersday-tulips"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="mothersday-tulips"] {
+  --accent:#D2134F; --accent-ink:#FFFFFF; --accent-soft:rgba(210,19,79,.13);
+}
+
+/* ---- Spring Blossom: pink blossom against a blue sky (Markus Clemens, CC0) ---- */
+:root[data-look="mothersday-blossom"][data-theme][data-accent],
+.look-swatch[data-look="mothersday-blossom"] {
+  --accent:#70CDE1; --accent-ink:#1B1405; --accent-soft:rgba(112,205,225,.18);
+  --sn-scene:url("seasons/mothersday-blossom.webp"); --sn-pos:center 45%;
+}
+:root[data-look="mothersday-blossom"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="mothersday-blossom"] {
+  --accent:#1D778B; --accent-ink:#FFFFFF; --accent-soft:rgba(29,119,139,.13);
+}
+
+/* ---- Wildflower Bouquet: a loose bouquet of wildflowers (Gerda Arendt, CC0) ---- */
+:root[data-look="mothersday-wildflowers"][data-theme][data-accent],
+.look-swatch[data-look="mothersday-wildflowers"] {
+  --accent:#D8AF79; --accent-ink:#1B1405; --accent-soft:rgba(216,175,121,.18);
+  --sn-scene:url("seasons/mothersday-wildflowers.webp"); --sn-pos:center 50%;
+}
+:root[data-look="mothersday-wildflowers"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="mothersday-wildflowers"] {
+  --accent:#8E6329; --accent-ink:#FFFFFF; --accent-soft:rgba(142,99,41,.13);
+}
+
+/* ---- Fjord Sunset: a river at sunset in Nordfjordeid (Steinar Engeland, CC0) ---- */
+:root[data-look="fathersday-fjord"][data-theme][data-accent],
+.look-swatch[data-look="fathersday-fjord"] {
+  --accent:#F4B35D; --accent-ink:#1B1405; --accent-soft:rgba(244,179,93,.18);
+  --sn-scene:url("seasons/fathersday-fjord.webp"); --sn-pos:center 55%;
+}
+:root[data-look="fathersday-fjord"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="fathersday-fjord"] {
+  --accent:#9D5F0B; --accent-ink:#FFFFFF; --accent-soft:rgba(157,95,11,.13);
+}
+
+/* ---- Road Trip: a retro jeep with a canoe on the roof (Quinn Nietfeld, CC0) ---- */
+:root[data-look="fathersday-jeep"][data-theme][data-accent],
+.look-swatch[data-look="fathersday-jeep"] {
+  --accent:#DB9B75; --accent-ink:#1B1405; --accent-soft:rgba(219,155,117,.18);
+  --sn-scene:url("seasons/fathersday-jeep.webp"); --sn-pos:72% 70%;
+}
+:root[data-look="fathersday-jeep"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="fathersday-jeep"] {
+  --accent:#A6582B; --accent-ink:#FFFFFF; --accent-soft:rgba(166,88,43,.13);
+}
+
+/* ---- Campfire Cooking: a hot dog over a campfire at sunset (Evan Kirby, CC0) ---- */
+:root[data-look="fathersday-campfire"][data-theme][data-accent],
+.look-swatch[data-look="fathersday-campfire"] {
+  --accent:#EF9C61; --accent-ink:#1B1405; --accent-soft:rgba(239,156,97,.18);
+  --sn-scene:url("seasons/fathersday-campfire.webp"); --sn-pos:center 50%;
+}
+:root[data-look="fathersday-campfire"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="fathersday-campfire"] {
+  --accent:#B05311; --accent-ink:#FFFFFF; --accent-soft:rgba(176,83,17,.13);
+}
+
+/* ---- National Mall Fireworks: fireworks over the National Mall (National Park Service, public domain) ---- */
+:root[data-look="julyfourth-fireworks"][data-theme][data-accent],
+.look-swatch[data-look="julyfourth-fireworks"] {
+  --accent:#D87997; --accent-ink:#1B1405; --accent-soft:rgba(216,121,151,.18);
+  --sn-scene:url("seasons/julyfourth-fireworks.webp"); --sn-pos:center 55%;
+}
+:root[data-look="julyfourth-fireworks"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="julyfourth-fireworks"] {
+  --accent:#B2345B; --accent-ink:#FFFFFF; --accent-soft:rgba(178,52,91,.13);
+}
+
+/* ---- Flag and Sparkler: a sparkler in front of the flag (Trent Yarnell, CC0) ---- */
+:root[data-look="julyfourth-sparkler"][data-theme][data-accent],
+.look-swatch[data-look="julyfourth-sparkler"] {
+  --accent:#D89879; --accent-ink:#1B1405; --accent-soft:rgba(216,152,121,.18);
+  --sn-scene:url("seasons/julyfourth-sparkler.webp"); --sn-pos:center 45%;
+}
+:root[data-look="julyfourth-sparkler"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="julyfourth-sparkler"] {
+  --accent:#A65730; --accent-ink:#FFFFFF; --accent-soft:rgba(166,87,48,.13);
+}
+
+/* ---- Flag on a Pole: a flag against a blue sky (Caleb Woods, CC0) ---- */
+:root[data-look="julyfourth-flag"][data-theme][data-accent],
+.look-swatch[data-look="julyfourth-flag"] {
+  --accent:#79BCD8; --accent-ink:#1B1405; --accent-soft:rgba(121,188,216,.18);
+  --sn-scene:url("seasons/julyfourth-flag.webp"); --sn-pos:74% 40%;
+}
+:root[data-look="julyfourth-flag"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="julyfourth-flag"] {
+  --accent:#2A7492; --accent-ink:#FFFFFF; --accent-soft:rgba(42,116,146,.13);
+}
+
 /* ---- Halloween: shared by every halloween-* look ----
    Bats and spiders are near-black with a coloured rim (a purple glow on the
    bats, a green one on the spiders) so they read on a night photo and on
@@ -3263,7 +3587,10 @@ body.integ-off-todos .todo-slot { display: none; }
 .sn-leaves { display: none; position: absolute; inset: 0; }
 :root[data-look^="fall-"] body > .season-fx .sn-leaves,
 :root[data-look^="fall-"] body > .season .sn-leaves,
-.look-swatch[data-look^="fall-"] .sn-leaves { display: block; }
+.look-swatch[data-look^="fall-"] .sn-leaves,
+:root[data-look^="thanksgiving-"] body > .season-fx .sn-leaves,
+:root[data-look^="thanksgiving-"] body > .season .sn-leaves,
+.look-swatch[data-look^="thanksgiving-"] .sn-leaves { display: block; }
 .sn-leaf { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s); perspective: 260px; }
 .sn-leaf b {
   display: block; width: 100%; height: 100%;
@@ -3462,6 +3789,24 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 .look-swatch[data-look^="spring-"] .look-mark { --mark: url("seasons/mark-blossom.svg"); }
 [data-look^="summer-"] .season-mark,
 .look-swatch[data-look^="summer-"] .look-mark { --mark: url("seasons/mark-sun.svg"); }
+[data-look^="thanksgiving-"] .season-mark,
+.look-swatch[data-look^="thanksgiving-"] .look-mark { --mark: url("seasons/leaf-maple.svg"); }
+[data-look^="christmas-"] .season-mark,
+.look-swatch[data-look^="christmas-"] .look-mark { --mark: url("seasons/mark-snowflake.svg"); }
+[data-look^="newyears-"] .season-mark,
+.look-swatch[data-look^="newyears-"] .look-mark { --mark: url("seasons/shape-spark.svg"); }
+[data-look^="valentines-"] .season-mark,
+.look-swatch[data-look^="valentines-"] .look-mark { --mark: url("seasons/mark-heart.svg"); }
+[data-look^="stpatricks-"] .season-mark,
+.look-swatch[data-look^="stpatricks-"] .look-mark { --mark: url("seasons/shape-clover.svg"); }
+[data-look^="easter-"] .season-mark,
+.look-swatch[data-look^="easter-"] .look-mark { --mark: url("seasons/mark-egg.svg"); }
+[data-look^="mothersday-"] .season-mark,
+.look-swatch[data-look^="mothersday-"] .look-mark { --mark: url("seasons/mark-blossom.svg"); }
+[data-look^="fathersday-"] .season-mark,
+.look-swatch[data-look^="fathersday-"] .look-mark { --mark: url("seasons/mark-mountain.svg"); }
+[data-look^="julyfourth-"] .season-mark,
+.look-swatch[data-look^="julyfourth-"] .look-mark { --mark: url("seasons/mark-star.svg"); }
 [data-look^="halloween-"] .season-mark,
 .look-swatch[data-look^="halloween-"] .look-mark { --mark: url("seasons/bat.svg"); }
 

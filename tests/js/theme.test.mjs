@@ -364,7 +364,7 @@ test('setSeasonLook stores the favourite for ITS season and turns seasons on', (
   assert.equal(localStorage.getItem('fh.look.fall'), 'fall-maple-sky');
   assert.equal(localStorage.getItem('fh.season'), 'on');
   assert.equal(root.getAttribute('data-season'), 'on');
-  assert.equal(win.refreshLook(day(11, 20)), 'fall-maple-sky');
+  assert.equal(win.refreshLook(day(11, 5)), 'fall-maple-sky');   // Nov 20 is Thanksgiving week now
   assert.equal(win.seasonLook('fall'), 'fall-maple-sky');
 });
 

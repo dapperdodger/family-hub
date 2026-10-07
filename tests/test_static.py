@@ -1793,10 +1793,19 @@ _SEASON_SHAPE_TOKENS = {
     "winter-": [],
     "spring-": ["--sn-petal-1", "--sn-petal-2"],
     "summer-": [],
+    "thanksgiving-": ["--sn-leaf-1", "--sn-leaf-2", "--sn-leaf-3", "--sn-leaf-4"],
+    "christmas-": [],                     # white snow
+    "newyears-": [],                      # gold sparkle (the drift's own colours)
+    "valentines-": ["--sn-petal-1", "--sn-petal-2"],
+    "stpatricks-": [],                    # green clovers (the drift's own colours)
+    "easter-": ["--sn-petal-1", "--sn-petal-2"],
+    "mothersday-": ["--sn-petal-1", "--sn-petal-2"],
+    "fathersday-": [],                    # photo only
+    "julyfourth-": [],                    # gold sparkle
     "halloween-": ["--sn-bat", "--sn-bat-glow", "--sn-spider", "--sn-spider-glow",
                    "--sn-web", "--sn-haze"],
 }
-_PER_LOOK_SHAPES = ("fall-", "spring-")   # seasons whose moving things are coloured look by look
+_PER_LOOK_SHAPES = ("fall-", "spring-", "thanksgiving-")   # seasons whose moving things are coloured look by look
 _THEME_OWNED = ["--ground", "--surface", "--surface-2", "--edge", "--edge-soft",
                 "--ink", "--dim", "--faint", "--shadow", "--glass", "--glass-edge", "--sn-wash"]
 
@@ -2121,9 +2130,11 @@ def test_leaves_fall_at_two_depths():
     """Both leaf layers are shown, the far set has its own six lanes (not the
     near leaves' paths), and the far set carries no shadow."""
     shown = {s for sels, body, _ in _rules() if "display: block" in body for s in sels}
-    for sel in (':root[data-look^="fall-"] body > .season .sn-leaves',
-                ':root[data-look^="fall-"] body > .season-fx .sn-leaves'):
-        assert sel in shown, f"{sel} is never shown"
+    for pre in ("fall-", "thanksgiving-"):
+        for sel in (f':root[data-look^="{pre}"] body > .season .sn-leaves',
+                    f':root[data-look^="{pre}"] body > .season-fx .sn-leaves',
+                    f'.look-swatch[data-look^="{pre}"] .sn-leaves'):
+            assert sel in shown, f"{sel} is never shown"
     near = dict(re.findall(r"(?m)^\.sn-leaf:nth-child\((\d)\) \{ --x: ([\d.]+%)", CSS))
     far = dict(re.findall(r"(?m)^\.sn-leaves\.back \.sn-leaf:nth-child\((\d)\) \{ --x: ([\d.]+%)", CSS))
     assert sorted(near) == sorted(far) == [str(i) for i in range(1, 7)], "six near and six far leaves"
@@ -2848,3 +2859,39 @@ def test_the_root_does_not_define_the_generic_drift_bit_colours():
     root = _root_tokens()
     assert not {"--sn-bit-1", "--sn-bit-2"} & root, "the bare :root must leave --sn-bit-1/2 undefined"
     assert re.search(r"var\(--sn-petal-1,", CSS) and re.search(r"var\(--sn-petal-2,", CSS), "petals read --sn-petal-1/2"
+
+
+HOLIDAY_LOOKS = [
+    "thanksgiving-pumpkins", "thanksgiving-cranberries", "thanksgiving-pumpkin-bowl", "thanksgiving-turkey",
+    "christmas-santa", "christmas-village", "christmas-snowmen",
+    "newyears-sparkler", "newyears-fireworks", "newyears-champagne",
+    "valentines-bouquet", "valentines-tulips", "valentines-rose",
+    "stpatricks-countryside", "stpatricks-bay", "stpatricks-clover",
+    "easter-eggs", "easter-ducklings", "easter-rabbit",
+    "mothersday-tulips", "mothersday-blossom", "mothersday-wildflowers",
+    "fathersday-fjord", "fathersday-jeep", "fathersday-campfire",
+    "julyfourth-fireworks", "julyfourth-sparkler", "julyfourth-flag",
+]
+
+
+def test_every_holiday_look_is_styled_before_the_registry_lists_it():
+    """The registry-driven guards only look at looks theme.js lists; this one pins the 28 holiday looks'
+    CSS and photos on their own, so a block can never go missing between the art and the registry."""
+    assert len(HOLIDAY_LOOKS) == 28
+    for look in HOLIDAY_LOOKS:
+        assert f':root[data-look="{look}"][data-theme][data-accent]' in CSS, f"{look} has no dark-theme block"
+        assert f':root[data-look="{look}"][data-accent]:is([data-theme="light"],[data-theme="soft"])' in CSS, f"{look} has no light-theme block"
+        assert f'--sn-scene:url("seasons/{look}.webp")' in CSS, f"{look} never paints its photo"
+        assert (STATIC / "seasons" / f"{look}.webp").is_file(), f"missing {look}.webp"
+
+
+# A phone shows only about 31 percent of a 3:2 photo's width (the wall shows all of it), so a subject that sits off
+# the photo's middle needs its own horizontal focal point or the phone shows only background.
+PHONE_FOCAL_X = {'christmas-santa': 95, 'stpatricks-clover': 74, 'easter-rabbit': 76, 'fathersday-jeep': 72, 'julyfourth-flag': 74}
+
+
+def test_holiday_looks_with_an_off_centre_subject_keep_it_on_the_phone():
+    for look, want in PHONE_FOCAL_X.items():
+        m = re.search(rf'--sn-scene:url\("seasons/{re.escape(look)}\.webp"\); --sn-pos:(\d+)% (\d+)%', CSS)
+        assert m, f"{look} has no x/y focal point (an x of 'center' leaves the subject off the phone)"
+        assert abs(int(m.group(1)) - want) <= 3, f"{look}: --sn-pos x is {m.group(1)}, the subject is at about {want}"

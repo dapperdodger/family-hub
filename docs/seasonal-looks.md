@@ -2,26 +2,35 @@
 
 A seasonal look turns the whole wall into the season: a real photograph (or
 public-domain artwork) fills the screen, the dashboard floats on it as frosted
-glass in the colours of your chosen theme, a few leaves drift down over it, and the accent colour and a
+glass in the colours of your chosen theme, one gentle kind of motion drifts over it (leaves, snow, petals, clovers, fireflies or a slow sparkle), and the accent colour and a
 small mark by the wordmark match the photo. It follows the calendar when
 **Season** is on, and each device picks its own look from preview tiles in
 **All settings → Seasonal looks**.
 
 This document is the standard every look is held to. It exists because the
 first three attempts at fall missed, for reasons worth not repeating. Read it
-before adding Halloween, Christmas, winter, spring, or anything else.
+before adding a season, a holiday, or anything else.
 
-**Shipped so far:** fall (Sep 1 to Nov 30, three looks), Halloween (Oct 1
-to Oct 31, five looks), and the three broad seasons: winter (Dec 1 to Feb 29),
-spring (Mar 1 to May 31) and summer (Jun 1 to Aug 31), three looks each, so
-every day of the year paints something. **What's next, in the owner's order:**
-the holidays, Thanksgiving and Christmas first. Thanksgiving sits inside fall's Sep 1 to Nov 30 window, so
-list it in `SEASONS` before fall, since the first matching window wins.
-Windows are month/day and inclusive; a window ending [2, 28] leaves out
-Feb 29, so a winter look should end on [2, 29].
-Each gets its own photos, its own moving things (leaves for fall, bats and
-spiders for Halloween, snow for winter and Christmas, never cartoon props) and a
-matching accent.
+**Shipped so far:** 14 seasons and 45 looks. The broad ones: fall (Sep 1 to
+Nov 30), Halloween (October), winter (Dec 1 to Feb 29), spring (Mar 1 to May
+31) and summer (Jun 1 to Aug 31), so every day of the year paints something.
+On top of them nine holidays: New Year's, Christmas, Valentine's Day, St
+Patrick's Day, Easter, Mother's Day, Father's Day, the Fourth of July and
+Thanksgiving. A holiday is listed in `SEASONS` before the
+broad season it sits in, because the first matching window wins (the order is
+tested day by day in `tests/js/fixtures/season-calendar.json`, which an
+independent Python script regenerates). Windows are month/day and inclusive; a
+window ending [2, 28] leaves out Feb 29, so a winter look should end on [2, 29].
+Each season has its own photos, its own gentle motion (leaves for fall and
+Thanksgiving, bats and spiders for Halloween, snow for winter and Christmas,
+petals, clovers, fireflies or a slow sparkle; none for the solemn days; never
+cartoon props) and a matching accent.
+
+**What's next:** Martin Luther King Jr. Day waits for a photograph that is clearly
+public domain (the date window, `WINDOWS.mlkDay`, already exists); other days
+(Memorial Day, Labor Day, Veterans Day, Presidents' Day) are out of scope until asked; they follow the same recipe. A look is picked
+per season, so a device that picked a Fall look still gets Thanksgiving's own
+default in Thanksgiving week.
 
 ---
 
@@ -412,7 +421,14 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
   nothing until you ask), run `scripts/prep-season-photo.py` on it, add the `CREDITS.md` row `fetch` prints, and
   judge the photo by eye behind the glass cards (section 4).
 - **A Commons file marked "(Unsplash)"** is a pre-June-2017 Unsplash upload and is fine only when its Commons
-  page says CC0 with a licence review; check the file page before you pick it.
+  page says CC0 AND you can show it was on Unsplash before 2017-06-01. Three signals, any one is enough: the
+  Unsplash image id in the page source (`photo-<13 digits>` is a Unix time in milliseconds, the upload time), a
+  Wayback capture of the Unsplash page dated before June 2017, or the `|date=` the Unsplash uploader wrote into
+  the description (it matched the id time on every file we cross-checked). Commons' own "review needed" category
+  on these files is normal and does not fail them. The holiday looks were checked this way, file by file.
+- **A Commons file that came from Pixabay** is CC0 only if Pixabay published it before its licence change of
+  2019-01-09: the Commons page must carry the `{{Pixabay}}` template with a confirmed review, and the `|date=`
+  (the Pixabay publication date) must be earlier than that. The Commons upload date does not count.
 - It is a search aid, not a licence authority: open the source page of anything you pick and confirm the
   licence there.
 
