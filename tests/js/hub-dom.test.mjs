@@ -6091,6 +6091,20 @@ test('renderIntegrations: a needs_auth google_calendar row gets a live Reconnect
   assert.equal(link.getAttribute('href'), '/oauth/google/start');
 });
 
+test('renderIntegrations: on the kiosk wall a needs_auth google_calendar row gets instructions, not the sign-in link', () => {
+  const { sandbox } = newHub();
+  sandbox.document.body.classList.add('is-kiosk');
+  sandbox.renderIntegrations({ integrations: [
+    { id: 'google_calendar', kind: 'calendar', name: 'Google Calendar',
+      enabled: true, status: 'needs_auth' },
+  ] });
+  const host = sandbox.document.getElementById('integrations-ctl');
+  assert.equal(host.querySelector('a.integ-reconnect'), null,
+    'the wall has no keyboard on Google\'s page, so it must not navigate there');
+  assert.match(host.innerHTML, /integ-reconnect-note/);
+  assert.match(host.innerHTML, /On a phone/);
+});
+
 test('renderIntegrations: other needs_auth integrations get the plain badge, no Google link', () => {
   const { sandbox } = newHub();
   sandbox.renderIntegrations({ integrations: [
