@@ -41,6 +41,11 @@ def test_writes_a_2560_webp_with_no_metadata(prep, tmp_path):
     assert b"EXIF" not in data and b"SecretCam" not in data, "metadata must be stripped"
     with Image.open(out) as im:
         assert im.size == (2560, 1707)
+    # ...and its still-glass copy beside it (make-glass.py), also metadata-free
+    glass = tmp_path / "glass" / "fall-test.webp"
+    assert glass.is_file() and b"SecretCam" not in glass.read_bytes()
+    with Image.open(glass) as im:
+        assert im.size == (640, 427)
 
 
 def test_transparency_is_flattened_onto_white_not_black(prep, tmp_path):
@@ -105,3 +110,22 @@ def test_camera_rotation_is_honoured(prep, tmp_path):
     assert _run(prep, src, "fall-rot") == 0
     with Image.open(tmp_path / "fall-rot.webp") as im:
         assert im.height > im.width, "a portrait shot stays portrait"
+
+
+def test_out_dir_writes_a_house_look_outside_the_engine(prep, tmp_path):
+    """--out-dir puts the photo and its glass copy in a private overlay
+    folder, and nothing in the engine's own seasons folder (the public repo)."""
+    house = tmp_path / "house"
+    house.mkdir()
+    src = _src(tmp_path, Image.new("RGB", (3000, 2000), (30, 60, 120)), "h.jpg")
+    assert _run(prep, src, "christmas-house-x", "--out-dir", house) == 0
+    assert (house / "christmas-house-x.webp").is_file()
+    assert (house / "glass" / "christmas-house-x.webp").is_file()
+    assert not (tmp_path / "christmas-house-x.webp").exists(), "nothing in the engine folder"
+    assert not (tmp_path / "glass" / "christmas-house-x.webp").exists()
+
+
+def test_out_dir_must_exist(prep, tmp_path):
+    src = _src(tmp_path, Image.new("RGB", (3000, 2000)), "h.jpg")
+    assert _run(prep, src, "christmas-house-y", "--out-dir", tmp_path / "nope") != 0
+    assert not list(tmp_path.glob("christmas-house-y*"))

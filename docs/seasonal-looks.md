@@ -290,6 +290,24 @@ the cards, kept few, small and slow (see Motion below).
   its photo, focal point, leaf colours and accent; a test fails if a look
   sets a theme-owned token. (An early version let the look repaint
   everything, and Blue, Grey and Black all turned into one charcoal.)
+- **Still glass (wide screens):** on the wall and on computers the cards do
+  not blur live. Anything moving under a `backdrop-filter` card makes the
+  browser re-blur it every frame, which on the wall's Firefox sometimes drew
+  a row of a card as a dark band that blinked ("still glitching"), and a
+  fixed background on every card repainted on every scroll frame (about 20
+  frames a second on the wall with Halloween on). So each look ships
+  `seasons/glass/<look-id>.webp`, a 640px copy of its photo already blurred
+  and saturated (`scripts/make-glass.py`), and every glass surface holds one
+  empty `<i class="glass-pane">` (hub.js `ensureGlassPanes`) whose
+  `::before` is `position: fixed` at the photo layer's focal point and cover
+  size, clipped to the card. A fixed layer under a clip scrolls on the
+  compositor, so nothing re-blurs and nothing repaints. The pane is the
+  surface's FIRST child, so a `:first-child` rule on a card's own children
+  never matches again (use `:first-of-type`; a test guards it). Never give a
+  glass surface or anything above it a `transform`, `filter` or `contain`:
+  the fixed copy would slide off the photo. Phones and iOS keep the live
+  blur (iOS ignores fixed photo backgrounds), **Lite keeps its plain 86%
+  fill and never gets panes**, and night drops the copy.
 - **Night:** the night dim stops the glass from blurring, so from 22:00 to
   06:00 the glass goes nearly solid (94% of the theme's surface).
 - Never put `backdrop-filter` on a fixed or sticky element (iOS tap bug, see
@@ -439,8 +457,12 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
 2. **Prepare it:** `pip install pillow`, then
    `python scripts/prep-season-photo.py original.jpg <look-id>`. That writes
    `static/seasons/<look-id>.webp`: 2560px wide, converted to sRGB,
-   re-encoded and stripped of metadata. **Never soften it or make it narrower
-   to save bytes.** We tried that on the aspen photo and the wall showed it
+   re-encoded and stripped of metadata, and also its still-glass copy
+   `static/seasons/glass/<look-id>.webp` (`scripts/make-glass.py`; run it by
+   hand with the look id if you ever replace a photo another way, and give the
+   look's CSS block a `--sn-glass:url("seasons/glass/<look-id>.webp");` beside
+   its `--sn-scene`; a test fails until both exist). **Never soften it or make
+   it narrower to save bytes.** We tried that on the aspen photo and the wall showed it
    as blur ("some of the pics look blurry"). The hub runs on the home network
    and fetches each photo once per release, so ~2 MB for a leafy photo is
    fine. If a file tops the 2.6 MB guard, lower `--quality` to 76 first. The
@@ -490,7 +512,9 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
 6. **Check it with your own eyes**, on the demo (`DEMO=1`), at full size:
    - every look × all five themes (Light, Soft, Blue, Grey, Black) at
      1920×1080, and seasons off in all five (it must match main exactly);
-   - night mode (add `is-night` to `<body>`) and reduced motion;
+   - night mode (fake the hour before the page loads, e.g. a script that sets
+     `Date.prototype.getHours = () => 23`; adding `is-night` to `<body>` by
+     hand is undone by the next clock tick, a second later) and reduced motion;
    - Lite on (`setLite('on')` in the console): the photo and the colours still
      read as the season with no blur and nothing moving, and the text is
      still readable on the 86% card fill;
@@ -530,8 +554,10 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
   latches it the way `?kiosk=1` latches the kiosk. While a look paints, Lite
   turns the glass into 86% of the theme's own `--surface` with no
   `backdrop-filter`, never displays the near layer, the far leaves or the far
-  bats, and drops the photo's arrival fade. Night keeps its own near-solid
-  glass; the Settings tiles are unchanged. The spiders ask `data-lite` before
+  bats, and drops the photo's arrival fade. It also never gets the still-glass
+  panes (every rule that turns them on says `:not([data-lite="on"])`; a
+  fixed, viewport-sized layer per card costs more than the blur Lite dropped).
+  Night keeps its own near-solid glass; the Settings tiles are unchanged. The spiders ask `data-lite` before
   they ask the layout anything.
 
 - `theme.js` owns the registry, the prefs (`fh.season`, `fh.look.<season>`)

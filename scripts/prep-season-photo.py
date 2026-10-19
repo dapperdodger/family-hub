@@ -7,7 +7,8 @@
 Writes src/family_hub/web/static/seasons/<name>.webp: at most 2560px wide
 (the wall is 1920px and a phone zooms into the middle, so both stay crisp),
 sRGB, WebP at quality 82, with all metadata stripped (EXIF can carry GPS and
-camera serials, and this repo is public). Prints the result's size.
+camera serials, and this repo is public). Prints the result's size, then
+writes the look's still-glass copy (scripts/make-glass.py).
 
 Sharpness beats file size here: the hub runs on the home network and a photo
 is fetched once per release, then only revalidated. A detailed photo (a whole
@@ -20,6 +21,7 @@ allowed, how to pick an image that works behind the cards, and what to put
 in static/seasons/CREDITS.md.
 """
 import argparse
+import importlib.util
 import io
 import os
 import re
@@ -49,7 +51,15 @@ def main(argv):
     ap.add_argument("--width", type=int, default=2560)
     ap.add_argument("--quality", type=int, default=82)
     ap.add_argument("--force", action="store_true", help="replace an existing photo of the same name")
+    ap.add_argument("--out-dir", type=Path, default=None,
+                    help="write there instead of static/seasons/ (a house look's private overlay "
+                         "folder, e.g. .../static/seasons/house); its glass copy goes in <out-dir>/glass")
     args = ap.parse_args(argv[1:])
+    global OUT_DIR
+    if args.out_dir is not None:
+        if not args.out_dir.is_dir():
+            return fail(f"--out-dir {args.out_dir} is not a folder")
+        OUT_DIR = args.out_dir
     src, name = args.source, args.name
     if not LOOK_ID.match(name):
         return fail(f"name must be a look id like fall-aspen-grove (lowercase, hyphens), got {name!r}")
@@ -101,10 +111,21 @@ def main(argv):
         if tmp.exists():
             tmp.unlink()
     size = out.stat().st_size
-    print(f"{out.relative_to(REPO).as_posix()}  {img.width}x{img.height}  {size / 1024:.0f} KB")
+    shown = out.relative_to(REPO).as_posix() if out.is_relative_to(REPO) else str(out)
+    print(f"{shown}  {img.width}x{img.height}  {size / 1024:.0f} KB")
     if size >= MAX_BYTES:
         print("warning: at or over the 2.6 MB test cap; try --quality 76 before anything that costs sharpness")
+    write_glass(name)
     return 0
+
+
+def write_glass(name):
+    """The still-glass copy the cards paint on wide screens (make-glass.py),
+    next to the photo just written."""
+    spec = importlib.util.spec_from_file_location("make_glass", Path(__file__).with_name("make-glass.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.make(name, OUT_DIR)
 
 
 if __name__ == "__main__":

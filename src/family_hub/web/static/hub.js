@@ -6553,6 +6553,57 @@ function paintViewportDiag() {
     + ` · best ${d.learnedMax || '?'} · gap ${d.shortfall} · ${d.orient} · ${mode}`;
 }
 
+/* ---------------------------------------------- still glass, scroll-free ----
+   On wide screens a seasonal look's glass is a ready-blurred copy of the
+   photo lined up with the photo behind it (styles.css, "still glass"). It
+   used to be each surface's own background with background-attachment:
+   fixed, and a fixed background is repainted on EVERY scroll frame, for
+   every card: on the wall (Firefox, an i3's GPU) scrolling the main page
+   with Halloween on ran at about 20 frames a second (owner, 2026-10-18:
+   "lag when scrolling on the main page"; measured on the wall: 51 ms a
+   frame, against 17 ms with the look off). Now each glass surface holds one
+   empty <i class="glass-pane"> whose ::before is position: fixed (lined up
+   with the photo for free) and is clipped to the surface by the pane's
+   clip-path. A fixed layer under a clip scrolls on the compositor: nothing
+   repaints, and the wall measures 17 ms a frame with the look on.
+   Cards are re-rendered all the time (innerHTML), so a MutationObserver
+   gives every new glass surface its pane before the next paint. The pane is
+   a first child with z-index -1 and no layout box (position: absolute), and
+   it is an <i>, so no :first-of-type rule on the surfaces' div/button
+   children shifts. */
+const GLASS_SURFACES = '.wrap .card, .wrap .expand, .wrap .shead h2, .topbar';
+
+function ensureGlassPanes(root) {
+  if (!root || root.nodeType !== 1) return;
+  const list = [];
+  if (root.matches && root.matches(GLASS_SURFACES)) list.push(root);
+  if (root.querySelectorAll) root.querySelectorAll(GLASS_SURFACES).forEach((el) => list.push(el));
+  list.forEach((el) => {
+    const first = el.firstElementChild;
+    if (first && first.className === 'glass-pane') return;   // has its pane already
+    const pane = document.createElement('i');
+    pane.className = 'glass-pane';
+    pane.setAttribute('aria-hidden', 'true');
+    el.insertBefore(pane, el.firstChild);
+  });
+}
+
+function watchGlassPanes() {
+  // No observer, no panes: the surfaces keep the live blur (the still-glass
+  // rules only apply under .glass-panes), never bare text on the photo.
+  if (typeof MutationObserver !== 'function' || !document.body) return;
+  ensureGlassPanes(document.body);
+  new MutationObserver((records) => {
+    records.forEach((r) => {
+      // a surface whose own children were replaced lost its pane
+      if (r.target.nodeType === 1 && r.target.matches && r.target.matches(GLASS_SURFACES)) ensureGlassPanes(r.target);
+      r.addedNodes.forEach((n) => ensureGlassPanes(n));
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+  document.documentElement.classList.add('glass-panes');
+}
+
+watchGlassPanes();
 mountSeasonScene();
 // once only: two loops on one element would fight over its transform
 if (!window.__fhSpiders) {

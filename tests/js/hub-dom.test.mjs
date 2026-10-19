@@ -11663,3 +11663,45 @@ test('a moving season with no when text never breaks Settings (it says it moves 
   env.sandbox.reflectThemeControls();
   assert.match(env.document.querySelectorAll('.season-idle-note')[0].textContent, /Mother's Day starts on a date that moves each year/);
 });
+
+test('ensureGlassPanes: every glass surface gets one pane, first, and only once', () => {
+  const { document, sandbox } = newHub();
+  const made = [];
+  const card = {
+    nodeType: 1, children: [], firstElementChild: null, firstChild: null,
+    matches: (sel) => sel.split(',').some((s) => s.trim() === '.wrap .card'),
+    querySelectorAll: () => [],
+    insertBefore(el) { this.children.unshift(el); this.firstElementChild = el; this.firstChild = el; made.push(el); },
+  };
+  const realCreate = document.createElement;
+  document.createElement = (tag) => {
+    const el = realCreate(tag);
+    el._tagName = tag;
+    el.setAttribute = el.setAttribute || (() => {});
+    return el;
+  };
+  sandbox.ensureGlassPanes(card);
+  sandbox.ensureGlassPanes(card);
+  assert.equal(made.length, 1, 'a second pass adds no second pane');
+  assert.equal(made[0]._tagName, 'i', 'an <i>, so no first-of-type rule shifts');
+  assert.equal(made[0].className, 'glass-pane');
+});
+
+test('ensureGlassPanes: a surface that lost its pane to a re-render gets it back', () => {
+  const { document, sandbox } = newHub();
+  let first = null;
+  const card = {
+    nodeType: 1, get firstElementChild() { return first; }, get firstChild() { return first; },
+    matches: (sel) => sel.split(',').some((s) => s.trim() === '.wrap .card'),
+    querySelectorAll: () => [],
+    insertBefore(el) { first = el; },
+  };
+  const realCreate = document.createElement;
+  document.createElement = (tag) => { const el = realCreate(tag); el.setAttribute = el.setAttribute || (() => {}); return el; };
+  sandbox.ensureGlassPanes(card);
+  const pane = first;
+  first = { className: 'card-body' };   // innerHTML replaced the card's children
+  sandbox.ensureGlassPanes(card);
+  assert.notEqual(first, pane);
+  assert.equal(first.className, 'glass-pane');
+});
