@@ -6990,7 +6990,8 @@ def test_keep_turn_skips_what_it_cannot_keep(client, app_mod):
 
 def test_keep_turn_compares_the_same_day_before_and_after(client, app_mod):
     """"Only on one other weekday" turned into "every day" starts on a
-    different day; the turn kept is whoever had that same day before."""
+    different day; the turn kept is whoever the old schedule gave that day.
+    (The later-start test below is the one that tells the days apart.)"""
     a, b = _mk_person(client, "Ava"), _mk_person(client, "Ben")
     today = _today()
     other_bit = 1 << ((today.weekday() + 3) % 7)
@@ -7051,3 +7052,21 @@ def test_keep_turn_finds_the_first_day_of_a_chore_that_starts_later(client, app_
         "schedule_kind": "days", "days_mask": 1 << day.weekday(), "keep_turn": True}).json()
     assert app_mod.chlogic.occurs(r, day) and not app_mod.chlogic.occurs(r, start)
     assert app_mod.chlogic.assignee_id(r, day) == b
+
+
+def test_keep_turn_has_nothing_to_keep_for_a_one_time_or_a_switched_off_chore(client, app_mod):
+    a, b = _mk_person(client, "Ava"), _mk_person(client, "Ben")
+    # a one-time chore becoming a rotation: its day was no turn in a cycle
+    once = client.post("/api/admin/chores", json={
+        "title": "Once", "schedule_kind": "once", "date": (_today() + dt.timedelta(days=2)).isoformat(),
+        "assign_kind": "fixed", "fixed_person_id": b}).json()["id"]
+    r = client.patch(f"/api/admin/chores/{once}", json={
+        "schedule_kind": "daily", "assign_kind": "rotation", "rotation_order": [a, b],
+        "keep_turn": True}).json()
+    assert r["rotation_order"] == [a, b]
+    # a chore that was off and is switched back on had nobody up next
+    cid, _ = _biweekly_turns_today(client, app_mod, [b, a])
+    client.patch(f"/api/admin/chores/{cid}", json={"active": 0})
+    r = client.patch(f"/api/admin/chores/{cid}", json={
+        "active": 1, "week_interval": 1, "keep_turn": True}).json()
+    assert r["rotation_order"] == [b, a]

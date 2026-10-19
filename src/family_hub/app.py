@@ -2390,7 +2390,8 @@ def _keep_turn(old: dict, new: dict, today: dt.date, active_ids: set) -> list | 
     The same date is read on both sides on purpose: "Fridays only" turned
     into "every day" has a different first day, and comparing the old first
     Friday with the new first day would keep the wrong person."""
-    if new["assign_kind"] != "rotation" or not old.get("active", 1):
+    # a one-time chore has no turn to carry on, and a chore that was off had none up next
+    if new["assign_kind"] != "rotation" or not old.get("active", 1) or old["schedule_kind"] == "once":
         return None
     order = list(new["rotation_order"])
     live = [i for i in order if i in active_ids]
