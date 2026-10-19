@@ -767,6 +767,19 @@ function buildChorePayload(f) {
   };
 }
 
+/* Editing a chore that takes turns: when the people in the turns and their
+   order are untouched, the edit is about WHEN it comes up (say every other
+   Monday to every Monday), and that must not quietly hand this week to someone
+   else, so the save asks the hub to keep whoever is up next (keep_turn). If
+   the turns themselves were changed, the order sent is exactly the order
+   picked. Pure. */
+function keepsTurnOnEdit(ch, body) {
+  if (!ch || ch.assign_kind !== 'rotation' || body.assign_kind !== 'rotation') return false;
+  const was = ch.rotation_order || [];
+  const now = body.rotation_order || [];
+  return was.length === now.length && was.every((pid, i) => pid === now[i]);
+}
+
 /* Active chores that nobody can do: a fixed chore whose owner was deleted or
    turned off, or a rotation with no active member left. They appear on no
    person card, so from the wall they simply vanished (review, 2026-09-22).

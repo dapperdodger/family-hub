@@ -4758,7 +4758,8 @@ async function openChoreEditor(seed) {
     if (!ch) { showToast('That chore is no longer here — refreshing.'); refreshChoresAfterEdit(); return; }
     model = choreToModel(ch);
     label = 'Save';
-    onsubmit = (body) => submitChore(`/api/admin/chores/${ch.id}`, 'PATCH', body);
+    onsubmit = (body) => submitChore(`/api/admin/chores/${ch.id}`, 'PATCH',
+      { ...body, keep_turn: keepsTurnOnEdit(ch, body) });
   } else {
     // add: seed the person picker to the card's person (preselected)
     model = { ...freshChoreModel(), fixed_person_id: seed.personId };

@@ -2895,3 +2895,11 @@ def test_holiday_looks_with_an_off_centre_subject_keep_it_on_the_phone():
         m = re.search(rf'--sn-scene:url\("seasons/{re.escape(look)}\.webp"\); --sn-pos:(\d+)% (\d+)%', CSS)
         assert m, f"{look} has no x/y focal point (an x of 'center' leaves the subject off the phone)"
         assert abs(int(m.group(1)) - want) <= 3, f"{look}: --sn-pos x is {m.group(1)}, the subject is at about {want}"
+
+
+def test_editing_a_chore_asks_the_hub_to_keep_the_turn():
+    # The edit form sends keep_turn with the PATCH (keepsTurnOnEdit decides);
+    # without it, changing how often a rotation repeats quietly moves whose turn it is.
+    # (coupled to the exact call on purpose: a reformat should re-read this guard)
+    assert re.search(r"'PATCH',\s*\{ \.\.\.body, keep_turn: keepsTurnOnEdit\(ch, body\) \}", HUB)
+    assert "keep_turn: bool = False" in APP_PY
