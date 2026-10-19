@@ -2957,7 +2957,8 @@ def test_wide_screens_use_still_glass_not_a_live_blur():
     assert len(rules) == 2, "one rule for wide screens, one for the forced Desktop layout"
     for sel in rules:
         for target in (".card", ".expand", ".shead h2", ".topbar"):
-            assert target in sel, f"{target} still blurs live on wide screens"
+            # on a selector boundary: ".card" must not be satisfied by ".card-body", ".topbar" by ".topbarx"
+            assert re.search(re.escape(target) + r"(?![\w-])", sel), f"{target} still blurs live on wide screens"
     assert 'data-layout="desktop"' in rules[1]
     shown = re.findall(r"\.glass-pane \{ display: block; \}", block)
     assert len(shown) == 2, "the panes show on wide screens and the forced Desktop layout"

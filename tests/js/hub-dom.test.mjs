@@ -11664,48 +11664,6 @@ test('a moving season with no when text never breaks Settings (it says it moves 
   assert.match(env.document.querySelectorAll('.season-idle-note')[0].textContent, /Mother's Day starts on a date that moves each year/);
 });
 
-test('ensureGlassPanes: every glass surface gets one pane, first, and only once', () => {
-  const { document, sandbox } = newHub();
-  const made = [];
-  const card = {
-    nodeType: 1, children: [], firstElementChild: null, firstChild: null,
-    matches: (sel) => sel.split(',').some((s) => s.trim() === '.wrap .card'),
-    querySelectorAll: () => [],
-    insertBefore(el) { this.children.unshift(el); this.firstElementChild = el; this.firstChild = el; made.push(el); },
-  };
-  const realCreate = document.createElement;
-  document.createElement = (tag) => {
-    const el = realCreate(tag);
-    el._tagName = tag;
-    el.setAttribute = el.setAttribute || (() => {});
-    return el;
-  };
-  sandbox.ensureGlassPanes(card);
-  sandbox.ensureGlassPanes(card);
-  assert.equal(made.length, 1, 'a second pass adds no second pane');
-  assert.equal(made[0]._tagName, 'i', 'an <i>, so no first-of-type rule shifts');
-  assert.equal(made[0].className, 'glass-pane');
-});
-
-test('ensureGlassPanes: a surface that lost its pane to a re-render gets it back', () => {
-  const { document, sandbox } = newHub();
-  let first = null;
-  const card = {
-    nodeType: 1, get firstElementChild() { return first; }, get firstChild() { return first; },
-    matches: (sel) => sel.split(',').some((s) => s.trim() === '.wrap .card'),
-    querySelectorAll: () => [],
-    insertBefore(el) { first = el; },
-  };
-  const realCreate = document.createElement;
-  document.createElement = (tag) => { const el = realCreate(tag); el.setAttribute = el.setAttribute || (() => {}); return el; };
-  sandbox.ensureGlassPanes(card);
-  const pane = first;
-  first = { className: 'card-body' };   // innerHTML replaced the card's children
-  sandbox.ensureGlassPanes(card);
-  assert.notEqual(first, pane);
-  assert.equal(first.className, 'glass-pane');
-});
-
 // --- Lite never gets glass panes (a slow screen pays for neither the layer nor the observer) ---
 
 function glassHarness() {
@@ -11759,4 +11717,97 @@ test('syncGlassPanes: Lite stops the observer and removes the panes; turning Lit
   sandbox.syncGlassPanes();
   assert.equal(observers.length, 2, 'Lite off: a fresh observer');
   assert.equal(classes.has('glass-panes'), true);
+});
+
+// --- still glass: ensureGlassPanes / watchGlassPanes (the pane every glass surface holds) ---
+
+// A card whose insertBefore records its reference node, so "first child" is asserted, not assumed.
+function fakeSurface(selMatch, firstChild = null) {
+  const card = {
+    nodeType: 1, firstElementChild: firstChild, firstChild,
+    inserted: [], refs: [],
+    matches: (sel) => sel.split(',').some((x) => x.trim() === selMatch),
+    querySelectorAll: () => [],
+    insertBefore(el, ref) { this.inserted.push(el); this.refs.push(ref); this.firstElementChild = el; this.firstChild = el; },
+  };
+  return card;
+}
+
+function withPaneFactory(document, fn) {
+  const real = document.createElement;
+  document.createElement = (tag) => {
+    const el = real(tag);
+    el._tagName = tag;
+    el.setAttribute = el.setAttribute || (() => {});
+    return el;
+  };
+  try { return fn(); } finally { document.createElement = real; }
+}
+
+test('ensureGlassPanes: a glass surface gets one <i> pane, as its FIRST child, and only once', () => {
+  const { document, sandbox } = newHub();
+  withPaneFactory(document, () => {
+    const existing = { className: 'card-body' };
+    const card = fakeSurface('.wrap .card', existing);
+    sandbox.ensureGlassPanes(card);
+    sandbox.ensureGlassPanes(card);
+    assert.equal(card.inserted.length, 1, 'a second pass adds no second pane');
+    assert.equal(card.inserted[0]._tagName, 'i', 'an <i>, so no first-of-type rule shifts');
+    assert.equal(card.inserted[0].className, 'glass-pane');
+    assert.equal(card.refs[0], existing, 'inserted BEFORE the previous first child, so it is first');
+  });
+});
+
+test('ensureGlassPanes: walks a container to its glass surfaces (the boot path and added subtrees)', () => {
+  const { document, sandbox } = newHub();
+  withPaneFactory(document, () => {
+    const a = fakeSurface('.wrap .card');
+    const b = fakeSurface('.topbar');
+    const container = { nodeType: 1, matches: () => false, querySelectorAll: () => [a, b] };
+    sandbox.ensureGlassPanes(container);
+    assert.equal(a.inserted.length, 1);
+    assert.equal(b.inserted.length, 1);
+    sandbox.ensureGlassPanes({ nodeType: 3 });   // a text node is ignored, not a crash
+    sandbox.ensureGlassPanes(null);
+  });
+});
+
+test('ensureGlassPanes: a surface that lost its pane to a re-render gets it back', () => {
+  const { document, sandbox } = newHub();
+  withPaneFactory(document, () => {
+    const card = fakeSurface('.wrap .card');
+    sandbox.ensureGlassPanes(card);
+    const pane = card.firstChild;
+    card.firstElementChild = card.firstChild = { className: 'card-body' };   // innerHTML replaced the children
+    sandbox.ensureGlassPanes(card);
+    assert.notEqual(card.firstChild, pane);
+    assert.equal(card.firstChild.className, 'glass-pane');
+  });
+});
+
+test('watchGlassPanes: panes the page, switches the still-glass rules on, and re-panes what the observer sees', () => {
+  const { document, sandbox, classes, observers } = glassHarness();
+  classes.clear();
+  withPaneFactory(document, () => {
+    sandbox.watchGlassPanes();
+    assert.equal(classes.has('glass-panes'), true, 'without the class the CSS never turns the panes on');
+    const [body, attrs] = [observers[0], observers[1]];
+    assert.ok(body && attrs, 'one observer on the page, one on <html> for Lite');
+    // a node added somewhere in the page is walked...
+    const added = fakeSurface('.wrap .card');
+    body.cb([{ target: { nodeType: 1, matches: () => false }, addedNodes: [added] }]);
+    assert.equal(added.inserted.length, 1, 'an added card gets its pane');
+    // ...and a surface whose OWN children were replaced is the record's target
+    const replaced = fakeSurface('.wrap .expand');
+    body.cb([{ target: replaced, addedNodes: [] }]);
+    assert.equal(replaced.inserted.length, 1, 'a re-rendered surface gets its pane back');
+  });
+});
+
+test('watchGlassPanes: without MutationObserver nothing is changed and the cards keep the live blur', () => {
+  const { sandbox, classes } = glassHarness();
+  classes.clear();
+  sandbox.MutationObserver = undefined;
+  sandbox.watchGlassPanes();
+  assert.equal(classes.has('glass-panes'), false);
 });
