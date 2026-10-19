@@ -2888,6 +2888,11 @@ body.integ-off-todos .todo-slot { display: none; }
   padding: 8px 14px; border-radius: 8px; cursor: pointer;
 }
 .seg-btn.active { color: var(--ink); background: var(--accent-soft); }
+/* the chore form's choices and its close button are finger targets on the phone (>= 44px, CLAUDE.md) */
+@media (max-width: 1000px) {
+  #chore-editor .seg-btn { min-height: 44px; }
+  .chore-close { width: 44px; height: 44px; }
+}
 /* consistent focus-visible ring for the remaining admin/interactive controls
    that carry no bespoke ring of their own (the file-wide convention) */
 .seg-btn:focus-visible, .day-chip:focus-visible,

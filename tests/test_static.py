@@ -2910,3 +2910,11 @@ def test_editing_a_chore_asks_the_hub_to_keep_the_turn():
     # (coupled to the exact call on purpose: a reformat should re-read this guard)
     assert re.search(r"'PATCH',\s*\{ \.\.\.body, keep_turn: keepsTurnOnEdit\(ch, body\) \}", HUB)
     assert "keep_turn: bool = False" in APP_PY
+
+
+def test_the_chore_form_keeps_finger_sized_targets_on_the_phone():
+    # the segmented choices and the close button measured 30px and 40px on a 390px phone
+    # (2026-10-19); CLAUDE.md asks for >= 44px
+    phone = re.search(r"@media \(max-width: 1000px\) \{\s*#chore-editor \.seg-btn \{ min-height: 44px; \}\s*"
+                      r"\.chore-close \{ width: 44px; height: 44px; \}\s*\}", CSS)
+    assert phone, "the chore form's .seg-btn and .chore-close need 44px minimums at phone width"

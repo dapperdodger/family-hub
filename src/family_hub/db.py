@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -859,6 +860,14 @@ def update_todo(conn, tid: int, **fields) -> None:
                      (*cols.values(), tid))
 
 
+# The connection is shared across the server's worker threads, and a move
+# reads a list's order BEFORE its transaction opens (sqlite3 opens one at the
+# first write), so two moves at once (two devices) could read the same order
+# and renumber over each other. One lock around the read-and-renumber makes
+# them take turns.
+_TODO_ORDER_LOCK = threading.Lock()
+
+
 def _bucket_order(conn, bucket: str) -> list[int]:
     """The open items of one list in the order the wall shows them: placed
     items by their sort, then never-moved items oldest first (the same key as
@@ -874,7 +883,7 @@ def move_todo(conn, tid: int, bucket: str, title: str | None = None) -> None:
     renaming it too when `title` is given, in one transaction. The target
     list's open items are numbered first, in the order they show, so the
     moved item lands last instead of slotting in by its creation date."""
-    with conn:
+    with _TODO_ORDER_LOCK, conn:
         if title is not None:
             conn.execute("UPDATE todos SET title = ? WHERE id = ?", (title, tid))
         order = [i for i in _bucket_order(conn, bucket) if i != tid] + [tid]
@@ -889,7 +898,7 @@ def place_todos(conn, bucket: str, ids: list[int]) -> None:
     they showed, so an item the dragging device never saw (added elsewhere
     meanwhile) can't tie with a new place. One transaction: a half-applied
     reorder would shuffle the list."""
-    with conn:
+    with _TODO_ORDER_LOCK, conn:
         rest = [i for i in _bucket_order(conn, bucket) if i not in set(ids)]
         for n, i in enumerate(list(ids) + rest):
             conn.execute("UPDATE todos SET bucket = ?, sort = ? WHERE id = ?",

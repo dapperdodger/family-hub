@@ -11,6 +11,9 @@ rolls that section to a dated version via `python scripts/release.py`.
 ## [Unreleased]
 
 ### Fixed
+- The chore form's choices ("Every day", "Take turns", ...) and its close button are 44px tall on a phone, so they are easy to hit with a finger (they were 30px and 40px).
+- Two devices moving to-dos at the same moment can no longer renumber a list over each other; the moves take turns.
+- Chores: "keep whoever is up next" on an edit also covers chores that take turns a week at a time.
 - Chores: editing a chore that takes turns no longer quietly changes whose turn it is. Changing how often it repeats (say every other Monday to every Monday) keeps whoever is up next, as long as the people and their order are untouched; the turn kept is whoever had that same day before, and a person turned off in the rotation is stepped over, not a reason to skip it. A one-time chore turned into a rotation, or a chore switched back on, has no turn to keep. (Found upstream, in drench44/family-hub PR #115; re-done here against our own chore code.)
 - Kiosk: when Google needs reconnecting, the wall's Settings no longer sends its keyboard-less screen to Google's sign-in page (nothing to type with, and the callback only works from a tailnet device); it tells you to reconnect from a phone instead.
 - A to-do move that can't be saved puts the item straight back and says so, a second finger can't break a drag on the wall, and a to-do name that is too long says why instead of "tap again".

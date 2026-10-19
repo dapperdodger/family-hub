@@ -1276,3 +1276,23 @@ def test_place_todos_sets_list_and_order(conn):
     fdb.place_todos(conn, "now", [c, b, a])
     assert _todo_ids(conn, "now") == [c, b, a]
     assert _todo_ids(conn, "later") == []
+
+
+def test_a_move_reads_the_list_order_under_the_lock(conn, monkeypatch):
+    """Two devices moving at once must take turns: the order is read before
+    the transaction opens, so the read has to happen while the lock is held."""
+    held = []
+    real = fdb._bucket_order
+
+    def spy(c, bucket):
+        held.append(fdb._TODO_ORDER_LOCK.locked())
+        return real(c, bucket)
+
+    monkeypatch.setattr(fdb, "_bucket_order", spy)
+    a = fdb.add_todo(conn, "a", "now")
+    b = fdb.add_todo(conn, "b", "soon")
+    fdb.move_todo(conn, a, "soon")
+    fdb.place_todos(conn, "soon", [b, a])
+    assert held == [True, True]
+    assert not fdb._TODO_ORDER_LOCK.locked(), "the lock is released afterwards"
+
