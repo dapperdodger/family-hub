@@ -1262,7 +1262,6 @@ test('assignLanes: an all-day event with end == start (server allows it) is a on
   assert.deepEqual([by.b.c0, by.b.c1], [4, 4], 'end-before-start clamps to the start day');
 });
 
-/* review 2026-09-22: a chore nobody can do used to vanish from every card */
 test('keepsTurnOnEdit: only a rotation whose people and order are untouched keeps its turn', () => {
   const ch = { assign_kind: 'rotation', rotation_order: [3, 5] };
   const keeps = (c, b) => sandbox.keepsTurnOnEdit(c, b);
@@ -1277,6 +1276,7 @@ test('keepsTurnOnEdit: only a rotation whose people and order are untouched keep
   assert.equal(keeps(null, { assign_kind: 'rotation', rotation_order: [3, 5] }), false);
 });
 
+/* review 2026-09-22: a chore nobody can do used to vanish from every card */
 test('unassignedChores: fixed owner gone or turned off, or a rotation with nobody active', () => {
   const people = [{ id: 1, active: 1 }, { id: 2, active: 0 }];
   const chores = [
