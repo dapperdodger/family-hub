@@ -6971,12 +6971,14 @@ def test_keep_turn_keeps_the_cycle_of_three_and_a_null_flag_is_a_422(client, app
 
 def test_keep_turn_skips_what_it_cannot_keep(client, app_mod):
     a, b, z = _mk_person(client, "Ava"), _mk_person(client, "Ben"), _mk_person(client, "Zed")
-    # someone inactive in the order: the wall turns a shorter list, nothing to keep
+    # only one active person left in the order: no turns to keep
     cid, _ = _biweekly_turns_today(client, app_mod, [b, a])
-    client.patch(f"/api/admin/people/{z}", json={"active": 0})
+    client.patch(f"/api/admin/people/{a}", json={"active": 0})
     r = client.patch(f"/api/admin/chores/{cid}", json={
-        "rotation_order": [b, a, z], "week_interval": 1, "keep_turn": True}).json()
-    assert r["rotation_order"] == [b, a, z]
+        "week_interval": 1, "keep_turn": True}).json()
+    assert r["rotation_order"] == [b, a]
+    client.patch(f"/api/admin/people/{a}", json={"active": 1})
+    client.patch(f"/api/admin/people/{z}", json={"active": 0})
     # the person up next left the turns: nothing to keep either
     cid2, had2 = _biweekly_turns_today(client, app_mod, [b, a])
     other = a if had2 == b else b
@@ -7017,3 +7019,35 @@ def test_keep_turn_carries_a_one_person_chore_into_turns(client, app_mod):
         "assign_kind": "rotation", "rotation_order": [a, b], "keep_turn": True}).json()
     assert r["rotation_order"] == [b, a]
     assert _owner_on(client, cid, _today()) == [b]
+
+
+def test_keep_turn_turns_only_the_active_people_and_leaves_the_rest_in_place(client, app_mod):
+    a, b, z = _mk_person(client, "Ava"), _mk_person(client, "Ben"), _mk_person(client, "Zed")
+    cid, had = _biweekly_turns_today(client, app_mod, [a, z, b])
+    client.patch(f"/api/admin/people/{z}", json={"active": 0})   # the wall now turns [a, b]
+    had = app_mod.chlogic.assignee_id(app_mod._chore_row(app_mod._db(), cid), _today(), {a, b})
+    r = client.patch(f"/api/admin/chores/{cid}", json={"week_interval": 1, "keep_turn": True}).json()
+    assert r["rotation_order"].index(z) == 1               # Zed keeps his place
+    assert sorted(r["rotation_order"]) == sorted([a, b, z])
+    assert _owner_on(client, cid, _today()) == [had]
+
+
+def test_keep_turn_finds_the_first_day_of_a_chore_that_starts_later(client, app_mod):
+    """Daily from a date 90 days out, then only one weekday: the new schedule's
+    first day is the day after it starts, far past a 30-day look-ahead from
+    today, and on it the old daily schedule had handed the turn to Ben."""
+    a, b = _mk_person(client, "Ava"), _mk_person(client, "Ben")
+    cid = client.post("/api/admin/chores", json={
+        "title": "Later", "schedule_kind": "daily",
+        "assign_kind": "rotation", "rotation_order": [a, b]}).json()["id"]
+    c = app_mod._db()
+    start = _today() + dt.timedelta(days=90)
+    c.execute("UPDATE chores SET rotation_epoch = ? WHERE id = ?", (start.isoformat(), cid))
+    c.commit()
+    day = start + dt.timedelta(days=1)
+    old = app_mod._chore_row(c, cid)
+    assert app_mod.chlogic.assignee_id(old, day) == b
+    r = client.patch(f"/api/admin/chores/{cid}", json={
+        "schedule_kind": "days", "days_mask": 1 << day.weekday(), "keep_turn": True}).json()
+    assert app_mod.chlogic.occurs(r, day) and not app_mod.chlogic.occurs(r, start)
+    assert app_mod.chlogic.assignee_id(r, day) == b

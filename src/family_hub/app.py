@@ -2364,15 +2364,12 @@ def admin_patch_chore(cid: int, ch: ChorePatch):
 def _first_day(chore: dict, today: dt.date) -> dt.date | None:
     """The first day from ``today`` the chore comes up, or None when it
     never does within reach."""
-    if chore["schedule_kind"] == "once":
-        # read the one dated day directly, never walk to it (a year-9999 date)
-        due = dt.date.fromisoformat(chore["rotation_epoch"])
-        return due if due >= today else None
     # an every-N-days chore (N is at most 365) comes up within N days; a
     # biweekly one within 14: look a little past two cycles to be sure
     horizon = max(30, 2 * (chore.get("interval_days") or 1) + 1)
+    start = max(today, dt.date.fromisoformat(chore["rotation_epoch"]))
     for i in range(horizon):
-        d = today + dt.timedelta(days=i)
+        d = start + dt.timedelta(days=i)
         if chlogic.occurs(chore, d):
             return d
     return None
@@ -2386,29 +2383,31 @@ def _keep_turn(old: dict, new: dict, today: dt.date, active_ids: set) -> list | 
     Changing how often a rotation repeats also changes how many turns have
     gone by, so without this an edit like "every other Monday" to "every
     Monday" quietly hands this week to someone else. Only where the cycle
-    starts moves: the same people, in the same order.
+    starts moves: the same people, in the same order. Someone no longer
+    active is skipped by the wall (it turns the shorter list), so only the
+    active people are turned and the others keep their places.
 
     The same date is read on both sides on purpose: "Fridays only" turned
     into "every day" has a different first day, and comparing the old first
     Friday with the new first day would keep the wrong person."""
-    if new["assign_kind"] != "rotation":
+    if new["assign_kind"] != "rotation" or not old.get("active", 1):
         return None
     order = list(new["rotation_order"])
-    if len(order) < 2 or not all(i in active_ids for i in order):
-        return None   # with someone inactive the wall turns a shorter list
-    if not old.get("active", 1) or old["schedule_kind"] == "once":
+    live = [i for i in order if i in active_ids]
+    if len(live) < 2:
         return None
     d = _first_day(new, today)
     if d is None:
         return None
     pid = chlogic.assignee_id(old, d, active_ids)
-    if pid is None or pid not in order:
+    if pid is None or pid not in live:
         return None
     if chlogic.assignee_id(new, d, active_ids) == pid:
         return None
-    slot = chlogic.occurrences_before(new, d) % len(order)
-    shift = (order.index(pid) - slot) % len(order)
-    return order[shift:] + order[:shift]
+    slot = chlogic.occurrences_before(new, d) % len(live)
+    shift = (live.index(pid) - slot) % len(live)
+    turned = iter(live[shift:] + live[:shift])
+    return [next(turned) if i in active_ids else i for i in order]
 
 
 @app.delete("/api/admin/chores/{cid}")
