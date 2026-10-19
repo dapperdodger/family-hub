@@ -6588,19 +6588,50 @@ function ensureGlassPanes(root) {
   });
 }
 
-function watchGlassPanes() {
-  // No observer, no panes: the surfaces keep the live blur (the still-glass
-  // rules only apply under .glass-panes), never bare text on the photo.
-  if (typeof MutationObserver !== 'function' || !document.body) return;
+/* Lite (a slow screen such as the wall's Raspberry Pi 3) never gets panes: a
+   fixed, viewport-sized layer per card costs it more than the live blur it
+   dropped, and the observer below would run on every render and clock tick.
+   While data-lite is on there are no panes and no observer; both come back
+   when Lite is turned off (Settings, or ?lite=0, can flip it while the wall
+   runs). The CSS gates the same way (:not([data-lite="on"])), so a pane that
+   is briefly there never paints. */
+let glassObserver = null;
+
+function glassPanesWanted() {
+  return document.documentElement.getAttribute('data-lite') !== 'on';
+}
+
+function removeGlassPanes() {
+  document.querySelectorAll('.glass-pane').forEach((p) => p.remove());
+  document.documentElement.classList.remove('glass-panes');
+}
+
+function syncGlassPanes() {
+  if (!glassPanesWanted()) {
+    if (glassObserver) { glassObserver.disconnect(); glassObserver = null; }
+    removeGlassPanes();
+    return;
+  }
+  if (glassObserver) return;
   ensureGlassPanes(document.body);
-  new MutationObserver((records) => {
+  glassObserver = new MutationObserver((records) => {
     records.forEach((r) => {
       // a surface whose own children were replaced lost its pane
       if (r.target.nodeType === 1 && r.target.matches && r.target.matches(GLASS_SURFACES)) ensureGlassPanes(r.target);
       r.addedNodes.forEach((n) => ensureGlassPanes(n));
     });
-  }).observe(document.body, { childList: true, subtree: true });
+  });
+  glassObserver.observe(document.body, { childList: true, subtree: true });
   document.documentElement.classList.add('glass-panes');
+}
+
+function watchGlassPanes() {
+  // No observer, no panes: the surfaces keep the live blur (the still-glass
+  // rules only apply under .glass-panes), never bare text on the photo.
+  if (typeof MutationObserver !== 'function' || !document.body) return;
+  syncGlassPanes();
+  new MutationObserver(syncGlassPanes)
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-lite'] });
 }
 
 watchGlassPanes();

@@ -11705,3 +11705,58 @@ test('ensureGlassPanes: a surface that lost its pane to a re-render gets it back
   assert.notEqual(first, pane);
   assert.equal(first.className, 'glass-pane');
 });
+
+// --- Lite never gets glass panes (a slow screen pays for neither the layer nor the observer) ---
+
+function glassHarness() {
+  const { document, sandbox } = newHub();
+  const classes = new Set(['glass-panes']);
+  document.documentElement.classList = {
+    add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c),
+  };
+  const panes = [{ removed: false, remove() { this.removed = true; } }, { removed: false, remove() { this.removed = true; } }];
+  document.querySelectorAll = (sel) => (sel === '.glass-pane' ? panes : []);
+  const observers = [];
+  sandbox.MutationObserver = class {
+    constructor(cb) { this.cb = cb; this.observed = 0; this.disconnected = false; observers.push(this); }
+    observe() { this.observed += 1; }
+    disconnect() { this.disconnected = true; }
+  };
+  return { document, sandbox, classes, panes, observers };
+}
+
+test('glassPanesWanted: only Lite turns the panes down', () => {
+  const { document, sandbox } = glassHarness();
+  assert.equal(sandbox.glassPanesWanted(), true, 'no data-lite at all');
+  document.documentElement.setAttribute('data-lite', 'off');
+  assert.equal(sandbox.glassPanesWanted(), true);
+  document.documentElement.setAttribute('data-lite', 'on');
+  assert.equal(sandbox.glassPanesWanted(), false);
+});
+
+test('removeGlassPanes: takes every pane out and drops the glass-panes class', () => {
+  const { sandbox, classes, panes } = glassHarness();
+  sandbox.removeGlassPanes();
+  assert.deepEqual(panes.map((p) => p.removed), [true, true]);
+  assert.equal(classes.has('glass-panes'), false);
+});
+
+test('syncGlassPanes: Lite stops the observer and removes the panes; turning Lite off brings them back', () => {
+  const { document, sandbox, classes, panes, observers } = glassHarness();
+  classes.clear();
+  sandbox.syncGlassPanes();
+  assert.equal(observers.length, 1, 'one observer watches the page');
+  assert.equal(observers[0].observed, 1);
+  assert.equal(classes.has('glass-panes'), true, 'the still-glass rules switch on');
+  sandbox.syncGlassPanes();
+  assert.equal(observers.length, 1, 'syncing twice does not stack a second observer');
+  document.documentElement.setAttribute('data-lite', 'on');
+  sandbox.syncGlassPanes();
+  assert.equal(observers[0].disconnected, true, 'Lite stops the observer');
+  assert.deepEqual(panes.map((p) => p.removed), [true, true], 'and removes the panes');
+  assert.equal(classes.has('glass-panes'), false);
+  document.documentElement.setAttribute('data-lite', 'off');
+  sandbox.syncGlassPanes();
+  assert.equal(observers.length, 2, 'Lite off: a fresh observer');
+  assert.equal(classes.has('glass-panes'), true);
+});

@@ -1962,8 +1962,13 @@ def test_season_art_files_exist_and_are_credited():
         assert (seasons / ref).is_file(), f"styles.css references missing seasons/{ref}"
     credits = (seasons / "CREDITS.md").read_text()
     for f in seasons.iterdir():
-        if f.name == "CREDITS.md" or f.name == "glass":
-            continue   # glass/ holds blurred copies made from the credited photos (scripts/make-glass.py)
+        if f.name == "CREDITS.md":
+            continue
+        if f.name == "glass":
+            # blurred copies of the credited photos (scripts/make-glass.py): a modified version, so the
+            # credits must say so and under whose licence
+            assert "Each file in `glass/` is a modified copy" in credits, "CREDITS.md must explain the glass/ copies"
+            continue
         assert f"`{f.name}`" in credits, f"seasons/{f.name} is not in CREDITS.md"
 
 def test_season_scene_sits_behind_and_never_takes_a_tap():
@@ -2965,8 +2970,7 @@ def test_wide_screens_use_still_glass_not_a_live_blur():
         "the pane is hidden by default, never takes a tap, and clips the fixed copy to its surface"
     night = re.search(r':where\(:root\[data-look\]:not\(\[data-look="none"\]\) \.is-night \.wrap\) '
                       r':is\(\.card, \.expand, \.shead h2\),\s*:where\(:root\[data-look\]:not\(\[data-look="none"\]\) '
-                      r'\.is-night\) \.topbar \{\s*background: linear-gradient\(var\(--glass\), var\(--glass\)\), '
-                      r'var\(--ground\);\s*\}', CSS)
+                      r'\.is-night\) \.topbar \{\s*background: var\(--glass\);\s*\}', CSS)
     assert night and night.start() > sup, "at night the glass must drop the fixed copy, after the wide rules"
     assert ".is-night .glass-pane { display: none !important; }" in CSS
     assert ".look-swatch" not in block, "the Settings tiles paint their own photo; keep them out of still glass"
@@ -3041,3 +3045,23 @@ def test_lite_never_gets_glass_panes():
     # ...and Lite's own plain fill is still what paints its cards
     assert re.search(r':root\[data-lite="on"\]\[data-look\]:not\(\[data-look="none"\]\) body:not\(\.is-night\) \.wrap \{\s*'
                      r'--glass: color-mix\(in srgb, var\(--surface\) 86%, transparent\);', CSS)
+
+
+def test_night_glass_does_not_back_every_card_with_the_ground_colour():
+    # At night the panes are hidden and a card paints its own fill. That fill is the 94% glass over the
+    # photo, as it always was: backing it with --ground made every card opaque on phones and Lite too.
+    m = re.search(r':where\(:root\[data-look\]:not\(\[data-look="none"\]\) \.is-night \.wrap\)[^{]*\{([^}]*)\}', CSS)
+    assert m, "the night card rule is missing"
+    assert m.group(1).strip() == "background: var(--glass);", m.group(1)
+
+
+def test_a_look_without_its_own_glass_copy_falls_back_to_the_photo_not_flat_ground():
+    assert re.search(r":root \{[^}]*--sn-glass: var\(--sn-scene\);", CSS, re.S), \
+        "the default --sn-glass must be the photo, so a look that forgets its copy is not a flat slab"
+
+
+def test_lite_stops_the_pane_observer_in_js_too():
+    # CSS alone left Lite paying for the panes and a body-wide observer on every render
+    assert "function glassPanesWanted()" in HUB
+    assert "attributeFilter: ['data-lite']" in HUB
+    assert re.search(r"function syncGlassPanes\(\) \{\s*if \(!glassPanesWanted\(\)\) \{\s*if \(glassObserver\)", HUB)

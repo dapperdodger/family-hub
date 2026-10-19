@@ -47,8 +47,10 @@
   /* seasonal scene tokens (only painted while a look is active; each look's
      blocks near the end of the file set them — these are neutral defaults) */
   --sn-scene: none; --sn-pos: center;
-  /* none, not unset: an unset var() would void the whole glass background */
-  --sn-glass: none;
+  /* the look's still glass copy. A look that forgets its own (a test fails for
+     ours) falls back to the sharp photo, never to flat ground colour: not
+     unset either, an unset var() would void the whole glass background */
+  --sn-glass: var(--sn-scene);
   /* Light's glass and wash (other themes set their own near the end) */
   --sn-wash: linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 36%, rgba(255,255,255,.06) 100%);
   --glass: rgba(255,255,255,.66); --glass-edge: rgba(255,255,255,.50);
@@ -3636,7 +3638,7 @@ body.integ-off-todos .todo-slot { display: none; }
 .is-night .glass-pane { display: none !important; }
 :where(:root[data-look]:not([data-look="none"]) .is-night .wrap) :is(.card, .expand, .shead h2),
 :where(:root[data-look]:not([data-look="none"]) .is-night) .topbar {
-  background: linear-gradient(var(--glass), var(--glass)), var(--ground);
+  background: var(--glass);
 }
 
 /* ---- drifting leaves (every fall look, in its own colours) ----
