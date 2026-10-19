@@ -2101,6 +2101,10 @@ class ChorePatch(BaseModel):
     date: str | None = None
     sort: int | None = None
     active: Literal[0, 1] | None = None   # 0/1 only, as on PersonPatch
+    # Not a column: whoever is up next before this edit stays up next after
+    # it (see _keep_turn). The chore form sends it when the turns themselves
+    # were not touched.
+    keep_turn: bool = False
 
 
 # An explicit JSON null for a field backed by a NOT NULL column is a bad request
@@ -2310,6 +2314,7 @@ def admin_patch_chore(cid: int, ch: ChorePatch):
     c = _db()
     row = _chore_row(c, cid)
     fields = ch.model_dump(exclude_unset=True)
+    keep_turn = fields.pop("keep_turn", False)
     _reject_null_nonnullable(fields, _CHORE_NONNULL_PATCH)
     merged = {**row, **fields}
     kind = merged["schedule_kind"]
@@ -2347,8 +2352,63 @@ def admin_patch_chore(cid: int, ch: ChorePatch):
         fields["rotation_epoch"] = _today().isoformat()
     if "title" in fields:
         fields["title"] = fields["title"].strip()
+    if keep_turn:
+        active_ids = {p["id"] for p in fdb.list_people(c)}
+        kept = _keep_turn(row, {**row, **fields}, _today(), active_ids)
+        if kept is not None:
+            fields["rotation_order"] = kept
     fdb.update_chore(c, cid, **fields)
     return _chore_row(c, cid)
+
+
+def _first_day(chore: dict, today: dt.date) -> dt.date | None:
+    """The first day from ``today`` the chore comes up, or None when it
+    never does within reach."""
+    if chore["schedule_kind"] == "once":
+        # read the one dated day directly, never walk to it (a year-9999 date)
+        due = dt.date.fromisoformat(chore["rotation_epoch"])
+        return due if due >= today else None
+    # an every-N-days chore (N is at most 365) comes up within N days; a
+    # biweekly one within 14: look a little past two cycles to be sure
+    horizon = max(30, 2 * (chore.get("interval_days") or 1) + 1)
+    for i in range(horizon):
+        d = today + dt.timedelta(days=i)
+        if chlogic.occurs(chore, d):
+            return d
+    return None
+
+
+def _keep_turn(old: dict, new: dict, today: dt.date, active_ids: set) -> list | None:
+    """The turn order that keeps the person whose turn the edited chore's
+    first upcoming day was before the edit, or None when there is nothing to
+    keep (or it is already theirs).
+
+    Changing how often a rotation repeats also changes how many turns have
+    gone by, so without this an edit like "every other Monday" to "every
+    Monday" quietly hands this week to someone else. Only where the cycle
+    starts moves: the same people, in the same order.
+
+    The same date is read on both sides on purpose: "Fridays only" turned
+    into "every day" has a different first day, and comparing the old first
+    Friday with the new first day would keep the wrong person."""
+    if new["assign_kind"] != "rotation":
+        return None
+    order = list(new["rotation_order"])
+    if len(order) < 2 or not all(i in active_ids for i in order):
+        return None   # with someone inactive the wall turns a shorter list
+    if not old.get("active", 1) or old["schedule_kind"] == "once":
+        return None
+    d = _first_day(new, today)
+    if d is None:
+        return None
+    pid = chlogic.assignee_id(old, d, active_ids)
+    if pid is None or pid not in order:
+        return None
+    if chlogic.assignee_id(new, d, active_ids) == pid:
+        return None
+    slot = chlogic.occurrences_before(new, d) % len(order)
+    shift = (order.index(pid) - slot) % len(order)
+    return order[shift:] + order[:shift]
 
 
 @app.delete("/api/admin/chores/{cid}")
