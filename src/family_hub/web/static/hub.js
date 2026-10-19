@@ -820,7 +820,7 @@ async function renderChoresFull(prefetched) {
         + allChoresHtml(choreAdminChores, choreAdminPeople)
         + peopleAdminHtml(choreAdminPeople, choreAdminAway);
     }
-    else if (choreAdminError) peopleAdmin = `<div class="cal-empty">couldn’t load people — is the hub reachable? Tap Done, then Edit to retry.</div>`;
+    else if (choreAdminError) peopleAdmin = `<div class="cal-empty">couldn’t load people — is the hub reachable? Tap Done, then Edit chores to retry.</div>`;
     else ensurePeopleThenRerender();
   } else {
     choreAdminPeople = null;   // drop stale cache when leaving edit
@@ -974,14 +974,14 @@ function peopleAdminHtml(people, awayPeriods) {
 function renderPeople(data) {
   const host = document.getElementById('people');
   if (!data.people.length) {
-    // The empty message tells the family to "tap All chores, then Edit" —
+    // The empty message tells the family to "tap All chores, then Edit chores" —
     // that only works if the section header carrying the All-chores expand
     // button is actually here to tap. Omitting it (as the previous version
     // did) left the very first-run instruction pointing at nothing.
     host.innerHTML =
       sectionHead('Chores', { overlay: 'chores', expandLabel: 'All chores' })
       + `<div class="empty-hub">No people yet`
-      + `<div class="empty-sub">tap All chores, then Edit to add your family</div></div>`;
+      + `<div class="empty-sub">tap All chores, then Edit chores to add your family</div></div>`;
     lastPeople = [];
     return;
   }

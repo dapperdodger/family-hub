@@ -2939,7 +2939,6 @@ body.integ-off-todos .todo-slot { display: none; }
   padding: 8px 10px; cursor: pointer;
 }
 .day-chip.selected { color: var(--ink); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
-.rot-add { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .rot-list { display: flex; flex-direction: column; gap: 6px; }
 .rot-item {
   display: flex; align-items: center; gap: 8px; width: 100%;
