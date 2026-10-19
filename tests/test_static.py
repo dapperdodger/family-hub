@@ -47,7 +47,14 @@ UNSTYLED_OK = {"f-title", "f-icon", "f-repeat", "f-days", "f-assign",
                # styling rides sibling classes: .field / .txt-input /
                # .form-error, same pattern as the routine-type hooks above.
                "f-allday", "f-calendar", "f-description", "f-endtime",
-               "f-evdate", "f-location", "f-starttime", "f-timerow"}
+               "f-evdate", "f-location", "f-starttime", "f-timerow",
+
+               # the plain-words form (2026-10-19): styling rides .emoji-row,
+               # .sub-field, .preset-row, .person-chips, .chore-preview,
+               # .preview-cells, .preview-first, .remind, .chore-summary
+               "f-emoji", "f-weekly", "f-presets", "f-each", "f-turns",
+               "f-rotevery", "f-preview", "f-cells", "f-first", "f-remind",
+               "f-remindcount", "f-summary"}
 
 
 def _css_rule(selector):
@@ -794,7 +801,7 @@ def test_admin_has_away_controls():
 
 def test_admin_html_is_retired():
     """admin.html/admin.js were retired 2026-08-15 — all management now lives on
-    the wall's Chores page (tap Edit). Guard against either file creeping back:
+    the wall's Chores page (tap Edit chores). Guard against either file creeping back:
     the wall must stay the single admin surface, and no page may reference the
     dead admin route."""
     assert not (STATIC / "admin.html").exists(), "admin.html should be deleted"
@@ -3066,3 +3073,11 @@ def test_lite_stops_the_pane_observer_in_js_too():
     assert "function glassPanesWanted()" in HUB
     assert "attributeFilter: ['data-lite']" in HUB
     assert re.search(r"function syncGlassPanes\(\) \{\s*if \(!glassPanesWanted\(\)\) \{\s*if \(glassObserver\)", HUB)
+
+
+def test_the_chore_form_keeps_finger_sized_targets_on_the_phone():
+    # the segmented choices and the close button measured 30px and 40px on a 390px phone
+    # (2026-10-19); CLAUDE.md asks for >= 44px
+    phone = re.search(r"@media \(max-width: 1000px\) \{\s*#chore-editor \.seg-btn \{ min-height: 44px; \}\s*"
+                      r"\.chore-close \{ width: 44px; height: 44px; \}\s*\}", CSS)
+    assert phone, "the chore form's .seg-btn and .chore-close need 44px minimums at phone width"
