@@ -11,6 +11,10 @@ rolls that section to a dated version via `python scripts/release.py`.
 ## [Unreleased]
 
 ### Fixed
+- Chores: the empty-family hint and the "couldn't load people" note say "Edit chores", the button's new name, instead of "Edit".
+- The chore form's choices ("Every day", "Take turns", ...) and its close button are 44px tall on a phone, so they are easy to hit with a finger (they were 30px and 40px).
+- Two devices moving to-dos at the same moment can no longer renumber a list over each other; the moves take turns.
+- Chores: "keep whoever is up next" on an edit also covers chores that take turns a week at a time.
 - Chores: editing a chore that takes turns no longer quietly changes whose turn it is. Changing how often it repeats (say every other Monday to every Monday) keeps whoever is up next, as long as the people and their order are untouched; the turn kept is whoever had that same day before, and a person turned off in the rotation is stepped over, not a reason to skip it. A one-time chore turned into a rotation, or a chore switched back on, has no turn to keep. (Found upstream, in drench44/family-hub PR #115; re-done here against our own chore code.)
 - Kiosk: when Google needs reconnecting, the wall's Settings no longer sends its keyboard-less screen to Google's sign-in page (nothing to type with, and the callback only works from a tailnet device); it tells you to reconnect from a phone instead.
 - Seasons: on a phone the holiday looks whose subject sits off the middle of the photo (Santa, the four-leaf clover, the rabbit, the jeep, the flag) now keep it in view; a test pins each one's horizontal focal point.
@@ -43,6 +47,25 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Chores can take turns a week at a time: one person has the chore every
+  day it comes up this week, the next person has all of next week, and so
+  on (pick "Take turns", then "Switch to the next person: Every week").
+  The chore's row says whose week it is ("↻ Ruby's week").
+- The chores page's Edit button now reads "Edit chores".
+- The chore form asks plain questions ("How often?", "Who does it?"),
+  shows people as colored name buttons, offers quick emoji and day presets
+  (Weekdays, Weekends), and shows who does the chore on the next few days
+  (or weeks) before you save, with a one-tap "who has this week". "Each of
+  them" makes the same chore for several people at once.
+- Chores edit mode lists every chore with what it is in plain words, so a
+  chore that is not on today can still be found and edited, and has a
+  "+ New chore" button at the top.
+- To-dos: drag an item by its handle to another list or another place in
+  its list (touch, mouse, or the arrow keys). Tap an item to rename it,
+  move it to Now, Soon or Later, or delete it. A moved item lands at the
+  end of its new list.
+  A move that can't be saved puts the item straight back and says so, a second
+  finger can't break a drag on the wall, and a name that is too long says why.
 - Docs: the README and the seasonal-looks standard describe the holidays (and how Unsplash and Pixabay files on Commons are proven pre-change), and a second showcase image shows six of them.
 - Seasons: nine holidays: New Year's (Dec 27 to Jan 2), Christmas (Dec 1 to 26), Valentine's Day (Feb 1 to 14), St Patrick's Day (Mar 1 to 17), Easter, Mother's Day, Father's Day, the Fourth of July (Jun 25 to Jul 4) and Thanksgiving, with 28 looks between them. Each one wins over the broad season it sits in. Turn Seasonal looks on in Settings and pick the photos you like.
 - Seasons: Thanksgiving looks drift the same falling leaves as Fall (and Lite keeps them still, like Fall's).
