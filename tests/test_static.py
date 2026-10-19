@@ -47,7 +47,14 @@ UNSTYLED_OK = {"f-title", "f-icon", "f-repeat", "f-days", "f-assign",
                # styling rides sibling classes: .field / .txt-input /
                # .form-error, same pattern as the routine-type hooks above.
                "f-allday", "f-calendar", "f-description", "f-endtime",
-               "f-evdate", "f-location", "f-starttime", "f-timerow"}
+               "f-evdate", "f-location", "f-starttime", "f-timerow",
+
+               # the plain-words form (2026-10-19): styling rides .emoji-row,
+               # .sub-field, .preset-row, .person-chips, .chore-preview,
+               # .preview-cells, .preview-first, .remind, .chore-summary
+               "f-emoji", "f-weekly", "f-presets", "f-each", "f-turns",
+               "f-rotevery", "f-preview", "f-cells", "f-first", "f-remind",
+               "f-remindcount", "f-summary"}
 
 
 def _css_rule(selector):
