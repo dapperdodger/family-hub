@@ -3251,3 +3251,12 @@ def test_a_thanksgiving_looks_leaf_colours_are_four_distinct_hex_values(look):
     leaves = [re.search(rf"--sn-leaf-{n}:\s*(#[0-9A-Fa-f]{{6}})\b", blk) for n in (1, 2, 3, 4)]
     assert all(leaves), f"{look}: --sn-leaf-1..4 must each be a six-digit hex colour"
     assert len({m.group(1).lower() for m in leaves}) == 4, f"{look}: the four leaf colours must differ"
+
+
+def test_a_photo_tap_never_enters_pick_one():
+    # a tile tap saves the photo for its season (setSeasonFavourite); only inside Pick one does it pin (setSeasonLook)
+    assert "else if (typeof setSeasonFavourite === 'function') setSeasonFavourite(lp.dataset.lookPick);" in HUB
+    pin_calls = re.findall(r"setSeasonLook\(lp\.dataset\.lookPick\)", HUB)
+    assert len(pin_calls) == 1, "a tile tap pins from exactly one place: inside Pick one"
+    assert re.search(r"if \(inPick\) \{ if \(typeof setSeasonLook === 'function'\) setSeasonLook\(lp\.dataset\.lookPick\); \}", HUB)
+    assert "function setSeasonFavourite(lookId)" in (STATIC / "theme.js").read_text(encoding="utf-8")

@@ -48,7 +48,8 @@
      4. hardcoded default  grey / green / none / auto / on / off
 
    Exposes setTheme / setAccent / setColumns / setLayout / setIdleReturn /
-   setSeason (plus setSeasonLook, see the seasonal looks section): each
+   setSeason (plus setSeasonLook, setSeasonFavourite and followCalendar, see the
+   seasonal looks section): each
    validates its value, writes the localStorage key, and re-stamps live, so a
    control can apply a change without a reload.
 
@@ -530,12 +531,12 @@
     stampSeason(v);
     refreshLook();
   }
-  // Tapping a look shows it now and keeps it, any day of the year (a pin).
-  // It also becomes that season's favourite, so going back to the calendar
-  // paints it whenever its season comes round. Choosing a look is a clear "I
-  // want seasonal looks", so it turns the season pref on AND saves that as
-  // this device's own choice (even when a house default already stamped "on":
-  // otherwise a later house change to "off" would undo the pick).
+  // PICK ONE (an intentional mode, never entered by a tap on a photo): keep
+  // this look every day of the year (a pin). It also becomes that season's
+  // favourite, so going back to the calendar paints it whenever its season
+  // comes round. It turns the season pref on AND saves that as this device's
+  // own choice (even when a house default already stamped "on": otherwise a
+  // later house change to "off" would undo the pick).
   function setSeasonLook(lookId) {
     var season = seasonOfLook(lookId);
     if (!season) return;
@@ -559,6 +560,19 @@
     stampSeason("on");
     refreshLook();
   }
+  // A tap on a photo in Calendar (or Off): save it as THIS SEASON's favourite,
+  // for whenever the calendar reaches that season. Nothing is pinned and the
+  // wall only changes if that season is the one showing today. Choosing a
+  // photo is a clear "I want seasonal looks", so it turns them on (Calendar);
+  // a pin remembered from an earlier Pick one is dropped, so a tap can never
+  // bring Pick one back by itself.
+  function setSeasonFavourite(lookId) {
+    var season = seasonOfLook(lookId);
+    if (!season) return;
+    lookPicks[season.id] = lookId;
+    writeStored("fh.look." + season.id, lookId);
+    followCalendar();
+  }
   // The look a season would paint on this device right now (for the Settings
   // tiles' "selected" mark), and the season in force on a date (or null).
   function seasonLook(seasonId) {
@@ -581,6 +595,7 @@
   window.stampSeason = stampSeasonIf;
   window.setSeasonLook = setSeasonLook;
   window.followCalendar = followCalendar;
+  window.setSeasonFavourite = setSeasonFavourite;
   window.pinnedLook = pinnedLook;
   window.seasonChoiceMade = seasonChoiceMade;
   // The season whose window opens soonest after `date` (or null with no

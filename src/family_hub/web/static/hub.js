@@ -6034,8 +6034,9 @@ function seasonStartText(s) {
 
 // The Settings "Seasonal looks" card body: the Off / Calendar / Pick one switch,
 // then each season's looks as live preview tiles (the real scene in miniature,
-// painted by the look's own tokens). A tile shows that look now and keeps it any
-// day of the year ("Pick one"); "Calendar" goes back to following the dates.
+// painted by the look's own tokens). In Calendar a tile saves that photo for its
+// season (nothing is pinned); only in Pick one does a tile keep a look every day
+// of the year, and Pick one is only ever entered with its own button.
 function seasonalCardHtml() {
   const now = typeof activeSeason === 'function' ? activeSeason() : null;
   // the season's drift kind rides on its tiles so a preview can show the motion resting; built as a
@@ -6083,7 +6084,7 @@ function seasonalCardHtml() {
     + '<button type="button" data-season-mode="calendar">Calendar</button>'
     + '<button type="button" data-season-mode="pick">Pick one</button>'
     + '</div>'
-    + '<div class="settings-sub">Calendar changes the look with the dates, using the photo you like for each season. Tap any look to keep it, any time of year. Light and Soft show it bright; the darker themes show it at dusk.</div>'
+    + '<div class="settings-sub">Calendar changes the look with the dates: tap a photo to choose it for its season. Pick one keeps a single look every day: tap Pick one, then the look to keep. Light and Soft show it bright; the darker themes show it at dusk.</div>'
     + '<div class="season-idle-note" hidden></div>'
     + '</div>'
     + '<div class="settings-row">'
@@ -6587,7 +6588,8 @@ document.addEventListener('click', (e) => {
   const ir = e.target.closest('.theme-ctl [data-idle-set]');
   if (ir) { setIdleReturn(ir.dataset.idleSet); reflectThemeControls(); armIdle(); return; }
   // Seasonal looks: Off/On (popover), the Settings mode switch (Off, Calendar,
-  // Pick one) and a look tile (Settings), which shows that look and keeps it.
+  // Pick one) and a look tile (Settings). A tile NEVER enters Pick one: it is
+  // an intentional mode, chosen with its own button.
   const ss = e.target.closest('.theme-ctl [data-season-set]');
   if (ss) { if (typeof setSeason === 'function') setSeason(ss.dataset.seasonSet); reflectThemeControls(); return; }
   // Calendar drops any pin; Pick one keeps the look already pinned (Off hides a
@@ -6618,7 +6620,18 @@ document.addEventListener('click', (e) => {
   const lt = e.target.closest('.theme-ctl [data-lite-set]');
   if (lt) { if (typeof setLite === 'function') setLite(lt.dataset.liteSet); reflectThemeControls(); return; }
   const lp = e.target.closest('.theme-ctl [data-look-pick]');
-  if (lp) { if (typeof setSeasonLook === 'function') setSeasonLook(lp.dataset.lookPick); reflectThemeControls(); return; }
+  if (lp) {
+    // In Pick one a tile chooses which look to keep. Anywhere else (Calendar, or
+    // Off) it only saves the photo as its season's favourite for when the calendar
+    // gets there: nothing is pinned, and the wall changes only if that season is
+    // the one showing today.
+    const inPick = document.documentElement.getAttribute('data-season') === 'on'
+      && typeof pinnedLook === 'function' && !!pinnedLook();
+    if (inPick) { if (typeof setSeasonLook === 'function') setSeasonLook(lp.dataset.lookPick); }
+    else if (typeof setSeasonFavourite === 'function') setSeasonFavourite(lp.dataset.lookPick);
+    reflectThemeControls();
+    return;
+  }
   // Integrations switch list: also unscoped now that it only ever renders
   // inside the Settings overlay (#integrations-ctl), never the popover.
   const ig = e.target.closest('[data-integ-toggle]');

@@ -616,10 +616,14 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
   `fh.lookPin`) and the derived `data-look` and `data-drift` attributes on
   `<html>`. It stamps them before first paint, and `tickClock` in hub.js
   re-derives them when the date turns.
-- **Calendar / Pick one.** Looks are not locked to their dates. Tapping a look
-  in Settings *pins* it (`fh.lookPin`, per device): it paints every day until
-  you tap another or choose **Calendar**, which drops the pin. A pin is also
-  that season's favourite, so the calendar paints it when its season comes
+- **Calendar / Pick one.** Looks are not locked to their dates. **Pick one** is an
+  intentional mode, entered only with its own Settings button (never by tapping a
+  photo): it *pins* a look (`fh.lookPin`, per device) that paints every day until
+  you tap another or choose **Calendar**, which drops the pin. In Calendar (or
+  Off) a tap on a photo only saves it as that season's favourite
+  (`setSeasonFavourite`): nothing is pinned, any pin remembered from an earlier
+  Pick one is dropped, and the wall changes only if that season is the one
+  showing today. A pin is also that season's favourite, so the calendar paints it when its season comes
   round. **Off** hides a pin without forgetting it. An id that is no longer in
   the registry is ignored and the calendar takes over. A pinned look brings the
   motion (`data-drift`) of **its own** season, not the calendar's: Winter's snow

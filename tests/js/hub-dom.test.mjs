@@ -8225,6 +8225,7 @@ function seasonHub() {
     activeSeason: () => 'fall',
     setSeason: (v) => calls.push(['setSeason', v]),
     setSeasonLook: (v) => calls.push(['setSeasonLook', v]),
+    setSeasonFavourite: (v) => calls.push(['setSeasonFavourite', v]),
     setLite: (v) => calls.push(['setLite', v]),
   });
   return { ...env, calls };
@@ -8706,14 +8707,14 @@ test('tapping the season switch and a look tile calls theme.js\'s setters', () =
   // stateful stand-ins for theme.js, so the handler's re-reflect is observable
   let fav = 'fall-maple';
   sandbox.setSeason = (v) => { calls.push(['setSeason', v]); document.documentElement.setAttribute('data-season', v); };
-  sandbox.setSeasonLook = (v) => { calls.push(['setSeasonLook', v]); fav = v; document.documentElement.setAttribute('data-season', 'on'); };
+  sandbox.setSeasonFavourite = (v) => { calls.push(['setSeasonFavourite', v]); fav = v; document.documentElement.setAttribute('data-season', 'on'); };
   sandbox.seasonLook = () => fav;
   const isOn = (sel) => host.querySelector(sel).classList.contains('on');
 
   tap('[data-season-set="off"]');
   assert.ok(isOn('[data-season-set="off"]'), 'the switch reflects the tap at once');
   tap('[data-look-pick="fall-harvest"]');
-  assert.deepEqual(calls, [['setSeason', 'off'], ['setSeasonLook', 'fall-harvest']]);
+  assert.deepEqual(calls, [['setSeason', 'off'], ['setSeasonFavourite', 'fall-harvest']]);
   assert.ok(isOn('[data-look-pick="fall-harvest"]') && !isOn('[data-look-pick="fall-maple"]'),
     'the picked tile takes the mark from the old favourite');
   assert.equal(host.querySelector('[data-look-pick="fall-harvest"]').getAttribute('aria-pressed'), 'true');
@@ -8735,6 +8736,7 @@ function pickOneHub() {
     pinnedLook: () => state.pin,
     followCalendar: () => { calls.push(['followCalendar']); state.pin = null; html.setAttribute('data-season', 'on'); },
     setSeasonLook: (v) => { calls.push(['setSeasonLook', v]); state.pin = v; html.setAttribute('data-season', 'on'); },
+    setSeasonFavourite: (v) => { calls.push(['setSeasonFavourite', v]); state.pin = null; html.setAttribute('data-season', 'on'); },
     seasonLook: () => 'fall-calendar-favourite',
   });
   sandbox.renderSettingsFull();
@@ -11700,13 +11702,13 @@ test('an empty group is not drawn; a moving season shows its when text, a fixed 
   assert.match(none.html, /Dec 1 to Feb 29/);
 });
 
-test('the in-season season keeps its badge; picking a look inside a folded group still sets it', () => {
+test('the in-season season keeps its badge; tapping a photo inside a folded group saves it for its season', () => {
   const { html, host, docListeners, calls } = groupedHub({ active: [FALL[0]], upcoming: [WIN], rest: [] });
   assert.match(html, /In season/);
   const node = host.querySelector('[data-look-pick="winter-a"]');
   node.closest = (sel) => (sel.includes('[data-look-pick]') ? node : null);
   (docListeners.click || []).forEach((fn) => fn({ target: node }));
-  assert.ok(calls.some((c) => c[0] === 'setSeasonLook' && c[1] === 'winter-a'));
+  assert.deepEqual(calls, [['setSeasonFavourite', 'winter-a']], 'a tap saves the photo; it never pins');
 });
 
 test('without a seasonOutlook (theme.js missing) the picker is the old flat list', () => {
@@ -12298,3 +12300,42 @@ test('to-do grip: a press whose end never came stops holding the board after a w
   assert.equal(b.read('todoDrag.id'), null, 'the stale press is over');
   assert.match(b.host.innerHTML, /fresh/, 'and the board repaints again');
 });
+
+// A photo tap must NEVER enter Pick one: it is an intentional mode with its own button.
+function tapTile(env, id) {
+  const node = env.host.querySelector(`[data-look-pick="${id}"]`);
+  node.closest = (sel) => (sel.includes('[data-look-pick]') ? node : null);
+  (env.docListeners.click || []).forEach((fn) => fn({ target: node }));
+}
+
+test('a photo tapped in Calendar only saves it for its season: no pin, the switch stays on Calendar', () => {
+  const env = pickOneHub();
+  tapTile(env, 'fall-harvest');
+  assert.deepEqual(env.calls, [['setSeasonFavourite', 'fall-harvest']]);
+  assert.equal(env.state.pin, null);
+  assert.deepEqual(env.modeOn(), ['calendar']);
+  tapTile(env, 'fall-maple');
+  assert.deepEqual(env.calls.map((c) => c[0]), ['setSeasonFavourite', 'setSeasonFavourite'], 'never setSeasonLook');
+  assert.deepEqual(env.modeOn(), ['calendar']);
+});
+
+test('a photo tapped with seasons Off (and a pin remembered) goes to Calendar, not back to Pick one', () => {
+  const env = pickOneHub();
+  env.state.pin = 'fall-maple';                       // an old Pick one, hidden while seasons are Off
+  env.html.setAttribute('data-season', 'off');
+  tapTile(env, 'fall-harvest');
+  assert.deepEqual(env.calls, [['setSeasonFavourite', 'fall-harvest']]);
+  assert.equal(env.state.pin, null, 'the remembered pin is dropped');
+  assert.deepEqual(env.modeOn(), ['calendar']);
+});
+
+test('inside Pick one a photo tap chooses which look to keep, and it stays Pick one', () => {
+  const env = pickOneHub();
+  env.state.pin = 'fall-maple';
+  env.html.setAttribute('data-season', 'on');
+  tapTile(env, 'fall-harvest');
+  assert.deepEqual(env.calls, [['setSeasonLook', 'fall-harvest']]);
+  assert.equal(env.state.pin, 'fall-harvest');
+  assert.deepEqual(env.modeOn(), ['pick']);
+});
+

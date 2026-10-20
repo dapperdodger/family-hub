@@ -823,3 +823,48 @@ test('an empty stored pin means no pin', () => {
   assert.equal(win.pinnedLook(), null);
   assert.equal(win.refreshLook(day(9, 15)), 'fall-aspen-grove');
 });
+
+// ---- a tap on a photo saves it for its season and never enters Pick one ----
+
+test('a photo tapped for ANOTHER season is saved for later and changes nothing today', () => {
+  const { root, localStorage, win } = loadTheme({ storage: { 'fh.season': 'on' } });
+  const today = win.refreshLook(day(1, 15));           // winter is in force
+  win.setSeasonFavourite('fall-misty-road');
+  assert.equal(win.refreshLook(day(1, 15)), today, 'the wall does not change');
+  assert.equal(root.getAttribute('data-look'), today);
+  assert.equal(localStorage.getItem('fh.look.fall'), 'fall-misty-road', 'saved for the season');
+  assert.equal(localStorage.getItem('fh.lookPin'), null, 'never pinned');
+  assert.equal(win.pinnedLook(), null);
+  assert.equal(win.refreshLook(day(9, 15)), 'fall-misty-road', 'and used when the calendar reaches that season');
+});
+
+test('a photo tapped for the season showing today repaints now, still without a pin', () => {
+  const { win } = loadTheme({ storage: { 'fh.season': 'on' } });
+  assert.equal(win.refreshLook(day(9, 15)), 'fall-aspen-grove');
+  win.setSeasonFavourite('fall-maple-sky');
+  assert.equal(win.refreshLook(day(9, 15)), 'fall-maple-sky');
+  assert.equal(win.pinnedLook(), null);
+  assert.equal(win.refreshLook(day(1, 15)) === 'fall-maple-sky', false, 'it is not shown in January');
+});
+
+test('a photo tap drops a pin remembered from an earlier Pick one, so a tap cannot bring Pick one back', () => {
+  const { localStorage, win } = loadTheme({ storage: { 'fh.season': 'off', 'fh.lookPin': 'halloween-moonrise' } });
+  win.setSeasonFavourite('fall-misty-road');
+  assert.equal(localStorage.getItem('fh.season'), 'on', 'choosing a photo turns seasonal looks on (Calendar)');
+  assert.equal(win.pinnedLook(), null, 'the old pin is gone');
+  assert.equal(win.refreshLook(day(1, 15)) === 'halloween-moonrise', false, 'January shows the calendar, not the old pin');
+  const { win: again } = loadTheme({ storage: Object.fromEntries(localStorage._map) });
+  assert.equal(again.pinnedLook(), null, 'and it stays gone after a reload');
+});
+
+test('a photo tap still works when storage refuses writes, and an unknown photo is ignored', () => {
+  const { root, win } = loadTheme();
+  win.localStorage.setItem = () => { throw new Error('denied'); };
+  win.localStorage.removeItem = () => { throw new Error('denied'); };
+  win.setSeasonFavourite('fall-maple-sky');
+  assert.equal(win.refreshLook(day(9, 15)), 'fall-maple-sky', 'applied for this session');
+  assert.equal(win.pinnedLook(), null);
+  assert.equal(root.getAttribute('data-season'), 'on');
+  win.setSeasonFavourite('winter-gone');
+  assert.equal(win.refreshLook(day(9, 15)), 'fall-maple-sky', 'an unknown id changes nothing');
+});
