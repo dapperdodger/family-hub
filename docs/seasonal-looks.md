@@ -310,6 +310,46 @@ the cards, kept few, small and slow (see Motion below).
   the fixed copy would slide off the photo. Phones and iOS keep the live
   blur (iOS ignores fixed photo backgrounds), **Lite keeps its plain 86%
   fill and never gets panes**, and night drops the copy.
+- **Wall decorations:** a season can put itself ON the wall, not only behind
+  it: **Christmas** hangs a strand of bulbs under the top bar (each with a glow
+  that slowly breathes), lays frost in two corners of every card and rests a
+  drift of snow along each card's top; **Halloween** hangs a neon strand and
+  spins a cobweb into some card corners; **Fall and Thanksgiving** leave real
+  leaves resting on card tops and caught in a lower corner (one, on the To-Do
+  card, lifts and blows away every minute or so), and Thanksgiving lays two
+  bundles of wheat across the top bar. They are all CSS: a `::before` or
+  `::after` on a `.card` or the `.topbar`, scoped to a season prefix
+  (`:where(:root[data-look^="christmas-"] ...)`, so seasons off match main pixel
+  for pixel), `pointer-events: none`, and painted by tokens (`--sn-frost`,
+  `--sn-drift`, `--sn-strand`, `--sn-card-web`) so each theme keeps them
+  readable. Rules: **real art where there is a subject** (the frost is a photo of
+  ice on a window, the leaves and wheat are cut-out photos or scans, the webs
+  are a CC0 drawing; see CREDITS.md). The bulb strand and the snow drift are the
+  exceptions: small ornaments **drawn by the upstream project** (MIT), the only
+  home-made art painted on the wall's own chrome (the three abstract `shape-*.svg`
+  motes that the petals, clovers and sparkle drift are the other self-made art, see
+  CREDITS.md). **They were accepted by upstream's owner and by this repo's owner**
+  (2026-10-19, after seeing them on the demo wall in all four seasons): that
+  sign-off covers these two ornaments only, so look again, and ask, before you
+  ship a season that adds another. The frost and the cobwebs are `z-index: -1` inside an
+  isolated card, so they lie on the card's glass but under its text and camera
+  image (the card is isolated on every device, or a phone or Lite card would hide
+  them behind its own background). The weather, meals and shopping cards clip their
+  corners, so they carry no leaf or drift (a test finds every clipping card). A
+  card's decoration is picked by its `:nth-child` place, and most wall cards are
+  the second child of their column, so the same corner decoration repeats on most
+  of them: a known limit, to be fixed with a per-card index set by `hub.js` if it
+  bothers anyone. The top bar gains 16px of room under it (22px instead of 6px)
+  while a strand hangs, so check the wall still fits its screen when Christmas or
+  Halloween paints. **Lite** keeps every
+  decoration (they are still) but drops every animation and drop shadow on a card
+  or top-bar `::before`/`::after`, structurally, so a decoration you add later is
+  covered without being listed; **night** holds the strand still at half
+  strength and stops the blowing leaf, even under Lite; reduced motion stops both.
+  Eight tests guard it: every decoration is scoped to a season, takes no tap, holds
+  still at night and under reduced motion, is stilled (never hidden) by Lite, names
+  every animation it owns, leaves out every clipping card, paints frost and webs
+  behind the text, and never lets Lite outrank night.
 - **Night:** the night dim stops the glass from blurring, so from 22:00 to
   06:00 the glass goes nearly solid (94% of the theme's surface).
 - Never put `backdrop-filter` on a fixed or sticky element (iOS tap bug, see

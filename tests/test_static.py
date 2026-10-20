@@ -3098,3 +3098,119 @@ def test_the_seasonal_card_offers_off_calendar_and_pick_one():
         assert want in card, f"the Seasonal looks card lost {want}"
     assert 'data-season-set="on"' not in card
     assert 'data-season-set="on"' in (STATIC / "index.html").read_text(encoding="utf-8"), "the gear popover keeps its On"
+
+
+def test_wall_decorations_only_paint_while_their_season_does():
+    """The strands, frost, snow drifts, webs, leaves and wheat live on the
+    cards' and the top bar's ::before/::after. Each such rule must be scoped
+    to a season prefix, so a family with seasons off (or another season)
+    never gets them: seasons-off has to match main pixel for pixel."""
+    found = 0
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+        sel = re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S)
+        if not re.search(r"\.(card|topbar)[^,{]*::(before|after)", sel):
+            continue
+        if "content:" not in m.group(2):
+            continue
+        found += 1
+        assert 'data-look^="' in sel, f"a decoration paints outside any season: {sel.strip()[:120]}"
+    assert found >= 3, "expected the season decorations on cards and the top bar"
+
+
+def test_wall_decorations_never_take_a_tap():
+    """Every decoration pseudo-element is pointer-events: none: a leaf on the
+    To-Do card or a bulb over a section title must never eat a tap."""
+    seen = 0
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+        sel, body = m.group(1), m.group(2)
+        if re.search(r"\.(card|topbar)[^,{]*::(before|after)", sel) and "content:" in body and 'data-look^="' in sel:
+            seen += 1
+            assert "pointer-events: none" in body, f"decoration can take a tap: {sel.strip()[:120]}"
+    assert seen >= 3, "the scan matched no decorations: the guard would pass without checking anything"
+
+
+def test_the_strand_and_the_blowing_leaf_hold_still_at_night_and_with_reduced_motion():
+    rm = CSS[[m.start() for m in re.finditer(r"@media \(prefers-reduced-motion: reduce\) \{", CSS)][-1]:]
+    for sel in ('.topbar::before { animation: none; }', '.card.todo::before { animation: none; }'):
+        assert sel in rm, f"reduced motion does not stop {sel}"
+    assert '.is-night .topbar::before { animation: none;' in CSS
+    assert '.is-night .wrap) .card.todo::before { animation: none; }' in CSS
+
+
+def test_lite_keeps_the_wall_decorations_still_and_never_hides_them():
+    """Lite (a slow screen) keeps the frost, drifts, webs, leaves, strand and wheat but drops every animation and
+    drop shadow on a card or top-bar ::before/::after, structurally: a decoration added later is covered too."""
+    lite = " ".join(b for sel, b in _lite_blocks() if re.search(r"(\.wrap \.card|\.topbar)::(before|after)", sel))
+    assert "animation: none" in lite and "filter: none" in lite, "Lite no longer stills the wall decorations"
+    covered = " ".join(sel for sel, b in _lite_blocks() if "animation: none" in b)
+    for target in (".wrap .card::before", ".wrap .card::after", ".topbar::before", ".topbar::after"):
+        assert target in covered, f"Lite does not still {target}"
+    # ...and they are only ever stilled, never hidden: they are the season on a slow screen
+    for sel, b in _lite_blocks():
+        if re.search(r"(\.wrap \.card|\.topbar)::(before|after)", sel):
+            assert "display" not in b, f"Lite hides a wall decoration: {sel}"
+
+
+def test_every_animation_on_a_wall_decoration_is_one_lite_and_reduced_motion_know_about():
+    """The guard above is structural, so this one only keeps it honest: name every keyframe that animates a
+    card or top-bar ::before/::after, so a new one is reviewed (night, reduced motion, Lite) when it lands."""
+    names = set()
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+        sel, body = m.group(1), m.group(2)
+        if re.search(r"\.(card|topbar)[^,{]*::(before|after)", sel) and 'data-look^="' in sel:
+            names |= set(re.findall(r"animation:\s*([\w-]+)", body)) - {"none"}
+    assert names == {"sn-strand", "sn-leaf-lift"}, f"a new animated wall decoration needs night, reduced-motion and Lite review: {names}"
+
+
+def test_cards_that_clip_carry_no_leaf_or_drift():
+    """A card that clips its corners (overflow: hidden) would cut a leaf or a drift poking past its edge in half
+    (the weather, meals and shopping cards today). Find EVERY card variant that clips, from the stylesheet and the
+    classes hub.js renders, and require the decoration rules to leave it out, so a new clipping card cannot be forgotten."""
+    variants = set(re.findall(r'class="card ([a-z][a-z-]*)', HUB))
+    css = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
+    clipping = set()
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+        if not re.search(r"overflow(-[xy])?:\s*(hidden|clip)", m.group(2)):
+            continue
+        for part in m.group(1).split(","):
+            t = re.fullmatch(r"\s*(?:\.card)?\.([a-z][a-z-]*)\s*", part)
+            if t and t.group(1) in variants:
+                clipping.add(t.group(1))
+    assert {"wx", "meals-card", "shop-card"} <= clipping, f"the scan found too little: {clipping}"
+    for pseudo, seasons in (("before", "fall|thanksgiving|christmas"), ("after", "fall|thanksgiving")):
+        rule = re.search(r"\.card:is\(([^)]*)\)::" + pseudo + r" \{ display: none; \}", CSS)
+        assert rule, f"no rule hides the ::{pseudo} decoration on clipping cards"
+        named = set(re.findall(r"\.([a-z][a-z-]*)", rule.group(1)))
+        assert clipping <= named, f"clipping cards still get a ::{pseudo} decoration: {sorted(clipping - named)}"
+
+
+def test_frost_and_cobwebs_paint_behind_the_cards_text():
+    """The frost and the cobwebs are z-index -1 inside an isolated card: above the card's glass, below its text and its
+    camera image, so they never eat a label's first letter. The card must be isolated on EVERY device: with no pane (a
+    phone, Lite) a negative z-index child of a card that is not a stacking context would vanish behind its background."""
+    for season in ("christmas", "halloween"):
+        assert re.search(r':where\(:root\[data-look\^="' + season + r'-"\] \.wrap\) \.card \{ position: relative; isolation: isolate; \}', CSS), \
+            f"{season} cards are not isolated"
+    frost = re.search(r':where\(:root\[data-look\^="christmas-"\] \.wrap\) \.card::after \{([^}]*)\}', CSS).group(1)
+    web = re.search(r':where\(:root\[data-look\^="halloween-"\] \.wrap\) \.card:nth-child\(3n\+2\)::after \{([^}]*)\}', CSS).group(1)
+    for name, body in (("frost", frost), ("cobweb", web)):
+        assert "z-index: -1" in body, f"the {name} paints over the card's text"
+
+
+def test_lite_never_overrides_the_night_strand():
+    # Lite rests the strand's glow at .7; at night the night rule holds it at .5 and Lite must not outrank it
+    parts = [part for sel, b in _lite_blocks() if "opacity: .7" in b for part in sel.split(",")]
+    assert len(parts) >= 2, "Lite's strand glow rule is gone"
+    assert all("body:not(.is-night)" in part for part in parts), parts
+
+
+def test_lite_rests_the_strand_glow_half_lit():
+    # Lite stills the breathing glow; without this it would freeze wherever the keyframe leaves it
+    assert any(re.search(r"opacity:\s*\.7\b", b) and ".topbar::before" in sel for sel, b in _lite_blocks())
+
+
+def test_the_strand_has_room_and_the_wheat_steps_aside_on_the_phone():
+    # the bulbs hang 22px under the bar on a phone too, and the phone's bar has no room for the wheat
+    assert re.search(r':root:not\(\[data-layout="desktop"\]\)\[data-look\]:is\(\[data-look\^="christmas-"\], \[data-look\^="halloween-"\]\) \.topbar \{ margin-bottom: 22px; \}', CSS)
+    assert re.search(r':root:not\(\[data-layout="desktop"\]\)\[data-look\^="thanksgiving-"\] \.topbar::before,\s*'
+                     r':root:not\(\[data-layout="desktop"\]\)\[data-look\^="thanksgiving-"\] \.topbar::after \{ display: none; \}', CSS)
