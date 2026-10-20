@@ -328,9 +328,10 @@ the cards, kept few, small and slow (see Motion below).
   exceptions: small ornaments **drawn by the upstream project** (MIT), the only
   home-made art painted on the wall's own chrome (the three abstract `shape-*.svg`
   motes that the petals, clovers and sparkle drift are the other self-made art, see
-  CREDITS.md). **They were accepted by upstream's owner, not yet by ours**: look at
-  them on your own wall before you rely on them, and look again before you ship a
-  season that adds another. The frost and the cobwebs are `z-index: -1` inside an
+  CREDITS.md). **They were accepted by upstream's owner and by this repo's owner**
+  (2026-10-19, after seeing them on the demo wall in all four seasons): that
+  sign-off covers these two ornaments only, so look again, and ask, before you
+  ship a season that adds another. The frost and the cobwebs are `z-index: -1` inside an
   isolated card, so they lie on the card's glass but under its text and camera
   image (the card is isolated on every device, or a phone or Lite card would hide
   them behind its own background). The weather, meals and shopping cards clip their
