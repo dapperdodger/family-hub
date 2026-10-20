@@ -53,7 +53,7 @@
   --sn-glass: var(--sn-scene);
   /* decorations on the wall itself (Christmas frost and drifts, Halloween webs, a
      season's strand of lights): nothing until a season sets them */
-  --sn-drift: none; --sn-frost: transparent; --sn-drift-shade: transparent; --sn-card-web: transparent;
+  --sn-drift: none; --sn-frost: transparent; --sn-card-web: transparent;
   --sn-strand: none; --sn-strand-glow: none;
   /* Light's glass and wash (other themes set their own near the end) */
   --sn-wash: linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 36%, rgba(255,255,255,.06) 100%);
@@ -3817,15 +3817,14 @@ body.integ-off-todos .todo-slot { display: none; }
    ::before/::after on a card or the top bar, so a new decoration is covered
    without being listed. */
 :root[data-look^="christmas-"] {
-  --sn-frost: rgba(232,242,255,.5); --sn-drift: linear-gradient(#FFFFFF 40%, #DCE6F2);
-  --sn-drift-shade: rgba(16,26,44,.35);
+  --sn-frost: rgba(232,242,255,.3); --sn-drift: linear-gradient(#FFFFFF 40%, #DCE6F2);
 }
 :root[data-look^="christmas-"]:is([data-theme="light"], [data-theme="soft"]) {
-  --sn-frost: rgba(120,150,186,.42); --sn-drift-shade: rgba(60,80,110,.38);
+  --sn-frost: rgba(120,150,186,.42);
 }
-:where(:root[data-look^="christmas-"] .wrap) .card { position: relative; }
+:where(:root[data-look^="christmas-"] .wrap) .card { position: relative; isolation: isolate; }
 :where(:root[data-look^="christmas-"] .wrap) .card::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
   background: var(--sn-frost);
   -webkit-mask: url("seasons/frost-corner.webp") top left / 190px auto no-repeat, url("seasons/frost-corner-br.webp") bottom right / 150px auto no-repeat;
   mask: url("seasons/frost-corner.webp") top left / 190px auto no-repeat, url("seasons/frost-corner-br.webp") bottom right / 150px auto no-repeat;
@@ -3834,7 +3833,6 @@ body.integ-off-todos .todo-slot { display: none; }
   content: ""; position: absolute; left: 6px; right: 6px; top: -6px; height: 12px; pointer-events: none;
   background: var(--sn-drift);
   -webkit-mask: url("seasons/snow-drift.svg") 0 0 / 100% 100% no-repeat; mask: url("seasons/snow-drift.svg") 0 0 / 100% 100% no-repeat;
-  filter: drop-shadow(0 1px 1px var(--sn-drift-shade));
 }
 /* the strand: any season that sets --sn-strand hangs one (Christmas in red,
    green, gold and white; Halloween in neon orange, purple and green) */
@@ -3860,10 +3858,10 @@ body.integ-off-todos .todo-slot { display: none; }
    it fans out) on some cards and not others, bottom right or top right, in
    two sizes, so no two neighbors match. Hairline silk in --sn-card-web
    over the card, static. The neon strand hangs under the top bar (above). */
-:where(:root[data-look^="halloween-"] .wrap) .card { position: relative; }
+:where(:root[data-look^="halloween-"] .wrap) .card { position: relative; isolation: isolate; }
 :where(:root[data-look^="halloween-"] .wrap) .card:nth-child(3n+1)::after,
 :where(:root[data-look^="halloween-"] .wrap) .card:nth-child(3n+2)::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--sn-card-web);
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: var(--sn-card-web);
 }
 /* the corners words rarely reach: bottom right (bigger) and top right (smaller) */
 :where(:root[data-look^="halloween-"] .wrap) .card:nth-child(3n+1)::after {
@@ -3922,10 +3920,11 @@ body.integ-off-todos .todo-slot { display: none; }
 }
 /* ...and at night no leaf blows away (after the rule it stops: same weight) */
 :where(:root:is([data-look^="fall-"], [data-look^="thanksgiving-"]) .is-night .wrap) .card.todo::before { animation: none; }
-/* the weather card clips its corners (overflow: hidden): a leaf or a drift
-   poking above it would be cut in half, so it carries none */
-:where(:root:is([data-look^="fall-"], [data-look^="thanksgiving-"], [data-look^="christmas-"]) .wrap) .card.wx::before { display: none; }
-:where(:root:is([data-look^="fall-"], [data-look^="thanksgiving-"]) .wrap) .card.wx::after { display: none; }
+/* the weather, meals and shopping cards clip their corners (overflow: hidden): a leaf or a drift
+   poking above them would be cut in half, so they carry none (test_cards_that_clip_carry_no_leaf_or_drift
+   finds every such card, so a new clipping card cannot be forgotten) */
+:where(:root:is([data-look^="fall-"], [data-look^="thanksgiving-"], [data-look^="christmas-"]) .wrap) .card:is(.wx, .meals-card, .shop-card)::before { display: none; }
+:where(:root:is([data-look^="fall-"], [data-look^="thanksgiving-"]) .wrap) .card:is(.wx, .meals-card, .shop-card)::after { display: none; }
 /* Thanksgiving's wheat: two tied bundles laid in the empty middle of the
    top bar, heads outward, like a harvest swag on a mantel; clear of the
    wordmark, the clock and the gear. The phone's bar has no room: none there. */
@@ -4374,8 +4373,8 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 :root[data-lite="on"][data-look]:not([data-look="none"]) .wrap .card::after,
 :root[data-lite="on"][data-look]:not([data-look="none"]) .topbar::before,
 :root[data-lite="on"][data-look]:not([data-look="none"]) .topbar::after { animation: none; filter: none; }
-:root[data-lite="on"][data-look]:not([data-look="none"])[data-look^="christmas-"] .topbar::before,
-:root[data-lite="on"][data-look]:not([data-look="none"])[data-look^="halloween-"] .topbar::before { opacity: .7; }
+:root[data-lite="on"][data-look]:not([data-look="none"])[data-look^="christmas-"] body:not(.is-night) .topbar::before,
+:root[data-lite="on"][data-look]:not([data-look="none"])[data-look^="halloween-"] body:not(.is-night) .topbar::before { opacity: .7; }
 
 /* ---- seasonal looks, reduced motion ----
    Last in the file on purpose: these must beat the animated leaf rules above
