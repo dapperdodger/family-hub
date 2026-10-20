@@ -3333,7 +3333,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="thanksgiving-golden-hour"][data-theme][data-accent],
 .look-swatch[data-look="thanksgiving-golden-hour"] {
   --accent:#F6B26B; --accent-ink:#2A1500; --accent-soft:rgba(246,178,107,.18);
-  --sn-scene:url("seasons/thanksgiving-golden-hour.webp"); --sn-glass:url("seasons/glass/thanksgiving-golden-hour.webp"); --sn-pos:65% 55%;
+  --sn-scene:url("seasons/thanksgiving-golden-hour.webp"); --sn-glass:url("seasons/glass/thanksgiving-golden-hour.webp"); --sn-pos:75% 55%;
   --sn-leaf-1:#E8963A; --sn-leaf-2:#F4BE5E; --sn-leaf-3:#C2652A; --sn-leaf-4:#F7D58A;
 }
 :root[data-look="thanksgiving-golden-hour"][data-accent]:is([data-theme="light"],[data-theme="soft"]),

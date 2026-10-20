@@ -2900,7 +2900,7 @@ def test_every_holiday_look_is_styled_before_the_registry_lists_it():
 
 # A phone shows only about 31 percent of a 3:2 photo's width (the wall shows all of it), so a subject that sits off
 # the photo's middle needs its own horizontal focal point or the phone shows only background.
-PHONE_FOCAL_X = {'christmas-santa': 95, 'stpatricks-clover': 74, 'easter-rabbit': 76, 'fathersday-jeep': 72, 'julyfourth-flag': 74}
+PHONE_FOCAL_X = {'thanksgiving-golden-hour': 75, 'christmas-santa': 95, 'stpatricks-clover': 74, 'easter-rabbit': 76, 'fathersday-jeep': 72, 'julyfourth-flag': 74}
 
 
 def test_holiday_looks_with_an_off_centre_subject_keep_it_on_the_phone():

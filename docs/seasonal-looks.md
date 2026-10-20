@@ -452,8 +452,7 @@ file, title and creator, source link, licence, and what we changed. A test
 fails if one is missing.
 
 **Candidates already vetted for later** (all CC0 or public domain; details
-in the 2026-09 sourcing notes): Jasper Cropsey *Autumn on the Hudson* (NGA),
-Hiroshige *Maples at Mama* (Met), George Inness *Sunny Autumn Day* (CMA),
+in the 2026-09 sourcing notes): Hiroshige *Maples at Mama* (Met), George Inness *Sunny Autumn Day* (CMA),
 Monet *Stacks of Wheat, End of Day, Autumn* (AIC), Tosa Mitsuoki *Autumn
 Maples with Poem Slips* screen (AIC), Karl Fredrickson "Trees in Fall" bokeh
 (Unsplash 2015, CC0), Aaron Burden maple canopy on blue sky (Unsplash 2015,
