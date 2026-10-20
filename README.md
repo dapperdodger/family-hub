@@ -57,7 +57,9 @@ at one URL.
   remembers one pick per season, so Thanksgiving week shows Thanksgiving's own
   default even if you picked a Fall look. Each look is
   picked per device under **All settings → Seasonal looks** from
-  live preview tiles. Each of the five themes keeps its own glass: Light and
+  live preview tiles. **Calendar** changes the look with the dates; **Pick
+  one** keeps the look you tap every day of the year until you tap another or
+  go back to Calendar. Each of the five themes keeps its own glass: Light and
   Soft show the photo bright and airy, Blue, Grey and Black at dusk. On the wall and on computers the glass is a
   ready-blurred copy of the photo rather than a live blur, so scrolling stays
   smooth and the cards never flicker (phones keep the live blur). Nothing

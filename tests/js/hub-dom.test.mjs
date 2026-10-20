@@ -8584,7 +8584,7 @@ test('each finished move is cancelled, so a wall running for months keeps none',
   assert.ok(kept.every((h) => h.cancelled), 'every animation is released when its move ends');
 });
 
-test('renderSettingsFull: a Seasonal looks card with an Off/On switch and a preview tile per look', () => {
+test('renderSettingsFull: a Seasonal looks card with an Off / Calendar / Pick one switch and a preview tile per look', () => {
   const { document, sandbox } = seasonHub();
   const host = document.createElement('div');
   host._id = 'settings-full';
@@ -8594,7 +8594,9 @@ test('renderSettingsFull: a Seasonal looks card with an Off/On switch and a prev
   assert.match(html, /<h2>Seasonal looks<\/h2>/);
   assert.match(html, /<h2>This screen<\/h2>/, 'layout + auto-return live in their own card');
   assert.match(html, /data-season-set="off"/);
-  assert.match(html, /data-season-set="on"/);
+  assert.match(html, /data-season-mode="calendar"/);
+  assert.match(html, /data-season-mode="pick"/);
+  assert.doesNotMatch(html, /data-season-set="on"/, 'On became Calendar and Pick one');
   for (const id of ['fall-harvest', 'fall-maple']) {
     assert.match(html, new RegExp(`data-look-pick="${id}"`), `${id} has a tile`);
     assert.match(html, new RegExp(`class="look-swatch" data-look="${id}"`), `${id} tile previews its own look`);
@@ -8625,14 +8627,42 @@ test('reflectThemeControls marks the season switch and each season\'s picked loo
   document.body.appendChild(host);
   document.documentElement.setAttribute('data-season', 'on');
   sandbox.renderSettingsFull();
-  const on = host.querySelectorAll('[data-season-set]').filter((b) => b.classList.contains('on'));
-  assert.deepEqual(on.map((b) => b.dataset.seasonSet), ['on']);
+  const modeOn = () => [...host.querySelectorAll('[data-season-set]'), ...host.querySelectorAll('[data-season-mode]')]
+    .filter((b) => b.classList.contains('on')).map((b) => b.dataset.seasonMode || b.dataset.seasonSet);
+  assert.deepEqual(modeOn(), ['calendar'], 'seasons on and no pin follows the calendar');
   const maple = host.querySelector('[data-look-pick="fall-maple"]');
   const harvest = host.querySelector('[data-look-pick="fall-harvest"]');
   assert.ok(maple.classList.contains('on'));
   assert.equal(maple.getAttribute('aria-pressed'), 'true');
   assert.ok(!harvest.classList.contains('on'));
   assert.equal(harvest.getAttribute('aria-pressed'), 'false');
+});
+
+test('reflectThemeControls: a pinned look is "Pick one", marks only that tile and says so', () => {
+  const { document, sandbox } = seasonHub();
+  const host = document.createElement('div');
+  host._id = 'settings-full';
+  document.body.appendChild(host);
+  sandbox.pinnedLook = () => 'fall-harvest';
+  document.documentElement.setAttribute('data-season', 'on');
+  sandbox.renderSettingsFull();
+  sandbox.reflectThemeControls();
+  const note = document.querySelectorAll('.season-idle-note')[0];
+  const modeOn = [...host.querySelectorAll('[data-season-set]'), ...host.querySelectorAll('[data-season-mode]')]
+    .filter((b) => b.classList.contains('on')).map((b) => b.dataset.seasonMode || b.dataset.seasonSet);
+  assert.deepEqual(modeOn, ['pick']);
+  assert.ok(host.querySelector('[data-look-pick="fall-harvest"]').classList.contains('on'), 'the pinned tile');
+  assert.ok(!host.querySelector('[data-look-pick="fall-maple"]').classList.contains('on'),
+    'the season favourite is not marked while a pin overrides the calendar');
+  assert.equal(note.textContent, `Showing ${sandbox.lookName('fall-harvest')} every day.`);
+  assert.equal(note.hidden, false);
+  // seasons off: no mode is claimed, a pin is only remembered
+  document.documentElement.setAttribute('data-season', 'off');
+  sandbox.reflectThemeControls();
+  const off = [...host.querySelectorAll('[data-season-set]'), ...host.querySelectorAll('[data-season-mode]')]
+    .filter((b) => b.classList.contains('on')).map((b) => b.dataset.seasonMode || b.dataset.seasonSet);
+  assert.deepEqual(off, ['off']);
+  assert.equal(note.hidden, true);
 });
 
 test('with seasons off the favourite tile keeps its mark but never claims aria-pressed', () => {
@@ -8680,14 +8710,61 @@ test('tapping the season switch and a look tile calls theme.js\'s setters', () =
   sandbox.seasonLook = () => fav;
   const isOn = (sel) => host.querySelector(sel).classList.contains('on');
 
-  tap('[data-season-set="on"]');
-  assert.ok(isOn('[data-season-set="on"]') && !isOn('[data-season-set="off"]'),
-    'the switch reflects the tap at once');
+  tap('[data-season-set="off"]');
+  assert.ok(isOn('[data-season-set="off"]'), 'the switch reflects the tap at once');
   tap('[data-look-pick="fall-harvest"]');
-  assert.deepEqual(calls, [['setSeason', 'on'], ['setSeasonLook', 'fall-harvest']]);
+  assert.deepEqual(calls, [['setSeason', 'off'], ['setSeasonLook', 'fall-harvest']]);
   assert.ok(isOn('[data-look-pick="fall-harvest"]') && !isOn('[data-look-pick="fall-maple"]'),
     'the picked tile takes the mark from the old favourite');
   assert.equal(host.querySelector('[data-look-pick="fall-harvest"]').getAttribute('aria-pressed'), 'true');
+});
+
+// Settings > Seasonal looks > Calendar / Pick one
+test('Calendar drops the pin; Pick one keeps the pinned look, else what shows, else the season in force', () => {
+  const { document, sandbox, docListeners, calls } = seasonHub();
+  const host = document.createElement('div');
+  host._id = 'settings-full';
+  document.body.appendChild(host);
+  sandbox.renderSettingsFull();
+  const tapMode = (mode) => {
+    const node = host.querySelector(`[data-season-mode="${mode}"]`);
+    node.closest = (s) => (s.includes('[data-season-mode]') ? node : null);
+    (docListeners.click || []).forEach((fn) => fn({ target: node }));
+  };
+  sandbox.followCalendar = () => calls.push(['followCalendar']);
+  let pin = null;
+  sandbox.pinnedLook = () => pin;
+  const html = document.documentElement;
+  // what shows now wins over the season's favourite
+  html.setAttribute('data-look', 'fall-harvest');
+  tapMode('pick');
+  // with a pin already stored (Off hides it without forgetting it) the pin comes back, not what shows
+  pin = 'fall-maple'; html.setAttribute('data-look', 'none');
+  tapMode('pick');
+  // nothing shows and no pin: the season in force's favourite
+  pin = null; html.setAttribute('data-look', 'none');
+  tapMode('pick');
+  tapMode('calendar');
+  assert.deepEqual(calls, [
+    ['setSeasonLook', 'fall-harvest'], ['setSeasonLook', 'fall-maple'], ['setSeasonLook', 'fall-maple'], ['followCalendar'],
+  ]);
+});
+
+test('Pick one with nothing to keep says so in the console and changes nothing', () => {
+  const { document, sandbox, docListeners, calls } = seasonHub();
+  const host = document.createElement('div');
+  host._id = 'settings-full';
+  document.body.appendChild(host);
+  sandbox.renderSettingsFull();
+  Object.assign(sandbox, { activeSeason: () => null, nextSeason: () => null, pinnedLook: () => null });
+  document.documentElement.setAttribute('data-look', 'none');
+  const warned = [];
+  sandbox.console = { warn: (m) => warned.push(m), log() {}, error() {} };
+  const node = host.querySelector('[data-season-mode="pick"]');
+  node.closest = (s) => (s.includes('[data-season-mode]') ? node : null);
+  (docListeners.click || []).forEach((fn) => fn({ target: node }));
+  assert.deepEqual(calls, []);
+  assert.deepEqual(warned, ['season: Pick one found no look to keep']);
 });
 
 test('applyHouseTheme stamps the house season on a fresh device only', () => {

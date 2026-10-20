@@ -2507,6 +2507,10 @@ body.is-kiosk .wrap { padding-bottom: 0; }
    overlay has room to spare, unlike the gear popover's forced single column
    (.theme-pop .theme-ctl above). */
 .settings-row { display: flex; flex-direction: column; gap: 8px; }
+/* the Seasonal looks switch (Off / Calendar / Pick one) and Lite's are finger targets on the phone (>= 44px, CLAUDE.md) */
+@media (max-width: 1000px) {
+  #settings-full .settings-row .seg button { min-height: 44px; }
+}
 .settings-k {
   font-family: var(--mono); font-size: 10px; font-weight: 600;
   letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint);
