@@ -11,7 +11,8 @@
      data-layout       auto | desktop       (the per-device layout CHOICE)
      data-idle-return  on | off             (per-device idle auto-return; hub.js
                                               reads it — behavioral, not visual)
-     data-season       on | off             (seasonal looks follow the calendar)
+     data-season       on | off             (seasonal looks show: the calendar's, or the
+                                              one kept with "Pick one" (fh.lookPin))
      data-look         none | <look id>     (DERIVED from data-season, a pinned look
                                               (fh.lookPin) and today's date; see
                                               SEASONS below)
@@ -472,11 +473,15 @@
     var id = lookPinMem !== undefined ? lookPinMem : readStored(PIN_KEY);
     return id && seasonOfLook(id) ? id : null;
   }
+  // Returns whether the key is really gone, so a caller can fall back to
+  // writing an empty value when storage refuses a remove but allows a write.
   function removeStored(key) {
     try {
       window.localStorage.removeItem(key);
+      return true;
     } catch (e) {
       try { console.warn("family-hub: could not clear " + key + " (storage unavailable)"); } catch (e2) { /* no console */ }
+      return false;
     }
   }
 
@@ -536,11 +541,13 @@
     stampSeason("on");
     refreshLook();
   }
-  // Back to the calendar: drop the pin and turn seasonal looks on.
+  // Back to the calendar: drop the pin and turn seasonal looks on. If storage
+  // will not remove the key, an empty value says the same thing (pinnedLook
+  // treats it as no pin), so the old pin cannot come back after a reload.
   function followCalendar() {
     lookPinMem = "";
     seasonChosen = true;
-    removeStored(PIN_KEY);
+    if (!removeStored(PIN_KEY)) writeStored(PIN_KEY, "");
     writeStored("fh.season", "on");
     stampSeason("on");
     refreshLook();

@@ -805,3 +805,21 @@ test('seasons off hides a pin completely, motion included', () => {
   assert.equal(root.getAttribute('data-drift'), 'none');
 });
 
+
+test('Calendar still sticks after a reload when storage refuses to remove the pin but allows writes', () => {
+  const first = loadTheme({ storage: { 'fh.season': 'on', 'fh.lookPin': 'halloween-moonrise' } });
+  first.win.localStorage.removeItem = () => { throw new Error('denied'); };
+  first.win.followCalendar();
+  assert.equal(first.win.pinnedLook(), null, 'this session follows the calendar at once');
+  // the page reloads: the same storage, no memory of this session
+  const stored = Object.fromEntries(first.localStorage._map);
+  const second = loadTheme({ storage: stored });
+  assert.equal(second.win.pinnedLook(), null, 'the old pin must not come back after the reload');
+  assert.equal(second.win.refreshLook(day(9, 15)), 'fall-aspen-grove', 'the calendar paints the day');
+});
+
+test('an empty stored pin means no pin', () => {
+  const { win } = loadTheme({ storage: { 'fh.season': 'on', 'fh.lookPin': '' } });
+  assert.equal(win.pinnedLook(), null);
+  assert.equal(win.refreshLook(day(9, 15)), 'fall-aspen-grove');
+});

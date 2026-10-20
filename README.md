@@ -53,9 +53,10 @@ at one URL.
   petals), **St Patrick's Day** (Mar 1 to 17, drifting clovers), **Easter**
   (the two weeks before it), **Mother's Day** and **Father's Day** (their
   weeks), the **Fourth of July** (Jun 25 to Jul 4) and **Thanksgiving** (the
-  ten days before it, with the falling leaves), 28 looks in all. A device
-  remembers one pick per season, so Thanksgiving week shows Thanksgiving's own
-  default even if you picked a Fall look. Each look is
+  ten days before it, with the falling leaves), 28 looks in all. In Calendar
+  mode a device remembers one pick per season, so Thanksgiving week shows
+  Thanksgiving's own look even if you picked a Fall look (a look you tap under
+  **Pick one** stays through every holiday until you go back to Calendar). Each look is
   picked per device under **All settings → Seasonal looks** from
   live preview tiles. **Calendar** changes the look with the dates; **Pick
   one** keeps the look you tap every day of the year until you tap another or

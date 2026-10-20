@@ -3083,10 +3083,11 @@ def test_the_chore_form_keeps_finger_sized_targets_on_the_phone():
     assert phone, "the chore form's .seg-btn and .chore-close need 44px minimums at phone width"
 
 
-def test_the_seasonal_and_lite_switches_keep_finger_sized_targets_on_the_phone():
-    # Off / Calendar / Pick one and Lite's two buttons measured 40px on a 390px phone (2026-10-19)
+def test_every_settings_switch_keeps_finger_sized_targets_on_the_phone():
+    # Theme, Columns, Layout, Auto-return, Off / Calendar / Pick one and Lite: all 17 buttons measured 40px on a
+    # 390px phone (2026-10-19); CLAUDE.md asks for >= 44px
     assert re.search(r"@media \(max-width: 1000px\) \{\s*#settings-full \.settings-row \.seg button \{ min-height: 44px; \}\s*\}", CSS), \
-        "the Settings switches need a 44px minimum at phone width"
+        "every Settings switch needs a 44px minimum at phone width"
 
 
 def test_the_seasonal_card_offers_off_calendar_and_pick_one():

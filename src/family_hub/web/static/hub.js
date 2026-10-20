@@ -6607,7 +6607,10 @@ document.addEventListener('click', (e) => {
         || (now && pickedLook(now))
         || (next && pickedLook(next.id));
       if (look) setSeasonLook(look);
-      else console.warn('season: Pick one found no look to keep');
+      else {
+        console.warn('season: Pick one found no look to keep');
+        showToast('Pick one needs a look to keep: tap one of the looks below.');
+      }
     }
     reflectThemeControls();
     return;

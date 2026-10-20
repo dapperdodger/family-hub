@@ -8720,43 +8720,88 @@ test('tapping the season switch and a look tile calls theme.js\'s setters', () =
 });
 
 // Settings > Seasonal looks > Calendar / Pick one
-test('Calendar drops the pin; Pick one keeps the pinned look, else what shows, else the season in force', () => {
-  const { document, sandbox, docListeners, calls } = seasonHub();
+
+// Stateful stand-ins for theme.js, so what the Settings handler does AFTER the tap is observable too.
+function pickOneHub() {
+  const env = seasonHub();
+  const { document, sandbox, calls } = env;
   const host = document.createElement('div');
   host._id = 'settings-full';
   document.body.appendChild(host);
+  const html = document.documentElement;
+  const state = { pin: null };
+  html.setAttribute('data-season', 'on');
+  Object.assign(sandbox, {
+    pinnedLook: () => state.pin,
+    followCalendar: () => { calls.push(['followCalendar']); state.pin = null; html.setAttribute('data-season', 'on'); },
+    setSeasonLook: (v) => { calls.push(['setSeasonLook', v]); state.pin = v; html.setAttribute('data-season', 'on'); },
+    seasonLook: () => 'fall-calendar-favourite',
+  });
   sandbox.renderSettingsFull();
   const tapMode = (mode) => {
     const node = host.querySelector(`[data-season-mode="${mode}"]`);
-    node.closest = (s) => (s.includes('[data-season-mode]') ? node : null);
-    (docListeners.click || []).forEach((fn) => fn({ target: node }));
+    node.closest = (sel) => (sel.includes('[data-season-mode]') ? node : null);
+    (env.docListeners.click || []).forEach((fn) => fn({ target: node }));
   };
-  sandbox.followCalendar = () => calls.push(['followCalendar']);
-  let pin = null;
-  sandbox.pinnedLook = () => pin;
-  const html = document.documentElement;
-  // what shows now wins over the season's favourite
+  const modeOn = () => host.querySelectorAll('[data-season-mode]').filter((b) => b.classList.contains('on')).map((b) => b.dataset.seasonMode);
+  return { ...env, host, html, state, tapMode, modeOn };
+}
+
+test('Pick one keeps what shows now when nothing is pinned yet', () => {
+  const { html, calls, tapMode } = pickOneHub();
   html.setAttribute('data-look', 'fall-harvest');
   tapMode('pick');
-  // with a pin already stored (Off hides it without forgetting it) the pin comes back, not what shows
-  pin = 'fall-maple'; html.setAttribute('data-look', 'none');
-  tapMode('pick');
-  // nothing shows and no pin: the season in force's favourite
-  pin = null; html.setAttribute('data-look', 'none');
-  tapMode('pick');
-  tapMode('calendar');
-  assert.deepEqual(calls, [
-    ['setSeasonLook', 'fall-harvest'], ['setSeasonLook', 'fall-maple'], ['setSeasonLook', 'fall-maple'], ['followCalendar'],
-  ]);
+  assert.deepEqual(calls, [['setSeasonLook', 'fall-harvest']]);
 });
 
-test('Pick one with nothing to keep says so in the console and changes nothing', () => {
-  const { document, sandbox, docListeners, calls } = seasonHub();
-  const host = document.createElement('div');
-  host._id = 'settings-full';
-  document.body.appendChild(host);
-  sandbox.renderSettingsFull();
-  Object.assign(sandbox, { activeSeason: () => null, nextSeason: () => null, pinnedLook: () => null });
+test('Pick one brings back an existing pin (Off hides it, it is not forgotten), not what shows or the season favourite', () => {
+  const { html, state, calls, tapMode } = pickOneHub();
+  state.pin = 'fall-maple';                       // remembered while seasons were Off
+  html.setAttribute('data-look', 'fall-harvest'); // something else showing, e.g. the calendar's look
+  tapMode('pick');                                // three different answers are on offer; the pin must win
+  assert.deepEqual(calls, [['setSeasonLook', 'fall-maple']]);
+});
+
+test('Pick one with nothing showing keeps the season in force, else the next season to start', () => {
+  const { sandbox, html, state, calls, tapMode } = pickOneHub();
+  html.setAttribute('data-look', 'none');
+  sandbox.seasonLook = (id) => ({ fall: 'fall-in-force', winter: 'winter-next' }[id] || null);
+  sandbox.activeSeason = () => 'fall';
+  sandbox.nextSeason = () => ({ id: 'winter', name: 'Winter' });
+  tapMode('pick');
+  state.pin = null;                               // the first tap pinned it; this is a fresh device
+  sandbox.activeSeason = () => null;              // nothing in season: the next one to start
+  tapMode('pick');
+  assert.deepEqual(calls, [['setSeasonLook', 'fall-in-force'], ['setSeasonLook', 'winter-next']]);
+});
+
+test('the Settings switch moves with the tap: Calendar drops the pin, Pick one keeps a look', () => {
+  const { html, state, calls, tapMode, modeOn } = pickOneHub();
+  html.setAttribute('data-look', 'fall-harvest');
+  tapMode('pick');
+  assert.deepEqual(modeOn(), ['pick'], 'the switch shows Pick one at once');
+  tapMode('calendar');
+  assert.deepEqual(calls, [['setSeasonLook', 'fall-harvest'], ['followCalendar']]);
+  assert.equal(state.pin, null);
+  assert.deepEqual(modeOn(), ['calendar'], 'and Calendar once the pin is gone');
+});
+
+test('a pinned look out of season still says what it shows, not that nothing is in season', () => {
+  const { document, sandbox, state, tapMode } = pickOneHub();
+  sandbox.activeSeason = () => null;              // e.g. a Halloween pin in July
+  sandbox.nextSeason = () => ({ id: 'fall', name: 'Fall', window: { from: [9, 1], to: [11, 30] } });
+  document.documentElement.setAttribute('data-look', 'fall-harvest');
+  tapMode('pick');
+  const note = document.querySelectorAll('.season-idle-note')[0];
+  assert.equal(state.pin, 'fall-harvest');
+  assert.equal(note.textContent, `Showing ${sandbox.lookName('fall-harvest')} every day.`);
+  tapMode('calendar');                            // back to the calendar with nothing in season: now it says so
+  assert.match(note.textContent, /^Nothing is in season today\./);
+});
+
+test('Pick one with nothing to keep says so on screen and in the console, and changes nothing', () => {
+  const { document, sandbox, docListeners, calls, host } = pickOneHub();
+  Object.assign(sandbox, { activeSeason: () => null, nextSeason: () => null });
   document.documentElement.setAttribute('data-look', 'none');
   const warned = [];
   sandbox.console = { warn: (m) => warned.push(m), log() {}, error() {} };
@@ -8765,6 +8810,7 @@ test('Pick one with nothing to keep says so in the console and changes nothing',
   (docListeners.click || []).forEach((fn) => fn({ target: node }));
   assert.deepEqual(calls, []);
   assert.deepEqual(warned, ['season: Pick one found no look to keep']);
+  assert.match(document.getElementById('toast').textContent, /Pick one needs a look to keep/);
 });
 
 test('applyHouseTheme stamps the house season on a fresh device only', () => {

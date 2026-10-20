@@ -29,9 +29,10 @@ cartoon props) and a matching accent.
 
 **What's next:** Martin Luther King Jr. Day waits for a photograph that is clearly
 public domain (the date window, `WINDOWS.mlkDay`, already exists); other days
-(Memorial Day, Labor Day, Veterans Day, Presidents' Day) are out of scope until asked; they follow the same recipe. A look is picked
-per season, so a device that picked a Fall look still gets Thanksgiving's own
-default in Thanksgiving week.
+(Memorial Day, Labor Day, Veterans Day, Presidents' Day) are out of scope until asked; they follow the same recipe. In Calendar mode a look is
+picked per season, so a device that picked a Fall look still gets Thanksgiving's
+own default in Thanksgiving week; a look tapped under Pick one stays through
+every holiday until the device goes back to Calendar.
 
 ---
 
@@ -510,6 +511,14 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
    until you do, and also fails for a moving rule inside a season layer that
    names no `.sn-*` class. The guard reads rules inside `@media`/`@supports`
    too. Review it by looking at the page with Lite on, not only by the test.
+
+   **Pinned looks (Pick one).** Any registered look can be pinned and then
+   paints on any day, so key every moving part on the look (`data-look^="<season>-"`)
+   or on `data-drift`, never on today's date or `activeSeason()`: a pinned look
+   must bring its own season's motion, and leave the calendar season's behind.
+   Give the season entry its `drift` (the registry stamps it from the painting
+   look's season); `theme.test.mjs` guards that a pinned Winter look snows in July
+   and a pinned Halloween look does not snow in January.
 6. **Check it with your own eyes**, on the demo (`DEMO=1`), at full size:
    - every look × all five themes (Light, Soft, Blue, Grey, Black) at
      1920×1080, and seasons off in all five (it must match main exactly);
@@ -521,6 +530,9 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
      still readable on the 86% card fill;
    - a phone width (390px and 360px), with a two-digit hour on the clock
      ("12:59:59pm" is the widest; a narrower time hid an overflow);
+   - each new look **pinned** (Settings → tap it) while a different season is
+     on the calendar: its own motion and creatures come with it, and the
+     calendar season's do not;
    - the gear popover open;
    - the Settings tiles;
    - the empty checkbox rings, the streak pills, the section titles and the
