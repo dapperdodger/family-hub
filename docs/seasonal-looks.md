@@ -3,9 +3,10 @@
 A seasonal look turns the whole wall into the season: a real photograph (or
 public-domain artwork) fills the screen, the dashboard floats on it as frosted
 glass in the colours of your chosen theme, one gentle kind of motion drifts over it (leaves, snow, petals, clovers, fireflies or a slow sparkle), and the accent colour and a
-small mark by the wordmark match the photo. It follows the calendar when
-**Season** is on, and each device picks its own look from preview tiles in
-**All settings → Seasonal looks**.
+small mark by the wordmark match the photo. It follows the calendar in
+**Calendar** mode (the default once Seasonal looks are on), or keeps one look
+every day of the year in **Pick one** mode, and each device picks its own look
+from preview tiles in **All settings → Seasonal looks**.
 
 This document is the standard every look is held to. It exists because the
 first three attempts at fall missed, for reasons worth not repeating. Read it
@@ -28,9 +29,10 @@ cartoon props) and a matching accent.
 
 **What's next:** Martin Luther King Jr. Day waits for a photograph that is clearly
 public domain (the date window, `WINDOWS.mlkDay`, already exists); other days
-(Memorial Day, Labor Day, Veterans Day, Presidents' Day) are out of scope until asked; they follow the same recipe. A look is picked
-per season, so a device that picked a Fall look still gets Thanksgiving's own
-default in Thanksgiving week.
+(Memorial Day, Labor Day, Veterans Day, Presidents' Day) are out of scope until asked; they follow the same recipe. In Calendar mode a look is
+picked per season, so a device that picked a Fall look still gets Thanksgiving's
+own default in Thanksgiving week; a look tapped under Pick one stays through
+every holiday until the device goes back to Calendar.
 
 ---
 
@@ -509,6 +511,14 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
    until you do, and also fails for a moving rule inside a season layer that
    names no `.sn-*` class. The guard reads rules inside `@media`/`@supports`
    too. Review it by looking at the page with Lite on, not only by the test.
+
+   **Pinned looks (Pick one).** Any registered look can be pinned and then
+   paints on any day, so key every moving part on the look (`data-look^="<season>-"`)
+   or on `data-drift`, never on today's date or `activeSeason()`: a pinned look
+   must bring its own season's motion, and leave the calendar season's behind.
+   Give the season entry its `drift` (the registry stamps it from the painting
+   look's season); `theme.test.mjs` guards that a pinned Winter look snows in July
+   and a pinned Halloween look does not snow in January.
 6. **Check it with your own eyes**, on the demo (`DEMO=1`), at full size:
    - every look × all five themes (Light, Soft, Blue, Grey, Black) at
      1920×1080, and seasons off in all five (it must match main exactly);
@@ -520,6 +530,9 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
      still readable on the 86% card fill;
    - a phone width (390px and 360px), with a two-digit hour on the clock
      ("12:59:59pm" is the widest; a narrower time hid an overflow);
+   - each new look **pinned** (Settings → tap it) while a different season is
+     on the calendar: its own motion and creatures come with it, and the
+     calendar season's do not;
    - the gear popover open;
    - the Settings tiles;
    - the empty checkbox rings, the streak pills, the section titles and the
@@ -560,9 +573,20 @@ python scripts/season-photo-search.py fetch "commons:File:<name as shown>" --out
   Night keeps its own near-solid glass; the Settings tiles are unchanged. The spiders ask `data-lite` before
   they ask the layout anything.
 
-- `theme.js` owns the registry, the prefs (`fh.season`, `fh.look.<season>`)
-  and the derived `data-look` attribute on `<html>`. It stamps them before
-  first paint, and `tickClock` in hub.js re-derives them when the date turns.
+- `theme.js` owns the registry, the prefs (`fh.season`, `fh.look.<season>`,
+  `fh.lookPin`) and the derived `data-look` and `data-drift` attributes on
+  `<html>`. It stamps them before first paint, and `tickClock` in hub.js
+  re-derives them when the date turns.
+- **Calendar / Pick one.** Looks are not locked to their dates. Tapping a look
+  in Settings *pins* it (`fh.lookPin`, per device): it paints every day until
+  you tap another or choose **Calendar**, which drops the pin. A pin is also
+  that season's favourite, so the calendar paints it when its season comes
+  round. **Off** hides a pin without forgetting it. An id that is no longer in
+  the registry is ignored and the calendar takes over. A pinned look brings the
+  motion (`data-drift`) of **its own** season, not the calendar's: Winter's snow
+  must not fall on a pinned Halloween look in January, and a pinned Winter look
+  must still snow in July (`theme.test.mjs` guards both; a pin does not touch
+  Lite, which is its own per-device switch).
 - `hub.js` mounts two layers: `.season` (the photo, the far leaves, the webs
   and the far bats) as the first child of `<body>`, and `.season-fx` (the
   near leaves, the near bats and the two spiders) as the last. It builds the

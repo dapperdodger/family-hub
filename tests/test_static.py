@@ -3081,3 +3081,20 @@ def test_the_chore_form_keeps_finger_sized_targets_on_the_phone():
     phone = re.search(r"@media \(max-width: 1000px\) \{\s*#chore-editor \.seg-btn \{ min-height: 44px; \}\s*"
                       r"\.chore-close \{ width: 44px; height: 44px; \}\s*\}", CSS)
     assert phone, "the chore form's .seg-btn and .chore-close need 44px minimums at phone width"
+
+
+def test_every_settings_switch_keeps_finger_sized_targets_on_the_phone():
+    # Theme, Columns, Layout, Auto-return, Off / Calendar / Pick one and Lite: all 17 buttons measured 40px on a
+    # 390px phone (2026-10-19); CLAUDE.md asks for >= 44px
+    assert re.search(r"@media \(max-width: 1000px\) \{\s*#settings-full \.settings-row \.seg button \{ min-height: 44px; \}\s*\}", CSS), \
+        "every Settings switch needs a 44px minimum at phone width"
+
+
+def test_the_seasonal_card_offers_off_calendar_and_pick_one():
+    # the old On button became two modes; the popover keeps its plain Off / On
+    card = HUB[HUB.index("function seasonalCardHtml()"):]
+    card = card[:card.index("look-picker")]
+    for want in ('data-season-set="off"', 'data-season-mode="calendar"', 'data-season-mode="pick"'):
+        assert want in card, f"the Seasonal looks card lost {want}"
+    assert 'data-season-set="on"' not in card
+    assert 'data-season-set="on"' in (STATIC / "index.html").read_text(encoding="utf-8"), "the gear popover keeps its On"
