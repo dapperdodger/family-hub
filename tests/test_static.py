@@ -3081,3 +3081,68 @@ def test_the_chore_form_keeps_finger_sized_targets_on_the_phone():
     phone = re.search(r"@media \(max-width: 1000px\) \{\s*#chore-editor \.seg-btn \{ min-height: 44px; \}\s*"
                       r"\.chore-close \{ width: 44px; height: 44px; \}\s*\}", CSS)
     assert phone, "the chore form's .seg-btn and .chore-close need 44px minimums at phone width"
+
+
+def test_wall_decorations_only_paint_while_their_season_does():
+    """The strands, frost, snow drifts, webs, leaves and wheat live on the
+    cards' and the top bar's ::before/::after. Each such rule must be scoped
+    to a season prefix, so a family with seasons off (or another season)
+    never gets them: seasons-off has to match main pixel for pixel."""
+    found = 0
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+        sel = re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S)
+        if not re.search(r"\.(card|topbar)[^,{]*::(before|after)", sel):
+            continue
+        if "content:" not in m.group(2):
+            continue
+        found += 1
+        assert 'data-look^="' in sel, f"a decoration paints outside any season: {sel.strip()[:120]}"
+    assert found >= 6, "expected the season decorations on cards and the top bar"
+
+
+def test_wall_decorations_never_take_a_tap():
+    """Every decoration pseudo-element is pointer-events: none: a leaf on the
+    To-Do card or a bulb over a section title must never eat a tap."""
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+        sel, body = m.group(1), m.group(2)
+        if re.search(r"\.(card|topbar)[^,{]*::(before|after)", sel) and "content:" in body and 'data-look^="' in sel:
+            assert "pointer-events: none" in body, f"decoration can take a tap: {sel.strip()[:120]}"
+
+
+def test_the_strand_and_the_blowing_leaf_hold_still_at_night_and_with_reduced_motion():
+    rm = CSS[[m.start() for m in re.finditer(r"@media \(prefers-reduced-motion: reduce\) \{", CSS)][-1]:]
+    for sel in ('.topbar::before { animation: none; }', '.card.todo::before { animation: none; }'):
+        assert sel in rm, f"reduced motion does not stop {sel}"
+    assert '.is-night .topbar::before { animation: none;' in CSS
+    assert '.is-night .wrap) .card.todo::before { animation: none; }' in CSS
+
+
+def test_lite_keeps_the_wall_decorations_still_and_never_hides_them():
+    """Lite (a slow screen) keeps the frost, drifts, webs, leaves, strand and wheat but drops every animation and
+    drop shadow on a card or top-bar ::before/::after, structurally: a decoration added later is covered too."""
+    lite = " ".join(b for sel, b in _lite_blocks() if re.search(r"(\.wrap \.card|\.topbar)::(before|after)", sel))
+    assert "animation: none" in lite and "filter: none" in lite, "Lite no longer stills the wall decorations"
+    covered = " ".join(sel for sel, b in _lite_blocks() if "animation: none" in b)
+    for target in (".wrap .card::before", ".wrap .card::after", ".topbar::before", ".topbar::after"):
+        assert target in covered, f"Lite does not still {target}"
+    # ...and they are only ever stilled, never hidden: they are the season on a slow screen
+    for sel, b in _lite_blocks():
+        if re.search(r"(\.wrap \.card|\.topbar)::(before|after)", sel):
+            assert "display" not in b, f"Lite hides a wall decoration: {sel}"
+
+
+def test_every_animation_on_a_wall_decoration_is_one_lite_and_reduced_motion_know_about():
+    """The guard above is structural, so this one only keeps it honest: name every keyframe that animates a
+    card or top-bar ::before/::after, so a new one is reviewed (night, reduced motion, Lite) when it lands."""
+    names = set()
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+        sel, body = m.group(1), m.group(2)
+        if re.search(r"\.(card|topbar)[^,{]*::(before|after)", sel) and 'data-look^="' in sel:
+            names |= set(re.findall(r"animation:\s*([\w-]+)", body)) - {"none"}
+    assert names == {"sn-strand", "sn-leaf-lift"}, f"a new animated wall decoration needs night, reduced-motion and Lite review: {names}"
+
+
+def test_the_weather_card_carries_no_leaf_or_drift_it_would_clip():
+    # .card.wx clips its corners (overflow: hidden): a leaf or a drift poking above or past it would be cut in half
+    assert ':where(:root:is([data-look^="fall-"], [data-look^="thanksgiving-"], [data-look^="christmas-"]) .wrap) .card.wx::before { display: none; }' in CSS
+    assert ':where(:root:is([data-look^="fall-"], [data-look^="thanksgiving-"]) .wrap) .card.wx::after { display: none; }' in CSS

@@ -47,6 +47,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   ingredients from the list" will no longer find that item.
 
 ### Added
+- Seasons decorate the wall itself. Christmas hangs a strand of bright bulbs under the top bar (their glow gently breathing), lays frost from a real photo of ice on a window into two corners of each card and rests a soft drift of snow along each card's top; Halloween strings a neon orange, purple and green strand and spins cobwebs into some card corners; Fall and Thanksgiving leave real leaves resting on card tops and caught in a corner, with one on the To-Do card that lifts and blows away now and then, and Thanksgiving lays two tied bundles of wheat across the top bar. They stop for night and reduced motion, and Lite keeps them still (no glow, no blowing leaf, no drop shadows). The bulb strand and snow drift are small ornaments drawn for the project; the rest is real photos, scans and a CC0 web. (From drench44/family-hub 1.11.0; the Lite handling and the weather-card exception are ours.)
 - Chores can take turns a week at a time: one person has the chore every
   day it comes up this week, the next person has all of next week, and so
   on (pick "Take turns", then "Switch to the next person: Every week").

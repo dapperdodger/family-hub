@@ -308,6 +308,30 @@ the cards, kept few, small and slow (see Motion below).
   the fixed copy would slide off the photo. Phones and iOS keep the live
   blur (iOS ignores fixed photo backgrounds), **Lite keeps its plain 86%
   fill and never gets panes**, and night drops the copy.
+- **Wall decorations:** a season can put itself ON the wall, not only behind
+  it: **Christmas** hangs a strand of bulbs under the top bar (each with a glow
+  that slowly breathes), lays frost in two corners of every card and rests a
+  drift of snow along each card's top; **Halloween** hangs a neon strand and
+  spins a cobweb into some card corners; **Fall and Thanksgiving** leave real
+  leaves resting on card tops and caught in a lower corner (one, on the To-Do
+  card, lifts and blows away every minute or so), and Thanksgiving lays two
+  bundles of wheat across the top bar. They are all CSS: a `::before` or
+  `::after` on a `.card` or the `.topbar`, scoped to a season prefix
+  (`:where(:root[data-look^="christmas-"] ...)`, so seasons off match main pixel
+  for pixel), `pointer-events: none`, and painted by tokens (`--sn-frost`,
+  `--sn-drift`, `--sn-strand`, `--sn-card-web`) so each theme keeps them
+  readable. Rules: **real art where there is a subject** (the frost is a photo of
+  ice on a window, the leaves and wheat are cut-out photos or scans, the webs
+  are a CC0 drawing; see CREDITS.md). The bulb strand and the snow drift are the
+  exceptions: small ornaments **drawn for this project** (MIT), the only
+  home-made art that ships, so look at them before you ship a season that adds
+  another. The weather card clips its corners, so it carries no leaf or drift. The
+  top bar gains 22px of room under it while a strand hangs. **Lite** keeps every
+  decoration (they are still) but drops every animation and drop shadow on a card
+  or top-bar `::before`/`::after`, structurally, so a decoration you add later is
+  covered without being listed; **night** holds the strand still at half
+  strength and stops the blowing leaf; reduced motion stops both. Four tests
+  guard it (scoped to a season, never takes a tap, holds still, Lite).
 - **Night:** the night dim stops the glass from blurring, so from 22:00 to
   06:00 the glass goes nearly solid (94% of the theme's surface).
 - Never put `backdrop-filter` on a fixed or sticky element (iOS tap bug, see
