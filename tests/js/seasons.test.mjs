@@ -256,10 +256,10 @@ test('the real registry: season and look ids, defaults, prefixes and the words m
       seen.add(l.id);
     }
   }
-  assert.equal(seen.size, 45);
+  assert.equal(seen.size, 52);
   const counts = Object.fromEntries(win.FH_SEASONS.map((s) => [s.id, s.looks.length]));
-  assert.deepEqual(counts, { newyears: 3, christmas: 3, valentines: 3, winter: 3, stpatricks: 3, easter: 3,
-    mothersday: 3, spring: 3, fathersday: 3, julyfourth: 3, summer: 3, halloween: 5, thanksgiving: 4, fall: 3 });
+  assert.deepEqual(counts, { newyears: 3, christmas: 6, valentines: 3, winter: 3, stpatricks: 3, easter: 3,
+    mothersday: 3, spring: 3, fathersday: 3, julyfourth: 3, summer: 3, halloween: 5, thanksgiving: 8, fall: 3 });
   const drifts = Object.fromEntries(win.FH_SEASONS.map((s) => [s.id, s.drift || null]));
   assert.deepEqual(drifts, { newyears: 'sparkle', christmas: 'snow', valentines: 'petal', winter: 'snow',
     stpatricks: 'clover', easter: 'petal', mothersday: 'petal', spring: 'petal', fathersday: null, julyfourth: 'sparkle',

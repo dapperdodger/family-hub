@@ -53,7 +53,7 @@ at one URL.
   petals), **St Patrick's Day** (Mar 1 to 17, drifting clovers), **Easter**
   (the two weeks before it), **Mother's Day** and **Father's Day** (their
   weeks), the **Fourth of July** (Jun 25 to Jul 4) and **Thanksgiving** (the
-  ten days before it, with the falling leaves), 28 looks in all. In Calendar
+  ten days before it, with the falling leaves), 35 looks in all. In Calendar
   mode a device remembers one pick per season, so Thanksgiving week shows
   Thanksgiving's own look even if you picked a Fall look (a look you tap under
   **Pick one** stays through every holiday until you go back to Calendar). Each look is

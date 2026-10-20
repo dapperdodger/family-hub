@@ -12,7 +12,7 @@ This document is the standard every look is held to. It exists because the
 first three attempts at fall missed, for reasons worth not repeating. Read it
 before adding a season, a holiday, or anything else.
 
-**Shipped so far:** 14 seasons and 45 looks. The broad ones: fall (Sep 1 to
+**Shipped so far:** 14 seasons and 52 looks. The broad ones: fall (Sep 1 to
 Nov 30), Halloween (October), winter (Dec 1 to Feb 29), spring (Mar 1 to May
 31) and summer (Jun 1 to Aug 31), so every day of the year paints something.
 On top of them nine holidays: New Year's, Christmas, Valentine's Day, St
@@ -452,8 +452,7 @@ file, title and creator, source link, licence, and what we changed. A test
 fails if one is missing.
 
 **Candidates already vetted for later** (all CC0 or public domain; details
-in the 2026-09 sourcing notes): Jasper Cropsey *Autumn on the Hudson* (NGA),
-Hiroshige *Maples at Mama* (Met), George Inness *Sunny Autumn Day* (CMA),
+in the 2026-09 sourcing notes): Hiroshige *Maples at Mama* (Met), George Inness *Sunny Autumn Day* (CMA),
 Monet *Stacks of Wheat, End of Day, Autumn* (AIC), Tosa Mitsuoki *Autumn
 Maples with Poem Slips* screen (AIC), Karl Fredrickson "Trees in Fall" bokeh
 (Unsplash 2015, CC0), Aaron Burden maple canopy on blue sky (Unsplash 2015,

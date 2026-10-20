@@ -2876,7 +2876,9 @@ def test_the_root_does_not_define_the_generic_drift_bit_colours():
 
 HOLIDAY_LOOKS = [
     "thanksgiving-pumpkins", "thanksgiving-cranberries", "thanksgiving-pumpkin-bowl", "thanksgiving-turkey",
+    "thanksgiving-golden-hour", "thanksgiving-corn-shocks", "thanksgiving-vine-rows", "thanksgiving-hudson-autumn",
     "christmas-santa", "christmas-village", "christmas-snowmen",
+    "christmas-woodsmoke", "christmas-sleigh-ride", "christmas-pink-dawn",
     "newyears-sparkler", "newyears-fireworks", "newyears-champagne",
     "valentines-bouquet", "valentines-tulips", "valentines-rose",
     "stpatricks-countryside", "stpatricks-bay", "stpatricks-clover",
@@ -2888,9 +2890,9 @@ HOLIDAY_LOOKS = [
 
 
 def test_every_holiday_look_is_styled_before_the_registry_lists_it():
-    """The registry-driven guards only look at looks theme.js lists; this one pins the 28 holiday looks'
+    """The registry-driven guards only look at looks theme.js lists; this one pins the 35 holiday looks'
     CSS and photos on their own, so a block can never go missing between the art and the registry."""
-    assert len(HOLIDAY_LOOKS) == 28
+    assert len(HOLIDAY_LOOKS) == 35
     for look in HOLIDAY_LOOKS:
         assert f':root[data-look="{look}"][data-theme][data-accent]' in CSS, f"{look} has no dark-theme block"
         assert f':root[data-look="{look}"][data-accent]:is([data-theme="light"],[data-theme="soft"])' in CSS, f"{look} has no light-theme block"
@@ -2900,7 +2902,7 @@ def test_every_holiday_look_is_styled_before_the_registry_lists_it():
 
 # A phone shows only about 31 percent of a 3:2 photo's width (the wall shows all of it), so a subject that sits off
 # the photo's middle needs its own horizontal focal point or the phone shows only background.
-PHONE_FOCAL_X = {'christmas-santa': 95, 'stpatricks-clover': 74, 'easter-rabbit': 76, 'fathersday-jeep': 72, 'julyfourth-flag': 74}
+PHONE_FOCAL_X = {'thanksgiving-golden-hour': 75, 'christmas-santa': 95, 'stpatricks-clover': 74, 'easter-rabbit': 76, 'fathersday-jeep': 72, 'julyfourth-flag': 74}
 
 
 def test_holiday_looks_with_an_off_centre_subject_keep_it_on_the_phone():
@@ -3214,3 +3216,38 @@ def test_the_strand_has_room_and_the_wheat_steps_aside_on_the_phone():
     assert re.search(r':root:not\(\[data-layout="desktop"\]\)\[data-look\]:is\(\[data-look\^="christmas-"\], \[data-look\^="halloween-"\]\) \.topbar \{ margin-bottom: 22px; \}', CSS)
     assert re.search(r':root:not\(\[data-layout="desktop"\]\)\[data-look\^="thanksgiving-"\] \.topbar::before,\s*'
                      r':root:not\(\[data-layout="desktop"\]\)\[data-look\^="thanksgiving-"\] \.topbar::after \{ display: none; \}', CSS)
+
+
+# Looks shipped before this guard whose Light/Soft accent is a little under 4.5:1 against its ink (measured
+# 2026-10-19: 4.08, 4.15 and 4.47). They stay above 4.0; every other look, including each one added since, needs 4.5.
+_LIGHT_ACCENT_UNDER_4_5 = {"fall-aspen-grove", "halloween-purple-pines", "fall-maple-sky"}
+
+
+def _accent_pair(selector):
+    blk = _block_after(selector)
+    accent = re.search(r"--accent:\s*(#[0-9A-Fa-f]{6})", blk).group(1)
+    ink = re.search(r"--accent-ink:\s*(#[0-9A-Fa-f]{6})", blk).group(1)
+    return accent, ink
+
+
+@pytest.mark.parametrize("look", _look_ids())
+def test_every_looks_accent_keeps_readable_text_on_it(look):
+    """The accent paints buttons and chips with --accent-ink on top, so the pair must stay readable: 4.5:1 on the
+    dark themes and on Light and Soft (the accent also has to stand against the white card). A new look with a
+    pale or muddy accent would otherwise pass every other guard."""
+    dark = _accent_pair(f':root[data-look="{look}"][data-theme][data-accent]')
+    day = _accent_pair(f':root[data-look="{look}"][data-accent]:is([data-theme="light"],[data-theme="soft"])')
+    assert _contrast_ratio(*dark) >= 4.5, f"{look}: dark-theme accent {dark} is {_contrast_ratio(*dark):.2f}:1"
+    floor = 4.0 if look in _LIGHT_ACCENT_UNDER_4_5 else 4.5
+    assert _contrast_ratio(*day) >= floor, f"{look}: light-theme accent {day} is {_contrast_ratio(*day):.2f}:1 (needs {floor})"
+    assert _contrast_ratio(day[0], "#FFFFFF") >= floor, f"{look}: the light accent {day[0]} is too pale on a white card"
+
+
+@pytest.mark.parametrize("look", [l for l in _look_ids() if l.startswith("thanksgiving-")])
+def test_a_thanksgiving_looks_leaf_colours_are_four_distinct_hex_values(look):
+    """Thanksgiving drifts the Fall leaves in each photo's own colours (--sn-leaf-1..4); four copies of one colour
+    would draw a single-coloured shower."""
+    blk = _block_after(f':root[data-look="{look}"][data-theme][data-accent]')
+    leaves = [re.search(rf"--sn-leaf-{n}:\s*(#[0-9A-Fa-f]{{6}})\b", blk) for n in (1, 2, 3, 4)]
+    assert all(leaves), f"{look}: --sn-leaf-1..4 must each be a six-digit hex colour"
+    assert len({m.group(1).lower() for m in leaves}) == 4, f"{look}: the four leaf colours must differ"
