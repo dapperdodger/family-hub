@@ -58,7 +58,9 @@ at one URL.
   default even if you picked a Fall look. Each look is
   picked per device under **All settings → Seasonal looks** from
   live preview tiles. Each of the five themes keeps its own glass: Light and
-  Soft show the photo bright and airy, Blue, Grey and Black at dusk. Nothing
+  Soft show the photo bright and airy, Blue, Grey and Black at dusk. On the wall and on computers the glass is a
+  ready-blurred copy of the photo rather than a live blur, so scrolling stays
+  smooth and the cards never flicker (phones keep the live blur). Nothing
   moves at night or for reduced motion, and the art (public domain, CC0,
   CC-BY and MIT) ships inside the app. A slow screen such as a Raspberry Pi 3
   turns on **Lite** (All settings → Seasonal looks, per device, or add

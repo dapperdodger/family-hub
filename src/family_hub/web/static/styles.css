@@ -47,6 +47,10 @@
   /* seasonal scene tokens (only painted while a look is active; each look's
      blocks near the end of the file set them — these are neutral defaults) */
   --sn-scene: none; --sn-pos: center;
+  /* the look's still glass copy. A look that forgets its own (a test fails for
+     ours) falls back to the sharp photo, never to flat ground colour: not
+     unset either, an unset var() would void the whole glass background */
+  --sn-glass: var(--sn-scene);
   /* Light's glass and wash (other themes set their own near the end) */
   --sn-wash: linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 36%, rgba(255,255,255,.06) 100%);
   --glass: rgba(255,255,255,.66); --glass-edge: rgba(255,255,255,.50);
@@ -1435,7 +1439,8 @@ body {
   color: var(--faint);
   padding: 12px 2px 2px;
 }
-.todo-grp:first-child .todo-grp-head { padding-top: 4px; }
+/* first-of-type, not first-child: the card's first child is its glass pane */
+.todo-grp:first-of-type .todo-grp-head { padding-top: 4px; }
 .todo-grp-count { color: var(--dim); letter-spacing: normal; }
 /* "+N more" is a real tap target on the wall touchscreen (>= 44px, CLAUDE.md). */
 .todo-more {
@@ -3123,7 +3128,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="fall-aspen-grove"][data-theme][data-accent],
 .look-swatch[data-look="fall-aspen-grove"] {
   --accent:#F4C542; --accent-ink:#241B00; --accent-soft:rgba(244,197,66,.18);
-  --sn-scene:url("seasons/fall-aspen-grove.webp"); --sn-pos:center 35%;
+  --sn-scene:url("seasons/fall-aspen-grove.webp"); --sn-glass:url("seasons/glass/fall-aspen-grove.webp"); --sn-pos:center 35%;
   --sn-leaf-1:#F4C542; --sn-leaf-2:#E8A92E; --sn-leaf-3:#F7D96A; --sn-leaf-4:#D98C2A;
 }
 :root[data-look="fall-aspen-grove"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3135,7 +3140,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="fall-misty-road"][data-theme][data-accent],
 .look-swatch[data-look="fall-misty-road"] {
   --accent:#F29A5B; --accent-ink:#2A1200; --accent-soft:rgba(242,154,91,.18);
-  --sn-scene:url("seasons/fall-misty-road.webp"); --sn-pos:center 60%;
+  --sn-scene:url("seasons/fall-misty-road.webp"); --sn-glass:url("seasons/glass/fall-misty-road.webp"); --sn-pos:center 60%;
   --sn-leaf-1:#E8783A; --sn-leaf-2:#F2A04A; --sn-leaf-3:#C9562E; --sn-leaf-4:#F4C06A;
 }
 :root[data-look="fall-misty-road"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3147,7 +3152,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="fall-maple-sky"][data-theme][data-accent],
 .look-swatch[data-look="fall-maple-sky"] {
   --accent:#FF8C4A; --accent-ink:#2A1000; --accent-soft:rgba(255,140,74,.18);
-  --sn-scene:url("seasons/fall-maple-sky.webp"); --sn-pos:center 25%;
+  --sn-scene:url("seasons/fall-maple-sky.webp"); --sn-glass:url("seasons/glass/fall-maple-sky.webp"); --sn-pos:center 25%;
   --sn-leaf-1:#F07A2E; --sn-leaf-2:#F5A142; --sn-leaf-3:#D9502A; --sn-leaf-4:#F6C45A;
 }
 :root[data-look="fall-maple-sky"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3159,7 +3164,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="winter-mthood"][data-theme][data-accent],
 .look-swatch[data-look="winter-mthood"] {
   --accent:#9BD6F5; --accent-ink:#04141F; --accent-soft:rgba(155,214,245,.18);
-  --sn-scene:url("seasons/winter-mthood.webp"); --sn-pos:center 40%;
+  --sn-scene:url("seasons/winter-mthood.webp"); --sn-glass:url("seasons/glass/winter-mthood.webp"); --sn-pos:center 40%;
 }
 :root[data-look="winter-mthood"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="winter-mthood"] {
@@ -3170,7 +3175,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="winter-alpenglow"][data-theme][data-accent],
 .look-swatch[data-look="winter-alpenglow"] {
   --accent:#FF9E8F; --accent-ink:#2A0C08; --accent-soft:rgba(255,158,143,.18);
-  --sn-scene:url("seasons/winter-alpenglow.webp"); --sn-pos:center 40%;
+  --sn-scene:url("seasons/winter-alpenglow.webp"); --sn-glass:url("seasons/glass/winter-alpenglow.webp"); --sn-pos:center 40%;
 }
 :root[data-look="winter-alpenglow"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="winter-alpenglow"] {
@@ -3181,7 +3186,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="winter-cabin"][data-theme][data-accent],
 .look-swatch[data-look="winter-cabin"] {
   --accent:#FF8A66; --accent-ink:#2A0D05; --accent-soft:rgba(255,138,102,.18);
-  --sn-scene:url("seasons/winter-cabin.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/winter-cabin.webp"); --sn-glass:url("seasons/glass/winter-cabin.webp"); --sn-pos:center 55%;
 }
 :root[data-look="winter-cabin"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="winter-cabin"] {
@@ -3192,7 +3197,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="spring-redbud"][data-theme][data-accent],
 .look-swatch[data-look="spring-redbud"] {
   --accent:#E58FD9; --accent-ink:#2A0828; --accent-soft:rgba(229,143,217,.18);
-  --sn-scene:url("seasons/spring-redbud.webp"); --sn-pos:center 40%;
+  --sn-scene:url("seasons/spring-redbud.webp"); --sn-glass:url("seasons/glass/spring-redbud.webp"); --sn-pos:center 40%;
   --sn-petal-1:#F6C9E4; --sn-petal-2:#E58FC4;
 }
 :root[data-look="spring-redbud"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3204,7 +3209,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="spring-bluebonnets"][data-theme][data-accent],
 .look-swatch[data-look="spring-bluebonnets"] {
   --accent:#9AA8FF; --accent-ink:#0A0F33; --accent-soft:rgba(154,168,255,.18);
-  --sn-scene:url("seasons/spring-bluebonnets.webp"); --sn-pos:center 65%;
+  --sn-scene:url("seasons/spring-bluebonnets.webp"); --sn-glass:url("seasons/glass/spring-bluebonnets.webp"); --sn-pos:center 65%;
   --sn-petal-1:#D3DAFF; --sn-petal-2:#8D9CFF;
 }
 :root[data-look="spring-bluebonnets"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3216,7 +3221,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="spring-france"][data-theme][data-accent],
 .look-swatch[data-look="spring-france"] {
   --accent:#6CCFA0; --accent-ink:#052015; --accent-soft:rgba(108,207,160,.18);
-  --sn-scene:url("seasons/spring-france.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/spring-france.webp"); --sn-glass:url("seasons/glass/spring-france.webp"); --sn-pos:center 55%;
   --sn-petal-1:#FFFFFF; --sn-petal-2:#F6D9DF;
 }
 :root[data-look="spring-france"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3228,7 +3233,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="summer-sunflowers"][data-theme][data-accent],
 .look-swatch[data-look="summer-sunflowers"] {
   --accent:#FFD23F; --accent-ink:#241B00; --accent-soft:rgba(255,210,63,.18);
-  --sn-scene:url("seasons/summer-sunflowers.webp"); --sn-pos:center 45%;
+  --sn-scene:url("seasons/summer-sunflowers.webp"); --sn-glass:url("seasons/glass/summer-sunflowers.webp"); --sn-pos:center 45%;
 }
 :root[data-look="summer-sunflowers"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="summer-sunflowers"] {
@@ -3239,7 +3244,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="summer-lone-ranch"][data-theme][data-accent],
 .look-swatch[data-look="summer-lone-ranch"] {
   --accent:#FFA040; --accent-ink:#2A1200; --accent-soft:rgba(255,160,64,.18);
-  --sn-scene:url("seasons/summer-lone-ranch.webp"); --sn-pos:center 25%;
+  --sn-scene:url("seasons/summer-lone-ranch.webp"); --sn-glass:url("seasons/glass/summer-lone-ranch.webp"); --sn-pos:center 25%;
 }
 :root[data-look="summer-lone-ranch"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="summer-lone-ranch"] {
@@ -3250,7 +3255,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="summer-wildflowers"][data-theme][data-accent],
 .look-swatch[data-look="summer-wildflowers"] {
   --accent:#5CB8F0; --accent-ink:#04182A; --accent-soft:rgba(92,184,240,.18);
-  --sn-scene:url("seasons/summer-wildflowers.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/summer-wildflowers.webp"); --sn-glass:url("seasons/glass/summer-wildflowers.webp"); --sn-pos:center 50%;
 }
 :root[data-look="summer-wildflowers"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="summer-wildflowers"] {
@@ -3273,7 +3278,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="thanksgiving-pumpkins"][data-theme][data-accent],
 .look-swatch[data-look="thanksgiving-pumpkins"] {
   --accent:#D8A279; --accent-ink:#1B1405; --accent-soft:rgba(216,162,121,.18);
-  --sn-scene:url("seasons/thanksgiving-pumpkins.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/thanksgiving-pumpkins.webp"); --sn-glass:url("seasons/glass/thanksgiving-pumpkins.webp"); --sn-pos:center 50%;
   --sn-leaf-1:#CB844D; --sn-leaf-2:#D6AF71; --sn-leaf-3:#BE5A37; --sn-leaf-4:#DFCF90;
 }
 :root[data-look="thanksgiving-pumpkins"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3285,7 +3290,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="thanksgiving-cranberries"][data-theme][data-accent],
 .look-swatch[data-look="thanksgiving-cranberries"] {
   --accent:#EA6668; --accent-ink:#1B1405; --accent-soft:rgba(234,102,104,.18);
-  --sn-scene:url("seasons/thanksgiving-cranberries.webp"); --sn-pos:center 45%;
+  --sn-scene:url("seasons/thanksgiving-cranberries.webp"); --sn-glass:url("seasons/glass/thanksgiving-cranberries.webp"); --sn-pos:center 45%;
   --sn-leaf-1:#E43537; --sn-leaf-2:#E9745D; --sn-leaf-3:#D81D42; --sn-leaf-4:#EEA781;
 }
 :root[data-look="thanksgiving-cranberries"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3297,7 +3302,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="thanksgiving-pumpkin-bowl"][data-theme][data-accent],
 .look-swatch[data-look="thanksgiving-pumpkin-bowl"] {
   --accent:#F4B35D; --accent-ink:#1B1405; --accent-soft:rgba(244,179,93,.18);
-  --sn-scene:url("seasons/thanksgiving-pumpkin-bowl.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/thanksgiving-pumpkin-bowl.webp"); --sn-glass:url("seasons/glass/thanksgiving-pumpkin-bowl.webp"); --sn-pos:center 55%;
   --sn-leaf-1:#F09B29; --sn-leaf-2:#F3CC53; --sn-leaf-3:#E56410; --sn-leaf-4:#F6ED7A;
 }
 :root[data-look="thanksgiving-pumpkin-bowl"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3309,7 +3314,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="thanksgiving-turkey"][data-theme][data-accent],
 .look-swatch[data-look="thanksgiving-turkey"] {
   --accent:#D8BD79; --accent-ink:#1B1405; --accent-soft:rgba(216,189,121,.18);
-  --sn-scene:url("seasons/thanksgiving-turkey.webp"); --sn-pos:center 40%;
+  --sn-scene:url("seasons/thanksgiving-turkey.webp"); --sn-glass:url("seasons/glass/thanksgiving-turkey.webp"); --sn-pos:center 40%;
   --sn-leaf-1:#CBA84D; --sn-leaf-2:#D6CC71; --sn-leaf-3:#BE8037; --sn-leaf-4:#D9DF90;
 }
 :root[data-look="thanksgiving-turkey"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
@@ -3321,7 +3326,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="christmas-santa"][data-theme][data-accent],
 .look-swatch[data-look="christmas-santa"] {
   --accent:#DD737E; --accent-ink:#1B1405; --accent-soft:rgba(221,115,126,.18);
-  --sn-scene:url("seasons/christmas-santa.webp"); --sn-pos:95% 45%;
+  --sn-scene:url("seasons/christmas-santa.webp"); --sn-glass:url("seasons/glass/christmas-santa.webp"); --sn-pos:95% 45%;
 }
 :root[data-look="christmas-santa"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-santa"] {
@@ -3332,7 +3337,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="christmas-village"][data-theme][data-accent],
 .look-swatch[data-look="christmas-village"] {
   --accent:#D8797B; --accent-ink:#1B1405; --accent-soft:rgba(216,121,123,.18);
-  --sn-scene:url("seasons/christmas-village.webp"); --sn-pos:center 45%;
+  --sn-scene:url("seasons/christmas-village.webp"); --sn-glass:url("seasons/glass/christmas-village.webp"); --sn-pos:center 45%;
 }
 :root[data-look="christmas-village"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-village"] {
@@ -3343,7 +3348,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="christmas-snowmen"][data-theme][data-accent],
 .look-swatch[data-look="christmas-snowmen"] {
   --accent:#D8AB79; --accent-ink:#1B1405; --accent-soft:rgba(216,171,121,.18);
-  --sn-scene:url("seasons/christmas-snowmen.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/christmas-snowmen.webp"); --sn-glass:url("seasons/glass/christmas-snowmen.webp"); --sn-pos:center 55%;
 }
 :root[data-look="christmas-snowmen"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-snowmen"] {
@@ -3354,7 +3359,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="newyears-sparkler"][data-theme][data-accent],
 .look-swatch[data-look="newyears-sparkler"] {
   --accent:#D8A879; --accent-ink:#1B1405; --accent-soft:rgba(216,168,121,.18);
-  --sn-scene:url("seasons/newyears-sparkler.webp"); --sn-pos:center 40%;
+  --sn-scene:url("seasons/newyears-sparkler.webp"); --sn-glass:url("seasons/glass/newyears-sparkler.webp"); --sn-pos:center 40%;
 }
 :root[data-look="newyears-sparkler"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="newyears-sparkler"] {
@@ -3365,7 +3370,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="newyears-fireworks"][data-theme][data-accent],
 .look-swatch[data-look="newyears-fireworks"] {
   --accent:#E5B46C; --accent-ink:#1B1405; --accent-soft:rgba(229,180,108,.18);
-  --sn-scene:url("seasons/newyears-fireworks.webp"); --sn-pos:center 45%;
+  --sn-scene:url("seasons/newyears-fireworks.webp"); --sn-glass:url("seasons/glass/newyears-fireworks.webp"); --sn-pos:center 45%;
 }
 :root[data-look="newyears-fireworks"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="newyears-fireworks"] {
@@ -3376,7 +3381,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="newyears-champagne"][data-theme][data-accent],
 .look-swatch[data-look="newyears-champagne"] {
   --accent:#D8BE79; --accent-ink:#1B1405; --accent-soft:rgba(216,190,121,.18);
-  --sn-scene:url("seasons/newyears-champagne.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/newyears-champagne.webp"); --sn-glass:url("seasons/glass/newyears-champagne.webp"); --sn-pos:center 50%;
 }
 :root[data-look="newyears-champagne"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="newyears-champagne"] {
@@ -3387,7 +3392,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="valentines-bouquet"][data-theme][data-accent],
 .look-swatch[data-look="valentines-bouquet"] {
   --accent:#D87980; --accent-ink:#1B1405; --accent-soft:rgba(216,121,128,.18);
-  --sn-scene:url("seasons/valentines-bouquet.webp"); --sn-pos:center 45%;
+  --sn-scene:url("seasons/valentines-bouquet.webp"); --sn-glass:url("seasons/glass/valentines-bouquet.webp"); --sn-pos:center 45%;
 }
 :root[data-look="valentines-bouquet"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="valentines-bouquet"] {
@@ -3398,7 +3403,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="valentines-tulips"][data-theme][data-accent],
 .look-swatch[data-look="valentines-tulips"] {
   --accent:#E66A78; --accent-ink:#1B1405; --accent-soft:rgba(230,106,120,.18);
-  --sn-scene:url("seasons/valentines-tulips.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/valentines-tulips.webp"); --sn-glass:url("seasons/glass/valentines-tulips.webp"); --sn-pos:center 50%;
 }
 :root[data-look="valentines-tulips"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="valentines-tulips"] {
@@ -3409,7 +3414,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="valentines-rose"][data-theme][data-accent],
 .look-swatch[data-look="valentines-rose"] {
   --accent:#F65A6F; --accent-ink:#1B1405; --accent-soft:rgba(246,90,111,.18);
-  --sn-scene:url("seasons/valentines-rose.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/valentines-rose.webp"); --sn-glass:url("seasons/glass/valentines-rose.webp"); --sn-pos:center 50%;
 }
 :root[data-look="valentines-rose"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="valentines-rose"] {
@@ -3420,7 +3425,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="stpatricks-countryside"][data-theme][data-accent],
 .look-swatch[data-look="stpatricks-countryside"] {
   --accent:#ADDA76; --accent-ink:#1B1405; --accent-soft:rgba(173,218,118,.18);
-  --sn-scene:url("seasons/stpatricks-countryside.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/stpatricks-countryside.webp"); --sn-glass:url("seasons/glass/stpatricks-countryside.webp"); --sn-pos:center 55%;
 }
 :root[data-look="stpatricks-countryside"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="stpatricks-countryside"] {
@@ -3431,7 +3436,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="stpatricks-bay"][data-theme][data-accent],
 .look-swatch[data-look="stpatricks-bay"] {
   --accent:#79ABD8; --accent-ink:#1B1405; --accent-soft:rgba(121,171,216,.18);
-  --sn-scene:url("seasons/stpatricks-bay.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/stpatricks-bay.webp"); --sn-glass:url("seasons/glass/stpatricks-bay.webp"); --sn-pos:center 55%;
 }
 :root[data-look="stpatricks-bay"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="stpatricks-bay"] {
@@ -3442,7 +3447,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="stpatricks-clover"][data-theme][data-accent],
 .look-swatch[data-look="stpatricks-clover"] {
   --accent:#9CD879; --accent-ink:#1B1405; --accent-soft:rgba(156,216,121,.18);
-  --sn-scene:url("seasons/stpatricks-clover.webp"); --sn-pos:74% 50%;
+  --sn-scene:url("seasons/stpatricks-clover.webp"); --sn-glass:url("seasons/glass/stpatricks-clover.webp"); --sn-pos:74% 50%;
 }
 :root[data-look="stpatricks-clover"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="stpatricks-clover"] {
@@ -3453,7 +3458,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="easter-eggs"][data-theme][data-accent],
 .look-swatch[data-look="easter-eggs"] {
   --accent:#F45C98; --accent-ink:#1B1405; --accent-soft:rgba(244,92,152,.18);
-  --sn-scene:url("seasons/easter-eggs.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/easter-eggs.webp"); --sn-glass:url("seasons/glass/easter-eggs.webp"); --sn-pos:center 50%;
 }
 :root[data-look="easter-eggs"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="easter-eggs"] {
@@ -3464,7 +3469,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="easter-ducklings"][data-theme][data-accent],
 .look-swatch[data-look="easter-ducklings"] {
   --accent:#E2B76F; --accent-ink:#1B1405; --accent-soft:rgba(226,183,111,.18);
-  --sn-scene:url("seasons/easter-ducklings.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/easter-ducklings.webp"); --sn-glass:url("seasons/glass/easter-ducklings.webp"); --sn-pos:center 50%;
 }
 :root[data-look="easter-ducklings"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="easter-ducklings"] {
@@ -3475,7 +3480,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="easter-rabbit"][data-theme][data-accent],
 .look-swatch[data-look="easter-rabbit"] {
   --accent:#AED879; --accent-ink:#1B1405; --accent-soft:rgba(174,216,121,.18);
-  --sn-scene:url("seasons/easter-rabbit.webp"); --sn-pos:76% 50%;
+  --sn-scene:url("seasons/easter-rabbit.webp"); --sn-glass:url("seasons/glass/easter-rabbit.webp"); --sn-pos:76% 50%;
 }
 :root[data-look="easter-rabbit"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="easter-rabbit"] {
@@ -3486,7 +3491,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="mothersday-tulips"][data-theme][data-accent],
 .look-swatch[data-look="mothersday-tulips"] {
   --accent:#F1608D; --accent-ink:#1B1405; --accent-soft:rgba(241,96,141,.18);
-  --sn-scene:url("seasons/mothersday-tulips.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/mothersday-tulips.webp"); --sn-glass:url("seasons/glass/mothersday-tulips.webp"); --sn-pos:center 50%;
 }
 :root[data-look="mothersday-tulips"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="mothersday-tulips"] {
@@ -3497,7 +3502,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="mothersday-blossom"][data-theme][data-accent],
 .look-swatch[data-look="mothersday-blossom"] {
   --accent:#70CDE1; --accent-ink:#1B1405; --accent-soft:rgba(112,205,225,.18);
-  --sn-scene:url("seasons/mothersday-blossom.webp"); --sn-pos:center 45%;
+  --sn-scene:url("seasons/mothersday-blossom.webp"); --sn-glass:url("seasons/glass/mothersday-blossom.webp"); --sn-pos:center 45%;
 }
 :root[data-look="mothersday-blossom"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="mothersday-blossom"] {
@@ -3508,7 +3513,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="mothersday-wildflowers"][data-theme][data-accent],
 .look-swatch[data-look="mothersday-wildflowers"] {
   --accent:#D8AF79; --accent-ink:#1B1405; --accent-soft:rgba(216,175,121,.18);
-  --sn-scene:url("seasons/mothersday-wildflowers.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/mothersday-wildflowers.webp"); --sn-glass:url("seasons/glass/mothersday-wildflowers.webp"); --sn-pos:center 50%;
 }
 :root[data-look="mothersday-wildflowers"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="mothersday-wildflowers"] {
@@ -3519,7 +3524,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="fathersday-fjord"][data-theme][data-accent],
 .look-swatch[data-look="fathersday-fjord"] {
   --accent:#F4B35D; --accent-ink:#1B1405; --accent-soft:rgba(244,179,93,.18);
-  --sn-scene:url("seasons/fathersday-fjord.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/fathersday-fjord.webp"); --sn-glass:url("seasons/glass/fathersday-fjord.webp"); --sn-pos:center 55%;
 }
 :root[data-look="fathersday-fjord"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="fathersday-fjord"] {
@@ -3530,7 +3535,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="fathersday-jeep"][data-theme][data-accent],
 .look-swatch[data-look="fathersday-jeep"] {
   --accent:#DB9B75; --accent-ink:#1B1405; --accent-soft:rgba(219,155,117,.18);
-  --sn-scene:url("seasons/fathersday-jeep.webp"); --sn-pos:72% 70%;
+  --sn-scene:url("seasons/fathersday-jeep.webp"); --sn-glass:url("seasons/glass/fathersday-jeep.webp"); --sn-pos:72% 70%;
 }
 :root[data-look="fathersday-jeep"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="fathersday-jeep"] {
@@ -3541,7 +3546,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="fathersday-campfire"][data-theme][data-accent],
 .look-swatch[data-look="fathersday-campfire"] {
   --accent:#EF9C61; --accent-ink:#1B1405; --accent-soft:rgba(239,156,97,.18);
-  --sn-scene:url("seasons/fathersday-campfire.webp"); --sn-pos:center 50%;
+  --sn-scene:url("seasons/fathersday-campfire.webp"); --sn-glass:url("seasons/glass/fathersday-campfire.webp"); --sn-pos:center 50%;
 }
 :root[data-look="fathersday-campfire"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="fathersday-campfire"] {
@@ -3552,7 +3557,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="julyfourth-fireworks"][data-theme][data-accent],
 .look-swatch[data-look="julyfourth-fireworks"] {
   --accent:#D87997; --accent-ink:#1B1405; --accent-soft:rgba(216,121,151,.18);
-  --sn-scene:url("seasons/julyfourth-fireworks.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/julyfourth-fireworks.webp"); --sn-glass:url("seasons/glass/julyfourth-fireworks.webp"); --sn-pos:center 55%;
 }
 :root[data-look="julyfourth-fireworks"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="julyfourth-fireworks"] {
@@ -3563,7 +3568,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="julyfourth-sparkler"][data-theme][data-accent],
 .look-swatch[data-look="julyfourth-sparkler"] {
   --accent:#D89879; --accent-ink:#1B1405; --accent-soft:rgba(216,152,121,.18);
-  --sn-scene:url("seasons/julyfourth-sparkler.webp"); --sn-pos:center 45%;
+  --sn-scene:url("seasons/julyfourth-sparkler.webp"); --sn-glass:url("seasons/glass/julyfourth-sparkler.webp"); --sn-pos:center 45%;
 }
 :root[data-look="julyfourth-sparkler"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="julyfourth-sparkler"] {
@@ -3574,7 +3579,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="julyfourth-flag"][data-theme][data-accent],
 .look-swatch[data-look="julyfourth-flag"] {
   --accent:#79BCD8; --accent-ink:#1B1405; --accent-soft:rgba(121,188,216,.18);
-  --sn-scene:url("seasons/julyfourth-flag.webp"); --sn-pos:74% 40%;
+  --sn-scene:url("seasons/julyfourth-flag.webp"); --sn-glass:url("seasons/glass/julyfourth-flag.webp"); --sn-pos:74% 40%;
 }
 :root[data-look="julyfourth-flag"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="julyfourth-flag"] {
@@ -3601,7 +3606,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="halloween-two-lanterns"][data-theme][data-accent],
 .look-swatch[data-look="halloween-two-lanterns"] {
   --accent:#FF8A2A; --accent-ink:#2A1000; --accent-soft:rgba(255,138,42,.18);
-  --sn-scene:url("seasons/halloween-two-lanterns.webp"); --sn-pos:35% 50%;
+  --sn-scene:url("seasons/halloween-two-lanterns.webp"); --sn-glass:url("seasons/glass/halloween-two-lanterns.webp"); --sn-pos:35% 50%;
 }
 :root[data-look="halloween-two-lanterns"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="halloween-two-lanterns"] {
@@ -3612,7 +3617,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="halloween-purple-sky"][data-theme][data-accent],
 .look-swatch[data-look="halloween-purple-sky"] {
   --accent:#C29BFF; --accent-ink:#1E0B3A; --accent-soft:rgba(194,155,255,.18);
-  --sn-scene:url("seasons/halloween-purple-sky.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/halloween-purple-sky.webp"); --sn-glass:url("seasons/glass/halloween-purple-sky.webp"); --sn-pos:center 55%;
 }
 :root[data-look="halloween-purple-sky"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="halloween-purple-sky"] {
@@ -3623,7 +3628,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="halloween-purple-pines"][data-theme][data-accent],
 .look-swatch[data-look="halloween-purple-pines"] {
   --accent:#9BFF5C; --accent-ink:#0D2A00; --accent-soft:rgba(155,255,92,.18);
-  --sn-scene:url("seasons/halloween-purple-pines.webp"); --sn-pos:center 60%;
+  --sn-scene:url("seasons/halloween-purple-pines.webp"); --sn-glass:url("seasons/glass/halloween-purple-pines.webp"); --sn-pos:center 60%;
 }
 :root[data-look="halloween-purple-pines"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="halloween-purple-pines"] {
@@ -3634,7 +3639,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="halloween-moonrise"][data-theme][data-accent],
 .look-swatch[data-look="halloween-moonrise"] {
   --accent:#FFB05C; --accent-ink:#2A1400; --accent-soft:rgba(255,176,92,.18);
-  --sn-scene:url("seasons/halloween-moonrise.webp"); --sn-pos:60% 88%;
+  --sn-scene:url("seasons/halloween-moonrise.webp"); --sn-glass:url("seasons/glass/halloween-moonrise.webp"); --sn-pos:60% 88%;
 }
 :root[data-look="halloween-moonrise"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="halloween-moonrise"] {
@@ -3645,7 +3650,7 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="halloween-branches"][data-theme][data-accent],
 .look-swatch[data-look="halloween-branches"] {
   --accent:#C08CFF; --accent-ink:#1B0A33; --accent-soft:rgba(192,140,255,.18);
-  --sn-scene:url("seasons/halloween-branches.webp"); --sn-pos:center 55%;
+  --sn-scene:url("seasons/halloween-branches.webp"); --sn-glass:url("seasons/glass/halloween-branches.webp"); --sn-pos:center 55%;
 }
 :root[data-look="halloween-branches"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="halloween-branches"] {
@@ -3714,6 +3719,80 @@ body.integ-off-todos .todo-slot { display: none; }
      wordmark may give way before the page ever scrolls sideways. */
   :root:not([data-layout="desktop"])[data-look]:not([data-look="none"]) .season-mark { display: none; }
   :root:not([data-layout="desktop"])[data-look]:not([data-look="none"]) .wordmark { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* ---- still glass on wide screens ----
+   On the wall and on computers the glass does not blur live. Each surface's
+   glass pane (hub.js ensureGlassPanes, rules below) paints a ready-blurred,
+   saturated copy of the look's photo (seasons/glass/, made by
+   scripts/make-glass.py) fixed to the viewport at
+   the same focal point and cover size as the photo layer, so it lines up
+   with the photo around it, and lays the haze, wash and glass tint over it.
+   Why: backdrop-filter re-blurs everything under a card each frame a far bat
+   or leaf moves behind it, and on the wall's Firefox and a laptop that
+   re-blur sometimes drew one row of the card as a dark streaky band that
+   blinked on and off ("still glitching", owner, 2026-10-14, after the far
+   creatures stopped sliding their frame strips). A still copy never
+   re-blurs, and the wall's small GPU stops blurring four big cards every
+   frame. The far creatures now pass behind the cards and show in the gaps.
+   Phones keep the live blur: iOS ignores fixed photo backgrounds (the
+   @supports test is true only on iOS/iPadOS Safari, where an iPad at
+   desktop width would otherwise paint the whole photo inside each card),
+   and the phone layout scrolls inside .wrap, a layout no one has measured
+   the panes on. At night the copy goes too: the dim filter on .wrap would
+   re-anchor the fixed copy to .wrap, and the night glass is 94% solid
+   anyway. Lite (data-lite="on") never gets panes: it keeps its plain 86% fill,
+   which is cheaper than any still copy (see the seasonal Lite block). */
+@supports not (-webkit-touch-callout: none) {
+  @media (min-width: 1001px) {
+    :where(:root.glass-panes:not([data-lite="on"])[data-look]:not([data-look="none"]) .wrap) .card,
+    :where(:root.glass-panes:not([data-lite="on"])[data-look]:not([data-look="none"]) .wrap) .expand,
+    :where(:root.glass-panes:not([data-lite="on"])[data-look]:not([data-look="none"]) .wrap) .shead h2,
+    :where(:root.glass-panes:not([data-lite="on"])[data-look]:not([data-look="none"])) .topbar {
+      -webkit-backdrop-filter: none; backdrop-filter: none;
+      background: transparent;
+      position: relative; isolation: isolate;
+    }
+    :where(:root.glass-panes:not([data-lite="on"])[data-look]:not([data-look="none"]) .wrap) :is(.card, .expand, .shead h2) > .glass-pane,
+    :where(:root.glass-panes:not([data-lite="on"])[data-look]:not([data-look="none"])) .topbar > .glass-pane { display: block; }
+  }
+  :where(:root.glass-panes:not([data-lite="on"])[data-layout="desktop"][data-look]:not([data-look="none"]) .wrap) .card,
+  :where(:root.glass-panes:not([data-lite="on"])[data-layout="desktop"][data-look]:not([data-look="none"]) .wrap) .expand,
+  :where(:root.glass-panes:not([data-lite="on"])[data-layout="desktop"][data-look]:not([data-look="none"]) .wrap) .shead h2,
+  :where(:root.glass-panes:not([data-lite="on"])[data-layout="desktop"][data-look]:not([data-look="none"])) .topbar {
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    background: transparent;
+    position: relative; isolation: isolate;
+  }
+  :where(:root.glass-panes:not([data-lite="on"])[data-layout="desktop"][data-look]:not([data-look="none"]) .wrap) :is(.card, .expand, .shead h2) > .glass-pane,
+  :where(:root.glass-panes:not([data-lite="on"])[data-layout="desktop"][data-look]:not([data-look="none"])) .topbar > .glass-pane { display: block; }
+}
+/* The pane (hub.js ensureGlassPanes): fills its surface, sits under the
+   surface's content, and clips its fixed ::before to the surface's rounded
+   box. The ::before is the old background stack, viewport-sized and fixed,
+   so it lines up with the photo layer exactly as a fixed background did,
+   minus the repaint on every scroll frame. NEVER give a glass
+   surface or anything above it a transform, filter or contain: that makes
+   it the fixed ::before's containing block and the glass would slide off
+   the photo (night already does, via its dim filter: panes hide at night). */
+.glass-pane {
+  display: none; position: absolute; inset: 0; z-index: -1;
+  pointer-events: none; border-radius: inherit;
+  clip-path: inset(0 round var(--pane-r, 13px));
+}
+.glass-pane::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none;
+  background: linear-gradient(var(--glass), var(--glass)), var(--sn-haze, linear-gradient(transparent, transparent)),
+    var(--sn-wash), var(--sn-glass) var(--sn-pos) / cover no-repeat, var(--ground);
+}
+/* the pane's corners follow its surface (border-box radius less the 1px edge) */
+.expand > .glass-pane { --pane-r: 8px; }
+.shead h2 > .glass-pane { --pane-r: 999px; }
+.topbar > .glass-pane { --pane-r: 15px; }
+.is-night .glass-pane { display: none !important; }
+:where(:root[data-look]:not([data-look="none"]) .is-night .wrap) :is(.card, .expand, .shead h2),
+:where(:root[data-look]:not([data-look="none"]) .is-night) .topbar {
+  background: var(--glass);
 }
 
 /* ---- drifting leaves (every fall look, in its own colours) ----
@@ -3919,6 +3998,8 @@ body > .season .sn-web:nth-child(2) { --s: 520px; right: -220px; bottom: -210px;
 .look-swatch { --sn-k: 1; }
 .look-swatch .sn-bat { animation: none; transform: translate3d(var(--tx), 0, 0); }
 .look-swatch .sn-bat i, .look-swatch .sn-bat b { animation: none; }
+/* the tiles keep a small live blur, so nothing under it may animate */
+.look-swatch .sn-bat b::before { animation: none; }
 .look-swatch .sn-haunt.back .sn-bat:nth-child(3) { --tx: 96px; --y: 16%; --s: 15px; }
 .look-swatch .sn-haunt.back .sn-bat:nth-child(4) { --tx: 128px; --y: 36%; --s: 11px; }
 .look-swatch .sn-haunt.back .sn-bat:nth-child(5) { --tx: 74px; --y: 62%; --s: 9px; }

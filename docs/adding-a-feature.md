@@ -152,7 +152,16 @@ gate below. A feature absent from demo is invisible everywhere that matters.*
 - [ ] Phone width, every tab.
 - [ ] Light + dark themes (all five modes resolve through tokens; check at
       least grey and light — glass/edge contrast differs wildly).
-- [ ] Night mode.
+- [ ] Night mode. Fake the hour before the page loads (a script that sets
+      `Date.prototype.getHours = () => 23`): adding `is-night` to `<body>` by
+      hand is undone by the next clock tick a second later, and a "night"
+      screenshot taken that way is really day (found 2026-10-19).
+- [ ] **Anything that gives every card or the top bar a child element** (the
+      still-glass pane is one) shifts `:first-child` / `:nth-child` rules on
+      those surfaces' own children, and costs a layer per card on a slow
+      screen. Diff the layout of the whole wall with and without it (same
+      viewport, compare every element's rectangle; the pane's port matched
+      805 of 805), and check **Lite**: it must not pay for it.
 - [ ] If it animates: **watch it move** — or better, sample element
       positions numerically over a cycle. Stills hid a chord-cutting
       trajectory that looked fine frozen and wrong in motion.

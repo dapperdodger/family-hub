@@ -9,6 +9,11 @@ Sourcing rules and how to add more: [`docs/seasonal-looks.md`](../../../../../do
 Each photo was resized to 2560px wide, converted to sRGB and re-encoded by
 `scripts/prep-season-photo.py` (WebP, metadata stripped).
 
+Each file in `glass/` is a modified copy of the photo of the same name below:
+shrunk to 640px wide, blurred and saturated by `scripts/make-glass.py` (the
+frosted glass of the cards). It is under that photo's licence, with that
+photo's credit, and is only ever painted behind the cards.
+
 | File | Photo | Source | Licence |
 | --- | --- | --- | --- |
 | `fall-aspen-grove.webp` | "Golden Aspens, Mosca Pass Trail", Patrick Myers, National Park Service (Great Sand Dunes National Park and Preserve) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Golden_Aspens,_Mosca_Pass_Trail_(36725223263).jpg) | Public domain (work of the US federal government) |

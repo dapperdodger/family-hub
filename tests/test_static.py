@@ -1971,6 +1971,11 @@ def test_season_art_files_exist_and_are_credited():
     for f in seasons.iterdir():
         if f.name == "CREDITS.md":
             continue
+        if f.name == "glass":
+            # blurred copies of the credited photos (scripts/make-glass.py): a modified version, so the
+            # credits must say so and under whose licence
+            assert "Each file in `glass/` is a modified copy" in credits, "CREDITS.md must explain the glass/ copies"
+            continue
         assert f"`{f.name}`" in credits, f"seasons/{f.name} is not in CREDITS.md"
 
 def test_season_scene_sits_behind_and_never_takes_a_tap():
@@ -2681,9 +2686,10 @@ def _animated_season_things(css):
 
 
 def _lite_blocks():
-    """Every CSS rule whose selector mentions data-lite (wherever in the selector), comments stripped."""
+    """Every CSS rule whose selector mentions data-lite (wherever in the selector), comments stripped.
+    A `:not([data-lite="on"])` is the still glass saying "not on Lite", not a Lite rule, so it does not count."""
     return [(m.group(1).strip(), m.group(2)) for m in re.finditer(
-        r"([^{}]*" + LITE_ATTR + r"[^{}]*)\{([^}]*)\}", _flatten_css(CSS))]
+        r"([^{}]*" + LITE_ATTR + r"[^{}]*)\{([^}]*)\}", _flatten_css(CSS).replace(':not([data-lite="on"])', ""))]
 
 
 def test_the_lite_guard_sees_rules_inside_media_and_supports_blocks():
@@ -2899,7 +2905,7 @@ PHONE_FOCAL_X = {'christmas-santa': 95, 'stpatricks-clover': 74, 'easter-rabbit'
 
 def test_holiday_looks_with_an_off_centre_subject_keep_it_on_the_phone():
     for look, want in PHONE_FOCAL_X.items():
-        m = re.search(rf'--sn-scene:url\("seasons/{re.escape(look)}\.webp"\); --sn-pos:(\d+)% (\d+)%', CSS)
+        m = re.search(rf'--sn-scene:url\("seasons/{re.escape(look)}\.webp"\);(?: --sn-glass:url\("[^"]+"\);)? --sn-pos:(\d+)% (\d+)%', CSS)
         assert m, f"{look} has no x/y focal point (an x of 'center' leaves the subject off the phone)"
         assert abs(int(m.group(1)) - want) <= 3, f"{look}: --sn-pos x is {m.group(1)}, the subject is at about {want}"
 
@@ -2910,6 +2916,163 @@ def test_editing_a_chore_asks_the_hub_to_keep_the_turn():
     # (coupled to the exact call on purpose: a reformat should re-read this guard)
     assert re.search(r"'PATCH',\s*\{ \.\.\.body, keep_turn: keepsTurnOnEdit\(ch, body\) \}", HUB)
     assert "keep_turn: bool = False" in APP_PY
+
+
+def _vp8_size(data):
+    """Width and height of a lossy WebP, read from its VP8 key frame header."""
+    frame = data[data.index(b"VP8 ") + 8:]
+    assert frame[3:6] == b"\x9d\x01\x2a", "unexpected VP8 header"
+    return int.from_bytes(frame[6:8], "little") & 0x3FFF, int.from_bytes(frame[8:10], "little") & 0x3FFF
+
+
+@pytest.mark.parametrize("look", _look_ids())
+def test_every_look_ships_a_still_glass_copy(look):
+    """On wide screens the glass paints a ready-blurred copy of the look's
+    photo instead of blurring live (see the next test). Each look names its
+    copy, and the copy ships: small (640px), metadata-free like the photo,
+    and the same shape as the photo so cover sizing lines it up with the
+    photo layer around the cards. scripts/make-glass.py writes it."""
+    body = _block_after(f':root[data-look="{look}"][data-theme][data-accent]')
+    assert f'--sn-glass:url("seasons/glass/{look}.webp")' in body, f"{look} never sets --sn-glass"
+    glass = STATIC / "seasons" / "glass" / f"{look}.webp"
+    assert glass.is_file(), f"missing seasons/glass/{look}.webp; run scripts/make-glass.py {look}"
+    data = glass.read_bytes()
+    assert len(data) < 200 * 1024, f"{glass.name} is {len(data) // 1024} KB; the copy is meant to be tiny"
+    assert not {b"EXIF", b"XMP "} & set(_webp_chunks(data)), f"glass/{glass.name} carries metadata"
+    gw, gh = _vp8_size(data)
+    pw, ph = _vp8_size((STATIC / "seasons" / f"{look}.webp").read_bytes())
+    assert gw == 640, f"glass/{glass.name} is {gw}px wide; make-glass.py writes 640"
+    assert abs(gh / gw - ph / pw) < 0.005, f"glass/{glass.name} is not the photo's shape, so it would not line up"
+
+
+def test_wide_screens_use_still_glass_not_a_live_blur():
+    """The live blur (backdrop-filter) re-blurred every frame a far bat moved
+    under a card, and on the wall's Firefox and a laptop that sometimes drew
+    a row of a card as a blinking dark band ("still glitching", 2026-10-14).
+    On wide screens (and a phone forced to Desktop) every glass surface turns
+    the live blur off and shows its glass pane, whose fixed ::before paints
+    the still copy at the photo layer's focal point and cover size, under the
+    haze, wash and tint. Not on iOS (fixed layers there are a separate trap)
+    and not at night (the dim filter would re-anchor the fixed copy; night
+    glass is solid)."""
+    sup = CSS.index("@supports not (-webkit-touch-callout: none) {")
+    block = CSS[sup:CSS.index("\n}\n", sup)]
+    assert "@media (min-width: 1001px) {" in block
+    off = (r"\{\s*-webkit-backdrop-filter: none; backdrop-filter: none;\s*"
+           r"background: transparent;\s*position: relative; isolation: isolate;\s*\}")
+    rules = re.findall(r"([^{}]+)" + off, block)
+    assert len(rules) == 2, "one rule for wide screens, one for the forced Desktop layout"
+    for sel in rules:
+        for target in (".card", ".expand", ".shead h2", ".topbar"):
+            # on a selector boundary: ".card" must not be satisfied by ".card-body", ".topbar" by ".topbarx"
+            assert re.search(re.escape(target) + r"(?![\w-])", sel), f"{target} still blurs live on wide screens"
+    assert 'data-layout="desktop"' in rules[1]
+    shown = re.findall(r"\.glass-pane \{ display: block; \}", block)
+    assert len(shown) == 2, "the panes show on wide screens and the forced Desktop layout"
+    pane = re.search(r"\.glass-pane::before \{\s*content: \"\"; position: fixed; inset: 0; pointer-events: none;\s*"
+                     r"background: linear-gradient\(var\(--glass\), var\(--glass\)\), var\(--sn-haze[^;]*"
+                     r"var\(--sn-wash\), var\(--sn-glass\) var\(--sn-pos\) / cover no-repeat, var\(--ground\);\s*\}", CSS)
+    assert pane, "the pane paints the still copy, fixed to the viewport"
+    assert re.search(r"\.glass-pane \{\s*display: none; position: absolute; inset: 0; z-index: -1;\s*"
+                     r"pointer-events: none; border-radius: inherit;\s*clip-path: inset\(0 round var\(--pane-r", CSS), \
+        "the pane is hidden by default, never takes a tap, and clips the fixed copy to its surface"
+    night = re.search(r':where\(:root\[data-look\]:not\(\[data-look="none"\]\) \.is-night \.wrap\) '
+                      r':is\(\.card, \.expand, \.shead h2\),\s*:where\(:root\[data-look\]:not\(\[data-look="none"\]\) '
+                      r'\.is-night\) \.topbar \{\s*background: var\(--glass\);\s*\}', CSS)
+    assert night and night.start() > sup, "at night the glass must drop the fixed copy, after the wide rules"
+    assert ".is-night .glass-pane { display: none !important; }" in CSS
+    assert ".look-swatch" not in block, "the Settings tiles paint their own photo; keep them out of still glass"
+    # the tiles keep a small live blur, so nothing under it may animate
+    assert re.search(r"\.look-swatch \.sn-bat b::before \{ animation: none; \}", CSS)
+
+
+def test_no_fixed_backgrounds_they_repaint_on_every_scroll_frame():
+    """background-attachment: fixed is repainted on every scroll frame. On
+    the glass it cost the wall 51 ms a frame scrolling the main page with
+    Halloween on (about 20 fps; owner: "lag when scrolling on the main page",
+    2026-10-18). A fixed layer clipped to its surface (the glass pane)
+    scrolls on the compositor instead: 17 ms. Keep it out of the CSS."""
+    assert "background-attachment: fixed" not in CSS
+    assert "background-attachment:fixed" not in CSS.replace(" ", "")
+
+
+def test_no_first_child_rules_inside_glass_surfaces():
+    """Every glass surface's FIRST child is its pane (an <i>), so a
+    :first-child rule on a card's own children never matches again: the
+    To-Do card's first group lost its top padding and the card grew 4px.
+    Use :first-of-type (the pane is the only <i>). The one :first-child
+    left is in the Settings overlay, which has no glass."""
+    rules = re.findall(r"([^{}]*:first-child[^{}]*)\{", CSS)
+    assert [r.strip() for r in rules] == [".integ-group-title:first-child"], rules
+
+
+def test_every_glass_surface_gets_its_pane():
+    """hub.js gives every glass surface a pane at boot and again whenever a
+    render replaces it (cards are rebuilt with innerHTML all the time), with
+    the same surface list the CSS styles."""
+    assert "const GLASS_SURFACES = '.wrap .card, .wrap .expand, .wrap .shead h2, .topbar';" in HUB
+    assert "new MutationObserver(" in HUB and "ensureGlassPanes(document.body)" in HUB
+    assert re.search(r"watchGlassPanes\(\);\s*mountSeasonScene\(\);", HUB), "panes are watched from boot"
+    # an <i>, never a div/span: the surfaces' :first-of-type rules must not shift
+    assert "document.createElement('i')" in HUB
+
+
+def test_phones_and_ios_keep_the_live_blur():
+    """Outside the wide-screen block the glass still blurs live: phones and
+    iOS/iPadOS have no still copy to fall back on (iOS ignores fixed
+    backgrounds), so losing the blur there would leave bare see-through
+    cards. And the blur is switched off nowhere else but by Lite (a slow screen
+    drops it for a plain fill)."""
+    sup = CSS.index("@supports not (-webkit-touch-callout: none) {")
+    outside = CSS[:sup] + CSS[CSS.index("\n}\n", sup):]
+    for target in (".card", ".expand", ".shead h2", ".topbar"):
+        assert re.search(r"\) " + re.escape(target) + r"[^{]*\{[^}]*backdrop-filter:\s*blur\(", outside), \
+            f"{target} lost its live blur outside the wide-screen block"
+    for m in re.finditer(r"([^{}]*)\{([^}]*backdrop-filter: none[^}]*)\}", outside):
+        assert 'data-lite="on"' in m.group(1), f"the live blur is switched off outside Lite: {m.group(1).strip()[-120:]}"
+
+
+def test_every_glass_copy_belongs_to_a_look():
+    """A retired look must not leave its glass copy behind."""
+    looks = set(_look_ids())
+    for g in (STATIC / "seasons" / "glass").iterdir():
+        assert g.suffix == ".webp" and g.stem in looks, f"seasons/glass/{g.name} belongs to no look"
+
+
+def test_lite_never_gets_glass_panes():
+    """Lite (a slow screen such as the wall's Raspberry Pi 3) keeps the plain
+    86% fill with no blur. A fixed, viewport-sized pane per card would cost it
+    more than the live blur it dropped, so every still-glass rule that turns
+    the panes on is gated on Lite being off."""
+    sup = CSS.index("@supports not (-webkit-touch-callout: none) {")
+    block = CSS[sup:CSS.index("\n}\n", sup)]
+    on = re.findall(r":root\.glass-panes[^\s{,]*", block)
+    assert len(on) >= 8, "the wide-screen block lost its selectors"
+    for sel in on:
+        assert ':not([data-lite="on"])' in sel, f"{sel} would give Lite a glass pane"
+    # ...and Lite's own plain fill is still what paints its cards
+    assert re.search(r':root\[data-lite="on"\]\[data-look\]:not\(\[data-look="none"\]\) body:not\(\.is-night\) \.wrap \{\s*'
+                     r'--glass: color-mix\(in srgb, var\(--surface\) 86%, transparent\);', CSS)
+
+
+def test_night_glass_does_not_back_every_card_with_the_ground_colour():
+    # At night the panes are hidden and a card paints its own fill. That fill is the 94% glass over the
+    # photo, as it always was: backing it with --ground made every card opaque on phones and Lite too.
+    m = re.search(r':where\(:root\[data-look\]:not\(\[data-look="none"\]\) \.is-night \.wrap\)[^{]*\{([^}]*)\}', CSS)
+    assert m, "the night card rule is missing"
+    assert m.group(1).strip() == "background: var(--glass);", m.group(1)
+
+
+def test_a_look_without_its_own_glass_copy_falls_back_to_the_photo_not_flat_ground():
+    assert re.search(r":root \{[^}]*--sn-glass: var\(--sn-scene\);", CSS, re.S), \
+        "the default --sn-glass must be the photo, so a look that forgets its copy is not a flat slab"
+
+
+def test_lite_stops_the_pane_observer_in_js_too():
+    # CSS alone left Lite paying for the panes and a body-wide observer on every render
+    assert "function glassPanesWanted()" in HUB
+    assert "attributeFilter: ['data-lite']" in HUB
+    assert re.search(r"function syncGlassPanes\(\) \{\s*if \(!glassPanesWanted\(\)\) \{\s*if \(glassObserver\)", HUB)
 
 
 def test_the_chore_form_keeps_finger_sized_targets_on_the_phone():

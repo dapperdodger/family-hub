@@ -146,6 +146,7 @@ rolls that section to a dated version via `python scripts/release.py`.
   another list, is a clean 404 and never a blind write.
 
 ### Changed
+- Seasonal looks: on the wall and on computers the frosted glass is a still, ready-blurred copy of the photo (one small `seasons/glass/` copy per look, 45 of them, made by `scripts/make-glass.py`) painted by an empty pane inside each card, instead of a live blur. Scrolling the main page with a look on no longer redraws every card each frame, and a moving bat or leaf behind a card can no longer make a row of it flash. Phones and iOS keep the live blur, night keeps its near-solid glass, and Lite never gets panes (none are made, and the page observer that keeps them is switched off while Lite is on): it keeps its plain 86% card fill. A look that forgets its glass copy falls back to its sharp photo instead of flat ground colour, and the glass copies are credited in `seasons/CREDITS.md`. (From drench44/family-hub 1.10.4 and 1.13.0; ported with a Lite gate and tests that Lite, phones and night are untouched.)
 - Settings > Seasonal looks groups its seasons (in season now, coming up, more seasons) so the list stays short as seasons are added.
 - Wall: the month grid under the agenda now grows into the screen height that is left, so the week rows are taller and less cramped when today and tomorrow are quiet (up to about 140px a week, never shorter than before); the agenda is unchanged.
 - Recipes: the Dinner card's **Full screen** button is now **Recipes** and opens the native
