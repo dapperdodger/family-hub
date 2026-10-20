@@ -11,12 +11,15 @@
      data-layout       auto | desktop       (the per-device layout CHOICE)
      data-idle-return  on | off             (per-device idle auto-return; hub.js
                                               reads it — behavioral, not visual)
-     data-season       on | off             (seasonal looks follow the calendar)
-     data-look         none | <look id>     (DERIVED from data-season + today's
-                                              date; see SEASONS below)
+     data-season       on | off             (seasonal looks show: the calendar's, or the
+                                              one kept with "Pick one" (fh.lookPin))
+     data-look         none | <look id>     (DERIVED from data-season, a pinned look
+                                              (fh.lookPin) and today's date; see
+                                              SEASONS below)
      data-drift        none | snow | petal | clover | firefly | sparkle
                                              (DERIVED, like data-look: the painting season's
-                                              registry `drift`, its one gentle kind of motion)
+                                              registry `drift`, its one gentle kind of motion;
+                                              a pinned look brings its OWN season's)
      data-lite         on | off             (Lite: a slower screen keeps the seasonal
                                               photo, drops the glass blur and the moving
                                               leaves/bats/spiders; per device, no house
@@ -459,16 +462,44 @@
     return season.looks[0].id;
   }
 
+  // A pinned look paints every day, whatever the date: looks are not locked to
+  // their season. fh.lookPin holds the look id; no key (or an id no longer in
+  // SEASONS) means "follow the calendar". lookPinMem mirrors it for this
+  // session (undefined: not touched yet, read storage; "": cleared), for the
+  // same kiosk-storage reason as lookPicks. The pin is per device, like Lite.
+  var PIN_KEY = "fh.lookPin";
+  var lookPinMem;
+  function pinnedLook() {
+    var id = lookPinMem !== undefined ? lookPinMem : readStored(PIN_KEY);
+    return id && seasonOfLook(id) ? id : null;
+  }
+  // Returns whether the key is really gone, so a caller can fall back to
+  // writing an empty value when storage refuses a remove but allows a write.
+  function removeStored(key) {
+    try {
+      window.localStorage.removeItem(key);
+      return true;
+    } catch (e) {
+      try { console.warn("family-hub: could not clear " + key + " (storage unavailable)"); } catch (e2) { /* no console */ }
+      return false;
+    }
+  }
+
   function stampSeason(v) {
     root.setAttribute("data-season", v);
   }
-  // Re-derive data-look from the season pref and the date. hub.js calls this on
-  // its clock tick, so a wall left running rolls into (and out of) a season at
-  // midnight with no reload. `date` is optional (tests pass a fixed one).
+  // Re-derive data-look from the season pref, a pinned look and the date. hub.js
+  // calls this on its clock tick, so a wall left running rolls into (and out of)
+  // a season at midnight with no reload. `date` is optional (tests pass a fixed
+  // one). A pinned look names its OWN season for the motion (data-drift): the
+  // calendar's season may be a different one (Winter's snow must not fall on a
+  // pinned Halloween look, and a pinned Winter look must still snow in July).
   function refreshLook(date) {
     var d = isDate(date) ? date : new Date();
-    var season = root.getAttribute("data-season") === "on" ? seasonFor(d) : null;
-    var look = season ? lookFor(season) : "none";
+    var on = root.getAttribute("data-season") === "on";
+    var pin = on ? pinnedLook() : null;
+    var season = on ? (pin ? seasonOfLook(pin) : seasonFor(d)) : null;
+    var look = pin || (season ? lookFor(season) : "none");
     if (root.getAttribute("data-look") !== look) root.setAttribute("data-look", look);
     var drift = season && DRIFTS.indexOf(season.drift) !== -1 ? season.drift : "none";
     if (root.getAttribute("data-drift") !== drift) root.setAttribute("data-drift", drift);
@@ -492,17 +523,31 @@
     stampSeason(v);
     refreshLook();
   }
-  // Remember a look as this device's favourite for ITS season. Choosing a look
-  // is also a clear "I want seasonal looks", so it turns the season pref on AND
-  // saves that as this device's own choice (even when a house default already
-  // stamped "on": otherwise a later house change to "off" would undo the pick).
-  // Out-of-season picks are kept and paint once their season comes round.
+  // Tapping a look shows it now and keeps it, any day of the year (a pin).
+  // It also becomes that season's favourite, so going back to the calendar
+  // paints it whenever its season comes round. Choosing a look is a clear "I
+  // want seasonal looks", so it turns the season pref on AND saves that as
+  // this device's own choice (even when a house default already stamped "on":
+  // otherwise a later house change to "off" would undo the pick).
   function setSeasonLook(lookId) {
     var season = seasonOfLook(lookId);
     if (!season) return;
     lookPicks[season.id] = lookId;
+    lookPinMem = lookId;
     seasonChosen = true;
     writeStored("fh.look." + season.id, lookId);
+    writeStored(PIN_KEY, lookId);
+    writeStored("fh.season", "on");
+    stampSeason("on");
+    refreshLook();
+  }
+  // Back to the calendar: drop the pin and turn seasonal looks on. If storage
+  // will not remove the key, an empty value says the same thing (pinnedLook
+  // treats it as no pin), so the old pin cannot come back after a reload.
+  function followCalendar() {
+    lookPinMem = "";
+    seasonChosen = true;
+    if (!removeStored(PIN_KEY)) writeStored(PIN_KEY, "");
     writeStored("fh.season", "on");
     stampSeason("on");
     refreshLook();
@@ -528,6 +573,8 @@
   window.setSeason = setSeason;
   window.stampSeason = stampSeasonIf;
   window.setSeasonLook = setSeasonLook;
+  window.followCalendar = followCalendar;
+  window.pinnedLook = pinnedLook;
   window.seasonChoiceMade = seasonChoiceMade;
   // The season whose window opens soonest after `date` (or null with no
   // seasons): lets the UI say "Fall starts Sep 1" when nothing is in season.
