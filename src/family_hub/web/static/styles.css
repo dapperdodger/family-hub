@@ -3330,6 +3330,46 @@ body.integ-off-todos .todo-slot { display: none; }
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-turkey"] {
   --accent:#826926; --accent-ink:#FFFFFF; --accent-soft:rgba(130,105,38,.13);
 }
+:root[data-look="thanksgiving-golden-hour"][data-theme][data-accent],
+.look-swatch[data-look="thanksgiving-golden-hour"] {
+  --accent:#F6B26B; --accent-ink:#2A1500; --accent-soft:rgba(246,178,107,.18);
+  --sn-scene:url("seasons/thanksgiving-golden-hour.webp"); --sn-glass:url("seasons/glass/thanksgiving-golden-hour.webp"); --sn-pos:65% 55%;
+  --sn-leaf-1:#E8963A; --sn-leaf-2:#F4BE5E; --sn-leaf-3:#C2652A; --sn-leaf-4:#F7D58A;
+}
+:root[data-look="thanksgiving-golden-hour"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-golden-hour"] {
+  --accent:#AD5F1A; --accent-ink:#FFFFFF; --accent-soft:rgba(173,95,26,.13);
+}
+:root[data-look="thanksgiving-corn-shocks"][data-theme][data-accent],
+.look-swatch[data-look="thanksgiving-corn-shocks"] {
+  --accent:#EBC27A; --accent-ink:#241700; --accent-soft:rgba(235,194,122,.18);
+  --sn-scene:url("seasons/thanksgiving-corn-shocks.webp"); --sn-glass:url("seasons/glass/thanksgiving-corn-shocks.webp"); --sn-pos:center 30%;
+  --sn-leaf-1:#D9A34A; --sn-leaf-2:#E8C070; --sn-leaf-3:#B5772E; --sn-leaf-4:#C9562E;
+}
+:root[data-look="thanksgiving-corn-shocks"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-corn-shocks"] {
+  --accent:#946515; --accent-ink:#FFFFFF; --accent-soft:rgba(148,101,21,.13);
+}
+:root[data-look="thanksgiving-vine-rows"][data-theme][data-accent],
+.look-swatch[data-look="thanksgiving-vine-rows"] {
+  --accent:#FF8A4A; --accent-ink:#2A1000; --accent-soft:rgba(255,138,74,.18);
+  --sn-scene:url("seasons/thanksgiving-vine-rows.webp"); --sn-glass:url("seasons/glass/thanksgiving-vine-rows.webp"); --sn-pos:center 65%;
+  --sn-leaf-1:#D9452A; --sn-leaf-2:#F07A2E; --sn-leaf-3:#B8321E; --sn-leaf-4:#F4B04A;
+}
+:root[data-look="thanksgiving-vine-rows"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-vine-rows"] {
+  --accent:#C04A14; --accent-ink:#FFFFFF; --accent-soft:rgba(192,74,20,.12);
+}
+:root[data-look="thanksgiving-hudson-autumn"][data-theme][data-accent],
+.look-swatch[data-look="thanksgiving-hudson-autumn"] {
+  --accent:#F2A04B; --accent-ink:#2A1200; --accent-soft:rgba(242,160,75,.18);
+  --sn-scene:url("seasons/thanksgiving-hudson-autumn.webp"); --sn-glass:url("seasons/glass/thanksgiving-hudson-autumn.webp"); --sn-pos:center 40%;
+  --sn-leaf-1:#D9502A; --sn-leaf-2:#F0A04B; --sn-leaf-3:#B83A1E; --sn-leaf-4:#F4C25A;
+}
+:root[data-look="thanksgiving-hudson-autumn"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="thanksgiving-hudson-autumn"] {
+  --accent:#AD521A; --accent-ink:#FFFFFF; --accent-soft:rgba(173,82,26,.13);
+}
 
 /* ---- Santa Lights: a Santa figure among coloured lights (Caleb Woods, CC0) ---- */
 :root[data-look="christmas-santa"][data-theme][data-accent],
@@ -3362,6 +3402,33 @@ body.integ-off-todos .todo-slot { display: none; }
 :root[data-look="christmas-snowmen"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
 :root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-snowmen"] {
   --accent:#92612A; --accent-ink:#FFFFFF; --accent-soft:rgba(146,97,42,.13);
+}
+:root[data-look="christmas-woodsmoke"][data-theme][data-accent],
+.look-swatch[data-look="christmas-woodsmoke"] {
+  --accent:#F0939A; --accent-ink:#2A0A0E; --accent-soft:rgba(240,147,154,.18);
+  --sn-scene:url("seasons/christmas-woodsmoke.webp"); --sn-glass:url("seasons/glass/christmas-woodsmoke.webp"); --sn-pos:center 45%;
+}
+:root[data-look="christmas-woodsmoke"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-woodsmoke"] {
+  --accent:#A52B38; --accent-ink:#FFFFFF; --accent-soft:rgba(165,43,56,.13);
+}
+:root[data-look="christmas-sleigh-ride"][data-theme][data-accent],
+.look-swatch[data-look="christmas-sleigh-ride"] {
+  --accent:#EBC77B; --accent-ink:#241A00; --accent-soft:rgba(235,199,123,.18);
+  --sn-scene:url("seasons/christmas-sleigh-ride.webp"); --sn-glass:url("seasons/glass/christmas-sleigh-ride.webp"); --sn-pos:35% center;
+}
+:root[data-look="christmas-sleigh-ride"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-sleigh-ride"] {
+  --accent:#866013; --accent-ink:#FFFFFF; --accent-soft:rgba(134,96,19,.13);
+}
+:root[data-look="christmas-pink-dawn"][data-theme][data-accent],
+.look-swatch[data-look="christmas-pink-dawn"] {
+  --accent:#F18C95; --accent-ink:#2A0A0E; --accent-soft:rgba(241,140,149,.18);
+  --sn-scene:url("seasons/christmas-pink-dawn.webp"); --sn-glass:url("seasons/glass/christmas-pink-dawn.webp"); --sn-pos:center 60%;
+}
+:root[data-look="christmas-pink-dawn"][data-accent]:is([data-theme="light"],[data-theme="soft"]),
+:root:is([data-theme="light"],[data-theme="soft"]) .look-swatch[data-look="christmas-pink-dawn"] {
+  --accent:#A52B38; --accent-ink:#FFFFFF; --accent-soft:rgba(165,43,56,.13);
 }
 
 /* ---- Sparkler: a sparkler throwing light in the dark (Bhushan Sadani, CC0) ---- */

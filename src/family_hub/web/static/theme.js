@@ -323,6 +323,9 @@
       { id: "christmas-santa", name: "Santa Lights", blurb: "A Santa figure among coloured lights", credit: "Photo by Caleb Woods", default: true },
       { id: "christmas-village", name: "Gingerbread Village", blurb: "A tiny gingerbread village glowing in the dark", credit: "Photo by Nathan Anderson" },
       { id: "christmas-snowmen", name: "Snowmen", blurb: "Two snowmen among warm lights", credit: "Photo by Jeffrey Wegrzyn" },
+      { id: "christmas-woodsmoke", name: "Woodsmoke", blurb: "An old cabin in falling snow, smoke from the chimney", credit: "Photo by Ryan Graybill" },
+      { id: "christmas-sleigh-ride", name: "Sleigh Ride", blurb: "Sleighs through a frosted pink town, 1916", credit: "Painting by Boris Kustodiev" },
+      { id: "christmas-pink-dawn", name: "Pink Dawn", blurb: "A snowy patrol cabin under a pink sunrise", credit: "Photo by the National Park Service" },
     ] },
     { id: "valentines", name: "Valentine's Day", from: [2, 1], to: [2, 14], drift: "petal", looks: [
       { id: "valentines-bouquet", name: "Pink Bouquet", blurb: "A bouquet of pale pink roses", credit: "Photo by Caroline Attwood", default: true },
@@ -381,6 +384,10 @@
       { id: "thanksgiving-cranberries", name: "Cranberry Harvest", blurb: "A cranberry bog turned red at harvest", credit: "Photo by Keith Weller, USDA" },
       { id: "thanksgiving-pumpkin-bowl", name: "Pumpkin Bowl", blurb: "A warm bowl of pumpkin at the farmers market", credit: "Photo by USDA" },
       { id: "thanksgiving-turkey", name: "Wild Turkey", blurb: "A wild turkey on the rocks", credit: "Photo by the U.S. Fish and Wildlife Service" },
+      { id: "thanksgiving-golden-hour", name: "Golden Hour", blurb: "Hay bales as the sun goes down", credit: "Photo by Annie Spratt" },
+      { id: "thanksgiving-corn-shocks", name: "Corn Shocks", blurb: "Corn shocks by a white farmhouse", credit: "Photo by Jeff the quiet" },
+      { id: "thanksgiving-vine-rows", name: "Vine Rows", blurb: "Red and orange rows on an autumn hillside", credit: "Photo by Lukas Budimaier" },
+      { id: "thanksgiving-hudson-autumn", name: "Hudson Autumn", blurb: "Red and gold trees over the Hudson, 1860", credit: "Painting by Jasper Cropsey" },
     ] },
     { id: "fall", name: "Fall", from: [9, 1], to: [11, 30], looks: [
       { id: "fall-aspen-grove", name: "Aspen Grove", blurb: "Sunlit gold under a blue sky", credit: "Photo by Patrick Myers, NPS", default: true },

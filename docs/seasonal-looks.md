@@ -12,7 +12,7 @@ This document is the standard every look is held to. It exists because the
 first three attempts at fall missed, for reasons worth not repeating. Read it
 before adding a season, a holiday, or anything else.
 
-**Shipped so far:** 14 seasons and 45 looks. The broad ones: fall (Sep 1 to
+**Shipped so far:** 14 seasons and 52 looks. The broad ones: fall (Sep 1 to
 Nov 30), Halloween (October), winter (Dec 1 to Feb 29), spring (Mar 1 to May
 31) and summer (Jun 1 to Aug 31), so every day of the year paints something.
 On top of them nine holidays: New Year's, Christmas, Valentine's Day, St
